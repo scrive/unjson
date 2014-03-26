@@ -15,12 +15,18 @@ import System.IO
 -- As an example we will use a hypothetical configuration data.
 -- There are some mandatory fields and some optional fields.
 data Konfig =
-     Konfig { konfigHostname :: Text.Text
-            , konfigPort     :: Int
-            , konfigUsername :: Maybe Text.Text
+     Konfig { konfigHostname    :: Text.Text
+            , konfigPort        :: Int
+            , konfigUsername    :: Maybe Text.Text
+            , konfigCredentials :: Credentials
             }
   deriving (Eq,Ord,Show,Typeable)
 
+data Credentials =
+     Credentials { credentialsUsername :: Text.Text
+                 , credentialsPassword :: Text.Text
+                 }
+  deriving (Eq,Ord,Show,Typeable)
 
 gText (Aeson.String s) = Result s []
 gText _ = Result msg [msg]
@@ -34,21 +40,29 @@ gInt _ = Result (error msg) [msg]
   where
     msg = "trying to get a string from something that is not a number, sorry"
 
+unjsonKonfig :: UnjsonX Konfig
 unjsonKonfig = pure Konfig
            <*> fieldBy gText "hostname" "docstring for hostname"
            <*> fieldDefBy gInt 80 "port" "docstring for port"
-           <*> fieldOptBy gText "username" "docstring for username"
+           <*> fieldOptBy gText "comment" "docstring for comment"
+           <*> field "credentials" "docstring fro credentials" unjsonCredentials
+
+unjsonCredentials :: UnjsonX Credentials
+unjsonCredentials = pure Credentials
+                    <*> fieldBy gText "username" "docstring for credentials username"
+                    <*> fieldBy gText "password" "docstring for credentials password"
+
 
 parsedKonfig = parse unjsonKonfig undefined
 
-json1 :: Aeson.Value
-Just json1 = Aeson.decode "{\"hostname\": \"www.example.com\", \"port\": 12345, \"username\": \"user1\"}"
+json1 :: Maybe Aeson.Value
+json1 = Aeson.decode "{\"hostname\": \"www.example.com\", \"port\": 12345, \"comment\": \"nice server\"}"
 
-json2 :: Aeson.Value
-Just json2 = Aeson.decode "{\"hostname\": \"www.example.com\", \"port\": 12345 }"
+json2 :: Maybe Aeson.Value
+json2 = Aeson.decode "{\"hostname\": \"www.example.com\", \"port\": 12345 }"
 
-json3 :: Aeson.Value
-Just json3 = Aeson.decode "{\"hostname\": \"www.example.com\" }"
+json3 :: Maybe Aeson.Value
+json3 = Aeson.decode "{\"hostname\": \"www.example.com\" }"
 
 main = do
     print (document unjsonKonfig)
