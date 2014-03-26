@@ -56,7 +56,7 @@ unjsonCredentials = pure Credentials
 parsedKonfig = parse unjsonKonfig undefined
 
 json1 :: Maybe Aeson.Value
-json1 = Aeson.decode "{\"hostname\": \"www.example.com\", \"port\": 12345, \"comment\": \"nice server\"}"
+json1 = Aeson.decode "{\"hostname\": \"www.example.com\", \"port\": 12345, \"comment\": \"nice server\", \"credentials\": { \"username\": \"usr1\", \"password\": \"pass1\" }"
 
 json2 :: Maybe Aeson.Value
 json2 = Aeson.decode "{\"hostname\": \"www.example.com\", \"port\": 12345 }"
