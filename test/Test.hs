@@ -36,7 +36,7 @@ gInt _ = Result (error msg) [msg]
 
 unjsonKonfig = pure Konfig
            <*> fieldBy gText "hostname" "docstring for hostname"
-           <*> fieldBy gInt "port" "docstring for port"
+           <*> fieldDefBy gInt 80 "port" "docstring for port"
            <*> fieldOptBy gText "username" "docstring for username"
 
 parsedKonfig = parse unjsonKonfig undefined

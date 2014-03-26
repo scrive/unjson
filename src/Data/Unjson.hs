@@ -1,6 +1,7 @@
 module Data.Unjson
   ( fieldBy
   , fieldOptBy
+  , fieldDefBy
   , Documentation(..)
   , document
   , parse
@@ -49,6 +50,12 @@ fieldOptBy f name docstring = liftAp (Field name docstring f2)
   where
     f2 (Just v) = fmap Just (f v)
     f2 Nothing = Result Nothing []
+
+fieldDefBy :: (Aeson.Value -> Result a) -> a -> Text.Text -> Text.Text -> UnjsonX a
+fieldDefBy f def name docstring = liftAp (Field name docstring f2)
+  where
+    f2 (Just v) = f v
+    f2 Nothing = Result def []
 
 documentF :: UnjsonX' a -> Documentation
 documentF (Field key docstring p) = Documentation "" [(key,Documentation docstring [])]
