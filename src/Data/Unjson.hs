@@ -9,22 +9,20 @@ import qualified Data.Aeson as Aeson
 import qualified Data.Text as Text
 import Data.Typeable
 import Control.Applicative
+import Control.Applicative.Free
 
 class Unjson a where
   unjson :: UnjsonX a
 
-data UnjsonX a = UnjsonX
+data UnjsonX' a
+  = Field Text.Text
+  | FieldOpt Text.Text
   deriving (Eq, Ord, Show, Typeable)
 
-instance Functor UnjsonX where
-  fmap _f UnjsonX = UnjsonX
+type UnjsonX = Ap UnjsonX'
 
-instance Applicative UnjsonX where
-  pure _a = UnjsonX
-  _a <*> _b = UnjsonX
+field :: Text.Text -> UnjsonX a
+field name = liftAp (Field name)
 
-field :: String -> UnjsonX a
-field _name = UnjsonX
-
-fieldOpt :: String -> UnjsonX (Maybe a)
-fieldOpt _name = UnjsonX
+fieldOpt :: Text.Text -> UnjsonX (Maybe a)
+fieldOpt name = liftAp (FieldOpt name)
