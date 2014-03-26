@@ -18,7 +18,19 @@ import Control.Applicative.Free
 import Data.Scientific
 import Data.Attoparsec.Number
 import qualified Data.HashMap.Strict as HashMap
+import Control.Exception
 
+data PathElem = PathElemKey Text.Text
+              | PathElemIndex Int
+  deriving (Typeable, Eq, Ord, Show)
+
+type Path = [PathElem]
+
+data Anchored a = Anchored Path a
+  deriving (Typeable, Functor, Eq, Ord, Show)
+
+
+instance (Typeable a, Show a) => Exception (Anchored a)
 
 data UnjsonX' a
   = Field Text.Text Text.Text (Maybe Aeson.Value -> Result a)
