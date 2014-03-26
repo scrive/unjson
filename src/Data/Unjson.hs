@@ -50,12 +50,14 @@ data Documentation
                   [(Text.Text,Documentation)]  -- ^ description of its parts, key-value
   deriving (Eq, Ord, Show, Typeable)
 
+resultWithThrow :: Text.Text -> Result a
+resultWithThrow msg = Result (throw msg) [msg]
 
 fieldBy :: (Aeson.Value -> Result a) -> Text.Text -> Text.Text -> UnjsonX a
 fieldBy f name docstring = liftAp (Field name docstring f2)
   where
     f2 (Just v) = f v
-    f2 Nothing = Result (error "key does not exists in object") ["key does not exists in object"]
+    f2 Nothing = resultWithThrow "key does not exists in object"
 
 fieldOptBy :: (Aeson.Value -> Result a) -> Text.Text -> Text.Text -> UnjsonX (Maybe a)
 fieldOptBy f name docstring = liftAp (Field name docstring f2)
@@ -80,7 +82,7 @@ document (Ap a b) = Documentation (a1 <> b1) (a2 <> b2)
     Documentation b1 b2 = document b
 
 parseF (Field key _ ap) (Aeson.Object o) = ap (HashMap.lookup key o)
-parseF _ _ = Result (error "trying to lookup a key in non-object") ["trying to lookup a key in non-object"]
+parseF _ _ = resultWithThrow "trying to lookup a key in non-object"
 
 parse :: UnjsonX a -> Aeson.Value -> Result a
 parse (Pure v) _ = Result v []
