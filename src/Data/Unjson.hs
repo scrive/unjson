@@ -1,5 +1,6 @@
 module Data.Unjson
   ( fieldBy
+  , fieldOptBy
   , Documentation(..)
   , document
   , parse
@@ -19,13 +20,8 @@ import qualified Data.HashMap.Strict as HashMap
 
 
 data UnjsonX' a
-  = Field Text.Text Text.Text (Aeson.Value -> Result a)
+  = Field Text.Text Text.Text (Maybe Aeson.Value -> Result a)
   deriving (Typeable, Functor)
-
-{-
-instance Functor UnjsonX' where
-  fmap f (Field a b k) = Field a b ((fmap . fmap) f k)
--}
 
 type UnjsonX a = Ap UnjsonX' a
 
@@ -43,11 +39,19 @@ data Documentation
 
 
 fieldBy :: (Aeson.Value -> Result a) -> Text.Text -> Text.Text -> UnjsonX a
-fieldBy f name docstring = liftAp (Field name docstring f)
+fieldBy f name docstring = liftAp (Field name docstring f2)
+  where
+    f2 (Just v) = f v
+    f2 Nothing = Result (error "key does not exists in object") ["key does not exists in object"]
+
+fieldOptBy :: (Aeson.Value -> Result a) -> Text.Text -> Text.Text -> UnjsonX (Maybe a)
+fieldOptBy f name docstring = liftAp (Field name docstring f2)
+  where
+    f2 (Just v) = fmap Just (f v)
+    f2 Nothing = Result Nothing []
 
 documentF :: UnjsonX' a -> Documentation
 documentF (Field key docstring p) = Documentation "" [(key,Documentation docstring [])]
---documentF (FieldOpt key docstring) = Documentation "" [(key,Documentation docstring [])]
 
 document :: UnjsonX a -> Documentation
 document (Pure x) = Documentation "" []
@@ -56,13 +60,12 @@ document (Ap a b) = Documentation (a1 <> b1) (a2 <> b2)
     Documentation a1 a2 = documentF a
     Documentation b1 b2 = document b
 
+parseF (Field key _ ap) (Aeson.Object o) = ap (HashMap.lookup key o)
+parseF _ _ = Result (error "trying to lookup a key in non-object") ["trying to lookup a key in non-object"]
+
 parse :: UnjsonX a -> Aeson.Value -> Result a
 parse (Pure v) _ = Result v []
-parse (Ap (Field key _ ap) b) v = Result (bv av) (aproblems <> bproblems)
+parse (Ap ff b) v = Result (bv av) (aproblems <> bproblems)
   where
-    Result av aproblems = case v of
-                            Aeson.Object o -> case HashMap.lookup key o of
-                                                Just v2 -> ap v2
-                                                Nothing -> Result (error "key does not exists in object") ["key does not exists in object"]
-                            _ -> Result (error "trying to lookup a key in non-object") ["trying to lookup a key in non-object"]
+    Result av aproblems = parseF ff v
     Result bv bproblems = parse b v
