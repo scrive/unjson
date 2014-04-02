@@ -31,17 +31,15 @@ data Credentials =
 
 unjsonKonfig :: ValueDef Konfig
 unjsonKonfig = ObjectValueDef (pure Konfig
-           <*> liftAp (field "hostname" liftAesonFromJSON)
-           <*> liftAp (fieldDef "port" 80 liftAesonFromJSON)
-           <*> liftAp (field "credentials" unjsonCredentials)
-           <*> liftAp (fieldOpt "comment" liftAesonFromJSON))
+           <*> field "hostname" liftAesonFromJSON
+           <*> fieldDef "port" 80 liftAesonFromJSON
+           <*> field "credentials" unjsonCredentials
+           <*> fieldOpt "comment" liftAesonFromJSON)
 
 unjsonCredentials :: ValueDef Credentials
 unjsonCredentials = ObjectValueDef (pure Credentials
-                                    <*> liftAp (field "username" liftAesonFromJSON)
-                                    <*> liftAp (field "password" liftAesonFromJSON))
-
-parsedKonfig = parse unjsonKonfig undefined
+                                    <*> field "username" liftAesonFromJSON
+                                    <*> field "password" liftAesonFromJSON)
 
 json1 :: Aeson.Value
 Just json1 = Aeson.decode "{\"hostname\": \"www.example.com\", \"port\": 12345, \"comment\": \"nice server\", \"credentials\": { \"username\": \"usr1\", \"password\": \"pass1\" } }"

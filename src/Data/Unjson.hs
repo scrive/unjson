@@ -112,14 +112,14 @@ lookupByFieldDef (Anchored path v) (FieldOptDef name valuedef)
       Just x  -> fmap Just (parse valuedef (Anchored (path ++ [PathElemKey name]) x))
       Nothing -> Result Nothing []
 
-field :: Text.Text -> ValueDef a -> FieldDef a
-field key valuedef = FieldReqDef key valuedef
+field :: Text.Text -> ValueDef a -> Ap FieldDef a
+field key valuedef = liftAp (FieldReqDef key valuedef)
 
-fieldOpt :: Text.Text -> ValueDef a -> FieldDef (Maybe a)
-fieldOpt key valuedef = FieldOptDef key valuedef
+fieldOpt :: Text.Text -> ValueDef a -> Ap FieldDef (Maybe a)
+fieldOpt key valuedef = liftAp (FieldOptDef key valuedef)
 
-fieldDef :: Text.Text -> a -> ValueDef a -> FieldDef a
-fieldDef key a valuedef = FieldDefDef key a valuedef
+fieldDef :: Text.Text -> a -> ValueDef a -> Ap FieldDef a
+fieldDef key a valuedef = liftAp (FieldDefDef key a valuedef)
 
 arrayOf :: ValueDef a -> ValueDef [a]
 arrayOf valuedef = ArrayValueDef valuedef
