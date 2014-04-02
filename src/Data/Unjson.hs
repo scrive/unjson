@@ -80,10 +80,36 @@ resultWithThrow msg = Result (throw msg) [msg]
 
 ----------------------------------------
 
+class Unjson a where
+  valueDef :: ValueDef a
+
+instance (Unjson a) => Unjson [a] where
+  valueDef = arrayOf valueDef
+
+instance Unjson Text.Text where
+  valueDef = liftAesonFromJSON
+
 data ValueDef a where
   SimpleValueDef :: (Anchored Aeson.Value -> Result k) -> ValueDef k
   ArrayValueDef  :: ValueDef k -> ValueDef [k]
   ObjectValueDef :: Ap FieldDef k -> ValueDef k
+
+class IsValueDef a where
+  type IsValueDefResult a
+  toValueDef :: a -> ValueDef (IsValueDefResult a)
+
+instance IsValueDef (Anchored Aeson.Value -> Result k) where
+  type IsValueDefResult (Anchored Aeson.Value -> Result k) = k
+  toValueDef = SimpleValueDef
+
+instance IsValueDef (Ap FieldDef k) where
+  type IsValueDefResult (Ap FieldDef k) = k
+  toValueDef = ObjectValueDef
+
+instance IsValueDef (ValueDef k) where
+  type IsValueDefResult (ValueDef k) = k
+  toValueDef = id
+
 
 data FieldDef a where
   FieldReqDef :: Text.Text -> ValueDef a -> FieldDef a
@@ -91,11 +117,14 @@ data FieldDef a where
   FieldDefDef :: Text.Text -> a -> ValueDef a -> FieldDef a
 
 
-parse :: ValueDef a -> Anchored Aeson.Value -> Result a
-parse (SimpleValueDef f) v = f v
-parse (ArrayValueDef f) (Anchored path (Aeson.Array v))
-  = sequenceA (zipWith (\v i -> parse f (Anchored (path ++ [PathElemIndex i]) v)) (Vector.toList v) [0..])
-parse (ObjectValueDef f) (Anchored path (Aeson.Object v))
+parse :: (IsValueDef d) => d -> Anchored Aeson.Value -> Result (IsValueDefResult d)
+parse d = parse1 (toValueDef d)
+
+parse1 :: ValueDef a -> Anchored Aeson.Value -> Result a
+parse1 (SimpleValueDef f) v = f v
+parse1 (ArrayValueDef f) (Anchored path (Aeson.Array v))
+  = sequenceA (zipWith (\v i -> parse1 f (Anchored (path ++ [PathElemIndex i]) v)) (Vector.toList v) [0..])
+parse1 (ObjectValueDef f) (Anchored path (Aeson.Object v))
   = runAp (lookupByFieldDef (Anchored path v)) f
 
 lookupByFieldDef :: Anchored Aeson.Object -> FieldDef a -> Result a
@@ -112,17 +141,38 @@ lookupByFieldDef (Anchored path v) (FieldOptDef name valuedef)
       Just x  -> fmap Just (parse valuedef (Anchored (path ++ [PathElemKey name]) x))
       Nothing -> Result Nothing []
 
-field :: Text.Text -> ValueDef a -> Ap FieldDef a
-field key valuedef = liftAp (FieldReqDef key valuedef)
+fieldBy :: (IsValueDef d) => Text.Text -> d -> Ap FieldDef (IsValueDefResult d)
+fieldBy key valuedef = liftAp (FieldReqDef key (toValueDef valuedef))
 
-fieldOpt :: Text.Text -> ValueDef a -> Ap FieldDef (Maybe a)
-fieldOpt key valuedef = liftAp (FieldOptDef key valuedef)
+field :: (Unjson a) => Text.Text -> Ap FieldDef a
+field key = fieldBy key valueDef
 
-fieldDef :: Text.Text -> a -> ValueDef a -> Ap FieldDef a
-fieldDef key a valuedef = liftAp (FieldDefDef key a valuedef)
+field' :: (Aeson.FromJSON a) => Text.Text -> Text.Text -> Ap FieldDef a
+field' key docstring = fieldBy key liftAesonFromJSON
 
-arrayOf :: ValueDef a -> ValueDef [a]
-arrayOf valuedef = ArrayValueDef valuedef
+fieldOptBy :: (IsValueDef d) => Text.Text -> d -> Ap FieldDef (Maybe (IsValueDefResult d))
+fieldOptBy key valuedef = liftAp (FieldOptDef key (toValueDef valuedef))
+
+fieldOpt :: (Unjson a) => Text.Text -> Ap FieldDef (Maybe a)
+fieldOpt key = fieldOptBy key valueDef
+
+fieldOpt' :: (Aeson.FromJSON a) => Text.Text -> Text.Text -> Ap FieldDef (Maybe a)
+fieldOpt' key docstring = fieldOptBy key liftAesonFromJSON
+
+fieldDefBy :: (IsValueDef d) => Text.Text -> (IsValueDefResult d) -> d -> Ap FieldDef (IsValueDefResult d)
+fieldDefBy key a valuedef = liftAp (FieldDefDef key a (toValueDef valuedef))
+
+fieldDef :: (Unjson a) => Text.Text -> a -> Ap FieldDef a
+fieldDef key a = fieldDefBy key a valueDef
+
+fieldDef' :: (Aeson.FromJSON a) => Text.Text -> a -> Text.Text -> Ap FieldDef a
+fieldDef' key def docstring = fieldDefBy key def liftAesonFromJSON
+
+arrayOf :: (IsValueDef d) => d -> ValueDef [(IsValueDefResult d)]
+arrayOf valuedef = ArrayValueDef (toValueDef valuedef)
+
+arrayOf' :: (Aeson.FromJSON a) => ValueDef [a]
+arrayOf' = arrayOf liftAesonFromJSON
 
 liftAesonFromJSON :: (Aeson.FromJSON a) => ValueDef a
 liftAesonFromJSON = SimpleValueDef (\(Anchored path value) ->

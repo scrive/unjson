@@ -19,7 +19,10 @@ data Konfig =
      Konfig { konfigHostname    :: Text.Text
             , konfigPort        :: Int
             , konfigCredentials :: Credentials
-            , konfigComment    :: Maybe Text.Text
+            , konfigCredentials2 :: Credentials
+            , konfigComment     :: Maybe Text.Text
+            , konfigAlternates  :: Maybe [Text.Text]
+            , konfigAlternates2 :: Maybe [Text.Text]
             }
   deriving (Eq,Ord,Show,Typeable)
 
@@ -29,17 +32,28 @@ data Credentials =
                  }
   deriving (Eq,Ord,Show,Typeable)
 
-unjsonKonfig :: ValueDef Konfig
-unjsonKonfig = ObjectValueDef (pure Konfig
-           <*> field "hostname" liftAesonFromJSON
-           <*> fieldDef "port" 80 liftAesonFromJSON
-           <*> field "credentials" unjsonCredentials
-           <*> fieldOpt "comment" liftAesonFromJSON)
+unjsonKonfig :: Ap FieldDef Konfig
+unjsonKonfig = pure Konfig
+           <*> field' "hostname"
+                 "The hostname this service is visible as"
+           <*> fieldDef' "port" 80
+                 "Port to listen on"
+           <*> fieldBy "credentials" unjsonCredentials
+           <*> field "credentials2"
+           <*> fieldOpt' "comment"
+                 "Optional comment, free text"
+           <*> fieldOptBy "alternates" arrayOf'
+           <*> fieldOpt "alternates"
 
-unjsonCredentials :: ValueDef Credentials
-unjsonCredentials = ObjectValueDef (pure Credentials
-                                    <*> field "username" liftAesonFromJSON
-                                    <*> field "password" liftAesonFromJSON)
+unjsonCredentials :: Ap FieldDef Credentials
+unjsonCredentials = pure Credentials
+                    <*> field' "username"
+                          "Name of the user"
+                    <*> field' "password"
+                          "Password for the user"
+
+instance Unjson Credentials where
+  valueDef = toValueDef unjsonCredentials
 
 json1 :: Aeson.Value
 Just json1 = Aeson.decode "{\"hostname\": \"www.example.com\", \"port\": 12345, \"comment\": \"nice server\", \"credentials\": { \"username\": \"usr1\", \"password\": \"pass1\" } }"
