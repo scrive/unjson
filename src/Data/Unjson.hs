@@ -89,10 +89,32 @@ instance (Unjson a) => Unjson [a] where
 instance Unjson Text.Text where
   valueDef = liftAesonFromJSON
 
+instance (Unjson a,Unjson b) => Unjson (a,b) where
+  valueDef = TupleValueDef $ renumber $
+               pure (,)
+               <*> field ""
+               <*> field ""
+
+instance (Unjson a,Unjson b,Unjson c) => Unjson (a,b,c) where
+  valueDef = TupleValueDef $ renumber $
+               pure (,,)
+               <*> field ""
+               <*> field ""
+               <*> field ""
+
+instance (Unjson a,Unjson b,Unjson c,Unjson d) => Unjson (a,b,c,d) where
+  valueDef = TupleValueDef $ renumber $
+               pure (,,,)
+               <*> field ""
+               <*> field ""
+               <*> field ""
+               <*> field ""
+
 data ValueDef a where
   SimpleValueDef :: (Anchored Aeson.Value -> Result k) -> ValueDef k
   ArrayValueDef  :: ValueDef k -> ValueDef [k]
   ObjectValueDef :: Ap FieldDef k -> ValueDef k
+  TupleValueDef  :: Ap TupleFieldDef k -> ValueDef k
 
 class IsValueDef a where
   type IsValueDefResult a
@@ -116,6 +138,25 @@ data FieldDef a where
   FieldOptDef :: Text.Text -> ValueDef a -> FieldDef (Maybe a)
   FieldDefDef :: Text.Text -> a -> ValueDef a -> FieldDef a
 
+data TupleFieldDef a where
+  TupleFieldReqDef :: Int -> ValueDef a -> TupleFieldDef a
+  TupleFieldOptDef :: Int -> ValueDef a -> TupleFieldDef (Maybe a)
+  TupleFieldDefDef :: Int -> a -> ValueDef a -> TupleFieldDef a
+
+renumber :: Ap FieldDef a -> Ap TupleFieldDef a
+renumber x = renumber' 0 x
+
+renumber' :: Int -> Ap FieldDef a -> Ap TupleFieldDef a
+renumber' n (Pure z) = Pure z
+renumber' n (Ap c r) = Ap (ren n c) (renumber' (n+1) r)
+
+countAp :: Ap x a -> Int
+countAp (Pure _) = 0
+countAp (Ap _ r) = 1 + countAp r
+
+ren n (FieldReqDef _ b) = TupleFieldReqDef n b
+ren n (FieldOptDef _ b) = TupleFieldOptDef n b
+ren n (FieldDefDef _ d b) = TupleFieldDefDef n d b
 
 parse :: (IsValueDef d) => d -> Anchored Aeson.Value -> Result (IsValueDefResult d)
 parse d = parse1 (toValueDef d)
@@ -126,6 +167,8 @@ parse1 (ArrayValueDef f) (Anchored path (Aeson.Array v))
   = sequenceA (zipWith (\v i -> parse1 f (Anchored (path ++ [PathElemIndex i]) v)) (Vector.toList v) [0..])
 parse1 (ObjectValueDef f) (Anchored path (Aeson.Object v))
   = runAp (lookupByFieldDef (Anchored path v)) f
+parse1 (TupleValueDef f) (Anchored path (Aeson.Array v))
+  = runAp (lookupByTupleFieldDef (Anchored path v)) f
 
 lookupByFieldDef :: Anchored Aeson.Object -> FieldDef a -> Result a
 lookupByFieldDef (Anchored path v) (FieldReqDef name valuedef)
@@ -139,6 +182,20 @@ lookupByFieldDef (Anchored path v) (FieldDefDef name def valuedef)
 lookupByFieldDef (Anchored path v) (FieldOptDef name valuedef)
   = case HashMap.lookup name v of
       Just x  -> fmap Just (parse valuedef (Anchored (path ++ [PathElemKey name]) x))
+      Nothing -> Result Nothing []
+
+lookupByTupleFieldDef :: Anchored Aeson.Array -> TupleFieldDef a -> Result a
+lookupByTupleFieldDef (Anchored path v) (TupleFieldReqDef idx valuedef)
+  = case v Vector.!? idx of
+      Just x  -> parse valuedef (Anchored (path ++ [PathElemIndex idx]) x)
+      Nothing -> resultWithThrow (Anchored (path ++ [PathElemIndex idx]) "missing key")
+lookupByTupleFieldDef (Anchored path v) (TupleFieldDefDef idx def valuedef)
+  = case v Vector.!? idx of
+      Just x  -> parse valuedef (Anchored (path ++ [PathElemIndex idx]) x)
+      Nothing -> Result def []
+lookupByTupleFieldDef (Anchored path v) (TupleFieldOptDef idx valuedef)
+  = case v Vector.!? idx of
+      Just x  -> fmap Just (parse valuedef (Anchored (path ++ [PathElemIndex idx]) x))
       Nothing -> Result Nothing []
 
 fieldBy :: (IsValueDef d) => Text.Text -> d -> Ap FieldDef (IsValueDefResult d)

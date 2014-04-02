@@ -56,7 +56,7 @@ instance Unjson Credentials where
   valueDef = toValueDef unjsonCredentials
 
 json1 :: Aeson.Value
-Just json1 = Aeson.decode "{\"hostname\": \"www.example.com\", \"port\": 12345, \"comment\": \"nice server\", \"credentials\": { \"username\": \"usr1\", \"password\": \"pass1\" } }"
+Just json1 = Aeson.decode "{\"hostname\": \"www.example.com\", \"arr\": [\"1\",\"2\"], \"port\": 12345, \"comment\": \"nice server\", \"credentials\": { \"username\": \"usr1\", \"password\": \"pass1\" } }"
 
 json2 :: Aeson.Value
 Just json2 = Aeson.decode "{\"hostname\": \"www.example.com\", \"port\": 12345 }"
@@ -69,6 +69,7 @@ issues (Result _ is) = is
 main = do
 
     --print (document unjsonKonfig)
+    print (parse (field "arr") (Anchored [] json1) :: Result (Text.Text,Text.Text))
     print (parse unjsonKonfig (Anchored [] json1))
     print (issues (parse unjsonKonfig (Anchored [] json2)))
     print (parse unjsonKonfig (Anchored [] json2))
