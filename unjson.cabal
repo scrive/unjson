@@ -26,12 +26,16 @@ library
   build-depends:       scientific
   build-depends:       attoparsec
   build-depends:       unordered-containers
+  build-depends:       vector
   hs-source-dirs:      src
   default-language:    Haskell2010
   extensions:          DeriveDataTypeable,
                        OverloadedStrings,
                        NoMonomorphismRestriction,
-                       DeriveFunctor
+                       DeriveFunctor,
+                       RankNTypes,
+                       FlexibleContexts,
+                       GADTs
 
 Test-Suite test
   type:                exitcode-stdio-1.0
@@ -40,10 +44,15 @@ Test-Suite test
   build-depends:       text
   build-depends:       aeson
   build-depends:       unjson
+  build-depends:       free
   build-depends:       scientific
   build-depends:       attoparsec
   build-depends:       unordered-containers
+  build-depends:       vector
   extensions:          DeriveDataTypeable,
                        OverloadedStrings,
                        NoMonomorphismRestriction,
-                       DeriveFunctor
+                       DeriveFunctor,
+                       RankNTypes,
+                       FlexibleContexts,
+                       GADTs
