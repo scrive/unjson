@@ -1,6 +1,24 @@
 module Data.Unjson
 where
 
+
+{-
+
+
+* IsValueDef is overcomplicated, mix of explicit function and Unjson seems to hit better balance
+* parse is dependent on valuedef, typeclass would be nice after all
+* testsiote is needed
+* documentation should go next to last, last is parsing function should it be needed
+* parsing function should be explicit, so that there is no misunderstanding about it
+* documentation should go on next line, after key name and optional default default is usually short constant or reference to a defined variable
+* we could support tuples that have optional parameters at the end... maight be too confusing though
+* need to support the 'update' mode with combinig function
+* need to support the 'update' mode with null as reset to default functionality
+* write more documentation
+
+
+-}
+
 import qualified Data.Aeson as Aeson
 import qualified Data.Text as Text
 import qualified Data.Vector as Vector
@@ -90,25 +108,115 @@ instance Unjson Text.Text where
   valueDef = liftAesonFromJSON
 
 instance (Unjson a,Unjson b) => Unjson (a,b) where
-  valueDef = TupleValueDef $ renumber $
-               pure (,)
-               <*> field ""
-               <*> field ""
+  valueDef = TupleValueDef
+                 $ pure (,)
+               <*> liftAp (TupleFieldReqDef 0 valueDef)
+               <*> liftAp (TupleFieldReqDef 1 valueDef)
 
 instance (Unjson a,Unjson b,Unjson c) => Unjson (a,b,c) where
-  valueDef = TupleValueDef $ renumber $
-               pure (,,)
-               <*> field ""
-               <*> field ""
-               <*> field ""
+  valueDef = TupleValueDef
+               $ pure (,,)
+               <*> liftAp (TupleFieldReqDef 0 valueDef)
+               <*> liftAp (TupleFieldReqDef 1 valueDef)
+               <*> liftAp (TupleFieldReqDef 2 valueDef)
 
 instance (Unjson a,Unjson b,Unjson c,Unjson d) => Unjson (a,b,c,d) where
-  valueDef = TupleValueDef $ renumber $
-               pure (,,,)
-               <*> field ""
-               <*> field ""
-               <*> field ""
-               <*> field ""
+  valueDef = TupleValueDef
+               $ pure (,,,)
+               <*> liftAp (TupleFieldReqDef 0 valueDef)
+               <*> liftAp (TupleFieldReqDef 1 valueDef)
+               <*> liftAp (TupleFieldReqDef 2 valueDef)
+               <*> liftAp (TupleFieldReqDef 3 valueDef)
+
+instance (Unjson a,Unjson b,Unjson c,Unjson d
+         ,Unjson e) => Unjson (a,b,c,d
+                              ,e) where
+  valueDef = TupleValueDef
+               $ pure (,,,,)
+               <*> liftAp (TupleFieldReqDef 0 valueDef)
+               <*> liftAp (TupleFieldReqDef 1 valueDef)
+               <*> liftAp (TupleFieldReqDef 2 valueDef)
+               <*> liftAp (TupleFieldReqDef 3 valueDef)
+               <*> liftAp (TupleFieldReqDef 4 valueDef)
+
+instance (Unjson a,Unjson b,Unjson c,Unjson d
+         ,Unjson e,Unjson f)
+       => Unjson (a,b,c,d
+                 ,e,f) where
+  valueDef = TupleValueDef
+               $ pure (,,,,,)
+               <*> liftAp (TupleFieldReqDef 0 valueDef)
+               <*> liftAp (TupleFieldReqDef 1 valueDef)
+               <*> liftAp (TupleFieldReqDef 2 valueDef)
+               <*> liftAp (TupleFieldReqDef 3 valueDef)
+               <*> liftAp (TupleFieldReqDef 4 valueDef)
+               <*> liftAp (TupleFieldReqDef 5 valueDef)
+
+instance (Unjson a,Unjson b,Unjson c,Unjson d
+         ,Unjson e,Unjson f,Unjson g)
+       => Unjson (a,b,c,d
+                 ,e,f,g) where
+  valueDef = TupleValueDef
+               $ pure (,,,,,,)
+               <*> liftAp (TupleFieldReqDef 0 valueDef)
+               <*> liftAp (TupleFieldReqDef 1 valueDef)
+               <*> liftAp (TupleFieldReqDef 2 valueDef)
+               <*> liftAp (TupleFieldReqDef 3 valueDef)
+               <*> liftAp (TupleFieldReqDef 4 valueDef)
+               <*> liftAp (TupleFieldReqDef 5 valueDef)
+               <*> liftAp (TupleFieldReqDef 6 valueDef)
+
+instance (Unjson a,Unjson b,Unjson c,Unjson d
+         ,Unjson e,Unjson f,Unjson g,Unjson h)
+       => Unjson (a,b,c,d
+                 ,e,f,g,h) where
+  valueDef = TupleValueDef
+               $ pure (,,,,,,,)
+               <*> liftAp (TupleFieldReqDef 0 valueDef)
+               <*> liftAp (TupleFieldReqDef 1 valueDef)
+               <*> liftAp (TupleFieldReqDef 2 valueDef)
+               <*> liftAp (TupleFieldReqDef 3 valueDef)
+               <*> liftAp (TupleFieldReqDef 4 valueDef)
+               <*> liftAp (TupleFieldReqDef 5 valueDef)
+               <*> liftAp (TupleFieldReqDef 6 valueDef)
+               <*> liftAp (TupleFieldReqDef 7 valueDef)
+
+instance (Unjson a,Unjson b,Unjson c,Unjson d
+         ,Unjson e,Unjson f,Unjson g,Unjson h
+         ,Unjson i)
+       => Unjson (a,b,c,d
+                 ,e,f,g,h
+                 ,i) where
+  valueDef = TupleValueDef
+               $ pure (,,,,,,,,)
+               <*> liftAp (TupleFieldReqDef 0 valueDef)
+               <*> liftAp (TupleFieldReqDef 1 valueDef)
+               <*> liftAp (TupleFieldReqDef 2 valueDef)
+               <*> liftAp (TupleFieldReqDef 3 valueDef)
+               <*> liftAp (TupleFieldReqDef 4 valueDef)
+               <*> liftAp (TupleFieldReqDef 5 valueDef)
+               <*> liftAp (TupleFieldReqDef 6 valueDef)
+               <*> liftAp (TupleFieldReqDef 7 valueDef)
+               <*> liftAp (TupleFieldReqDef 8 valueDef)
+
+instance (Unjson a,Unjson b,Unjson c,Unjson d
+         ,Unjson e,Unjson f,Unjson g,Unjson h
+         ,Unjson i,Unjson j)
+       => Unjson (a,b,c,d
+                 ,e,f,g,h
+                 ,i,j) where
+  valueDef = TupleValueDef
+               $ pure (,,,,,,,,,)
+               <*> liftAp (TupleFieldReqDef 0 valueDef)
+               <*> liftAp (TupleFieldReqDef 1 valueDef)
+               <*> liftAp (TupleFieldReqDef 2 valueDef)
+               <*> liftAp (TupleFieldReqDef 3 valueDef)
+               <*> liftAp (TupleFieldReqDef 4 valueDef)
+               <*> liftAp (TupleFieldReqDef 5 valueDef)
+               <*> liftAp (TupleFieldReqDef 6 valueDef)
+               <*> liftAp (TupleFieldReqDef 7 valueDef)
+               <*> liftAp (TupleFieldReqDef 8 valueDef)
+               <*> liftAp (TupleFieldReqDef 9 valueDef)
 
 data ValueDef a where
   SimpleValueDef :: (Anchored Aeson.Value -> Result k) -> ValueDef k
