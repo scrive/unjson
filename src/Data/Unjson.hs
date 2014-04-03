@@ -218,6 +218,47 @@ instance (Unjson a,Unjson b,Unjson c,Unjson d
                <*> liftAp (TupleFieldReqDef 8 valueDef)
                <*> liftAp (TupleFieldReqDef 9 valueDef)
 
+instance (Unjson a,Unjson b,Unjson c,Unjson d
+         ,Unjson e,Unjson f,Unjson g,Unjson h
+         ,Unjson i,Unjson j,Unjson k)
+       => Unjson (a,b,c,d
+                 ,e,f,g,h
+                 ,i,j,k) where
+  valueDef = TupleValueDef
+               $ pure (,,,,,,,,,,)
+               <*> liftAp (TupleFieldReqDef 0 valueDef)
+               <*> liftAp (TupleFieldReqDef 1 valueDef)
+               <*> liftAp (TupleFieldReqDef 2 valueDef)
+               <*> liftAp (TupleFieldReqDef 3 valueDef)
+               <*> liftAp (TupleFieldReqDef 4 valueDef)
+               <*> liftAp (TupleFieldReqDef 5 valueDef)
+               <*> liftAp (TupleFieldReqDef 6 valueDef)
+               <*> liftAp (TupleFieldReqDef 7 valueDef)
+               <*> liftAp (TupleFieldReqDef 8 valueDef)
+               <*> liftAp (TupleFieldReqDef 9 valueDef)
+               <*> liftAp (TupleFieldReqDef 10 valueDef)
+
+instance (Unjson a,Unjson b,Unjson c,Unjson d
+         ,Unjson e,Unjson f,Unjson g,Unjson h
+         ,Unjson i,Unjson j,Unjson k,Unjson l)
+       => Unjson (a,b,c,d
+                 ,e,f,g,h
+                 ,i,j,k,l) where
+  valueDef = TupleValueDef
+               $ pure (,,,,,,,,,,,)
+               <*> liftAp (TupleFieldReqDef 0 valueDef)
+               <*> liftAp (TupleFieldReqDef 1 valueDef)
+               <*> liftAp (TupleFieldReqDef 2 valueDef)
+               <*> liftAp (TupleFieldReqDef 3 valueDef)
+               <*> liftAp (TupleFieldReqDef 4 valueDef)
+               <*> liftAp (TupleFieldReqDef 5 valueDef)
+               <*> liftAp (TupleFieldReqDef 6 valueDef)
+               <*> liftAp (TupleFieldReqDef 7 valueDef)
+               <*> liftAp (TupleFieldReqDef 8 valueDef)
+               <*> liftAp (TupleFieldReqDef 9 valueDef)
+               <*> liftAp (TupleFieldReqDef 10 valueDef)
+               <*> liftAp (TupleFieldReqDef 11 valueDef)
+
 data ValueDef a where
   SimpleValueDef :: (Anchored Aeson.Value -> Result k) -> ValueDef k
   ArrayValueDef  :: ValueDef k -> ValueDef [k]
