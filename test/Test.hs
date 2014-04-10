@@ -132,9 +132,38 @@ test_wrong_value_type = "Value at key is wrong type" ~: do
                           ] "when expecting a HashMap Text a, encountered String instead") (iss!!2)
   return ()
 
+test_tuple_parsing :: Test
+test_tuple_parsing = "Tuple parsing" ~: do
+  let json = Aeson.toJSON
+               [ ("hostname" :: Aeson.Value)
+               , ("port" :: Aeson.Value)
+               , (Aeson.toJSON (123 :: Int))
+               ]
+
+  let Result (val1 :: String, val2 :: Text.Text, val3 ::Int) iss = parse valueDef (Anchored [] json)
+  assertEqual "Number of issues in parsing" [] iss
+  assertEqual "First element of tuple" "hostname" val1
+  assertEqual "Second element of tuple" "port" val2
+  assertEqual "Third element of tuple" 123 val3
+
+  let Result (xval1 :: String, xval2 :: Text.Text, xval3 :: Int, xval4 :: Int) iss = parse valueDef (Anchored [] json)
+  assertEqual "Issue in parsing" [Anchored [PathElemIndex 3] "missing key"] iss
+
+  ((xval4 `seq` return False) `catch` \(Anchored _ (t :: Text.Text)) -> return True) @? "Evaluating not parsed parts throws exception"
+
+  let Result (yval1 :: Int, yval2 :: Int, yval3 :: Text.Text) iss = parse valueDef (Anchored [] json)
+  assertEqual "Issues in parsing"
+                [ Anchored [PathElemIndex 0] "when expecting a Integral, encountered String instead"
+                , Anchored [PathElemIndex 1] "when expecting a Integral, encountered String instead"
+                , Anchored [PathElemIndex 2] "when expecting a Text, encountered Number instead"
+                ] iss
+
+  return ()
+
 tests = test [ test_proper_parse
              , test_missing_key
              , test_wrong_value_type
+             , test_tuple_parsing
              ]
 
 main = runTestTT tests
