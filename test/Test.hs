@@ -60,7 +60,6 @@ test_proper_parse :: Test
 test_proper_parse = "Proper parsing of a complex structure" ~: do
   let json = Aeson.object
                [ "hostname" .= ("www.example.com" :: Text.Text)
-               , "port" .= (12345 :: Int)
                , "comment" .= ("nice server" :: Text.Text)
                , "credentials" .= Aeson.object
                    [ "username" .= ("usr1" :: Text.Text)
@@ -69,7 +68,7 @@ test_proper_parse = "Proper parsing of a complex structure" ~: do
                ]
   let expect = Konfig
                { konfigHostname = "www.example.com"
-               , konfigPort = 12345
+               , konfigPort = 80
                , konfigComment = Just "nice server"
                , konfigCredentials = Credentials "usr1" "pass1"
                , konfigAlternates = Nothing
