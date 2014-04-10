@@ -4,15 +4,13 @@ where
 
 {-
 
-* parse is dependent on valuedef, typeclass would be nice after all
-* testsiote is needed
-* documentation should go next to last, last is parsing function should it be needed
-* parsing function should be explicit, so that there is no misunderstanding about it
-* documentation should go on next line, after key name and optional default default is usually short constant or reference to a defined variable
-* we could support tuples that have optional parameters at the end... maight be too confusing though
 * need to support the 'update' mode with combinig function
 * need to support the 'update' mode with null as reset to default functionality
 * write more documentation
+
+* need to support bidirectional, it is very annoying to try to write it both ways
+* looks like bidirectional could provide for update...
+* create useful export list
 
 
 -}
