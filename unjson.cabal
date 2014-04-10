@@ -39,6 +39,7 @@ library
                        TypeFamilies,
                        OverloadedStrings,
                        ScopedTypeVariables,
+                       OverlappingInstances,
                        GADTs
 
 Test-Suite test
@@ -67,4 +68,5 @@ Test-Suite test
                        TypeFamilies,
                        OverloadedStrings,
                        ScopedTypeVariables,
+                       OverlappingInstances,
                        GADTs
