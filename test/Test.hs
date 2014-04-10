@@ -41,10 +41,14 @@ unjsonKonfig = pure Konfig
                  "The hostname this service is visible as"
            <*> fieldDef' "port" 80
                  "Port to listen on"
-           <*> fieldBy "credentials" (ObjectValueDef unjsonCredentials)
+           <*> fieldBy "credentials"
+                 "User admin credentials"
+                 (ObjectValueDef unjsonCredentials)
            <*> fieldOpt' "comment"
                  "Optional comment, free text"
-           <*> fieldOptBy "alternates" arrayOf'
+           <*> fieldOptBy "alternates"
+                 "Alternate names for this server"
+                 arrayOf'
 
 unjsonCredentials :: Ap FieldDef Credentials
 unjsonCredentials = pure Credentials
