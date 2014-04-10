@@ -1,4 +1,4 @@
-module Main where
+module Test where
 
 import System.Exit (exitFailure)
 
@@ -7,11 +7,16 @@ import Data.Typeable
 import Data.Unjson
 import Control.Applicative
 import qualified Data.Aeson as Aeson
+import Data.Aeson ((.=))
 import Data.Scientific
 import Data.Attoparsec.Number
 import Data.Monoid
 import System.IO
 import Control.Applicative.Free
+import Control.Exception
+import Test.HUnit
+
+default (Text.Text)
 
 -- As an example we will use a hypothetical configuration data.
 -- There are some mandatory fields and some optional fields.
@@ -19,10 +24,8 @@ data Konfig =
      Konfig { konfigHostname    :: Text.Text
             , konfigPort        :: Int
             , konfigCredentials :: Credentials
-            , konfigCredentials2 :: Credentials
             , konfigComment     :: Maybe Text.Text
             , konfigAlternates  :: Maybe [Text.Text]
-            , konfigAlternates2 :: Maybe [Text.Text]
             }
   deriving (Eq,Ord,Show,Typeable)
 
@@ -39,11 +42,9 @@ unjsonKonfig = pure Konfig
            <*> fieldDef' "port" 80
                  "Port to listen on"
            <*> fieldBy "credentials" unjsonCredentials
-           <*> field "credentials2"
            <*> fieldOpt' "comment"
                  "Optional comment, free text"
            <*> fieldOptBy "alternates" arrayOf'
-           <*> fieldOpt "alternates"
 
 unjsonCredentials :: Ap FieldDef Credentials
 unjsonCredentials = pure Credentials
@@ -55,26 +56,30 @@ unjsonCredentials = pure Credentials
 instance Unjson Credentials where
   valueDef = toValueDef unjsonCredentials
 
-json1 :: Aeson.Value
-Just json1 = Aeson.decode "{\"hostname\": \"www.example.com\", \"arr\": [\"1\",\"2\"], \"port\": 12345, \"comment\": \"nice server\", \"credentials\": { \"username\": \"usr1\", \"password\": \"pass1\" } }"
+test1 :: Test
+test1 = "Proper parsing of a complex structure" ~: do
+  let json = Aeson.object
+               [ "hostname" .= ("www.example.com" :: Text.Text)
+               , "port" .= (12345 :: Int)
+               , "comment" .= ("nice server" :: Text.Text)
+               , "credentials" .= Aeson.object
+                   [ "username" .= ("usr1" :: Text.Text)
+                   , "password" .= ("pass1" :: Text.Text)
+                   ]
+               ]
+  let expect = Konfig
+               { konfigHostname = "www.example.com"
+               , konfigPort = 12345
+               , konfigComment = Just "nice server"
+               , konfigCredentials = Credentials "usr1" "pass1"
+               , konfigAlternates = Nothing
+               }
 
-json2 :: Aeson.Value
-Just json2 = Aeson.decode "{\"hostname\": \"www.example.com\", \"port\": 12345 }"
+  let Result val iss = parse unjsonKonfig (Anchored [] json)
+  assertEqual "There are no issues in parsing" [] iss
+  assertEqual "Value parsed is the one expected" expect val
+  return ()
 
-json3 :: Aeson.Value
-Just json3 = Aeson.decode "{\"hostname\": \"www.example.com\" }"
+tests = test [test1]
 
-issues (Result _ is) = is
-
-main = do
-
-    --print (document unjsonKonfig)
-    print (parse (field "arr") (Anchored [] json1) :: Result (Text.Text,Text.Text))
-    print (parse unjsonKonfig (Anchored [] json1))
-    print (issues (parse unjsonKonfig (Anchored [] json2)))
-    print (parse unjsonKonfig (Anchored [] json2))
-    let g = (show (parse unjsonKonfig (Anchored [] json3)))
-    mapM_ (\c -> putStr [c] >> hFlush stdout) g
-    print (fmap konfigHostname $ parse unjsonKonfig (Anchored [] json3))
-    putStrLn "This test always fails!"
-    exitFailure
+main = runTestTT tests
