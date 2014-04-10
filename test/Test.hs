@@ -56,8 +56,8 @@ unjsonCredentials = pure Credentials
 instance Unjson Credentials where
   valueDef = toValueDef unjsonCredentials
 
-test1 :: Test
-test1 = "Proper parsing of a complex structure" ~: do
+test_proper_parse :: Test
+test_proper_parse = "Proper parsing of a complex structure" ~: do
   let json = Aeson.object
                [ "hostname" .= ("www.example.com" :: Text.Text)
                , "port" .= (12345 :: Int)
@@ -80,6 +80,34 @@ test1 = "Proper parsing of a complex structure" ~: do
   assertEqual "Value parsed is the one expected" expect val
   return ()
 
-tests = test [test1]
+test_missing_key :: Test
+test_missing_key = "Proper parsing of a complex structure" ~: do
+  let json = Aeson.object
+               [ "hostname" .= ("www.example.com" :: Text.Text)
+               , "port" .= (12345 :: Int)
+               , "comment" .= ("nice server" :: Text.Text)
+               , "credentials" .= Aeson.object
+                   [ "username" .= ("usr1" :: Text.Text)
+                   ]
+               ]
+  let expect = Konfig
+               { konfigHostname = "www.example.com"
+               , konfigPort = 12345
+               , konfigComment = Just "nice server"
+               , konfigCredentials = Credentials "usr1" "pass1"
+               , konfigAlternates = Nothing
+               }
+
+  let Result val iss = parse unjsonKonfig (Anchored [] json)
+  assertEqual "There is one issue in parsing" [Anchored [ PathElemKey "credentials"
+                                                        , PathElemKey "password"
+                                                        ] "missing key"] iss
+  assertEqual "Value is accesible in parsed parts" "usr1" (credentialsUsername (konfigCredentials val))
+  ((credentialsPassword (konfigCredentials val) `seq` return False) `catch` \(Anchored _ (t :: Text.Text)) -> return True) @? "Evaluating not parsed parts throws exception"
+  return ()
+
+tests = test [ test_proper_parse
+             , test_missing_key
+             ]
 
 main = runTestTT tests
