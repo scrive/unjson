@@ -16,6 +16,7 @@ where
 -}
 
 import qualified Data.Aeson as Aeson
+import qualified Data.Aeson.Types as Aeson
 import qualified Data.Text as Text
 import qualified Data.Vector as Vector
 import Data.Typeable
@@ -278,12 +279,24 @@ parse = parse1
 
 parse1 :: ValueDef a -> Anchored Aeson.Value -> Result a
 parse1 (SimpleValueDef f) v = f v
-parse1 (ArrayValueDef f) (Anchored path (Aeson.Array v))
-  = sequenceA (zipWith (\v i -> parse1 f (Anchored (path ++ [PathElemIndex i]) v)) (Vector.toList v) [0..])
-parse1 (ObjectValueDef f) (Anchored path (Aeson.Object v))
-  = runAp (lookupByFieldDef (Anchored path v)) f
-parse1 (TupleValueDef f) (Anchored path (Aeson.Array v))
-  = runAp (lookupByTupleFieldDef (Anchored path v)) f
+parse1 (ArrayValueDef f) (Anchored path v)
+  = case Aeson.parseEither Aeson.parseJSON v of
+      Right v ->
+        sequenceA (zipWith (\v i -> parse1 f (Anchored (path ++ [PathElemIndex i]) v)) (Vector.toList v) [0..])
+      Left e ->
+        resultWithThrow (Anchored path (Text.pack e))
+parse1 (ObjectValueDef f) (Anchored path v)
+  = case Aeson.parseEither Aeson.parseJSON v of
+      Right v ->
+        runAp (lookupByFieldDef (Anchored path v)) f
+      Left e ->
+        resultWithThrow (Anchored path (Text.pack e))
+parse1 (TupleValueDef f) (Anchored path v)
+  = case Aeson.parseEither Aeson.parseJSON v of
+      Right v ->
+        runAp (lookupByTupleFieldDef (Anchored path v)) f
+      Left e ->
+        resultWithThrow (Anchored path (Text.pack e))
 
 lookupByFieldDef :: Anchored Aeson.Object -> FieldDef a -> Result a
 lookupByFieldDef (Anchored path v) (FieldReqDef name docstring valuedef)

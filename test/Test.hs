@@ -84,7 +84,7 @@ test_proper_parse = "Proper parsing of a complex structure" ~: do
   return ()
 
 test_missing_key :: Test
-test_missing_key = "Proper parsing of a complex structure" ~: do
+test_missing_key = "Key missing" ~: do
   let json = Aeson.object
                [ "hostname" .= ("www.example.com" :: Text.Text)
                , "port" .= (12345 :: Int)
@@ -109,8 +109,32 @@ test_missing_key = "Proper parsing of a complex structure" ~: do
   ((credentialsPassword (konfigCredentials val) `seq` return False) `catch` \(Anchored _ (t :: Text.Text)) -> return True) @? "Evaluating not parsed parts throws exception"
   return ()
 
+test_wrong_value_type :: Test
+test_wrong_value_type = "Value at key is wrong type" ~: do
+  let json = Aeson.object
+               [ "hostname" .= (12345 :: Int)
+               , "port" .= Aeson.object
+                   [ "username" .= ("usr1" :: Text.Text)
+                   ]
+               , "credentials" .= ("www.example.com" :: Text.Text)
+               ]
+
+  let Result val iss = parse (ObjectValueDef unjsonKonfig) (Anchored [] json)
+  assertEqual "Number of issues in parsing" 3 (length iss)
+  assertEqual "Hostname must be string error info is present"
+                (Anchored [ PathElemKey "hostname"
+                          ] "when expecting a Text, encountered Number instead") (iss!!0)
+  assertEqual "Port must be number error info is present"
+                (Anchored [ PathElemKey "port"
+                          ] "when expecting a Integral, encountered Object instead") (iss!!1)
+  assertEqual "Credentials must be object error info is present"
+                (Anchored [ PathElemKey "credentials"
+                          ] "when expecting a HashMap Text a, encountered String instead") (iss!!2)
+  return ()
+
 tests = test [ test_proper_parse
              , test_missing_key
+             , test_wrong_value_type
              ]
 
 main = runTestTT tests
