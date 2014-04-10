@@ -4,8 +4,6 @@ where
 
 {-
 
-
-* IsValueDef is overcomplicated, mix of explicit function and Unjson seems to hit better balance
 * parse is dependent on valuedef, typeclass would be nice after all
 * testsiote is needed
 * documentation should go next to last, last is parsing function should it be needed
@@ -265,23 +263,6 @@ data ValueDef a where
   ObjectValueDef :: Ap FieldDef k -> ValueDef k
   TupleValueDef  :: Ap TupleFieldDef k -> ValueDef k
 
-class IsValueDef a where
-  type IsValueDefResult a
-  toValueDef :: a -> ValueDef (IsValueDefResult a)
-
-instance IsValueDef (Anchored Aeson.Value -> Result k) where
-  type IsValueDefResult (Anchored Aeson.Value -> Result k) = k
-  toValueDef = SimpleValueDef
-
-instance IsValueDef (Ap FieldDef k) where
-  type IsValueDefResult (Ap FieldDef k) = k
-  toValueDef = ObjectValueDef
-
-instance IsValueDef (ValueDef k) where
-  type IsValueDefResult (ValueDef k) = k
-  toValueDef = id
-
-
 data FieldDef a where
   FieldReqDef :: Text.Text -> ValueDef a -> FieldDef a
   FieldOptDef :: Text.Text -> ValueDef a -> FieldDef (Maybe a)
@@ -294,8 +275,8 @@ countAp :: Ap x a -> Int
 countAp (Pure _) = 0
 countAp (Ap _ r) = 1 + countAp r
 
-parse :: (IsValueDef d) => d -> Anchored Aeson.Value -> Result (IsValueDefResult d)
-parse d = parse1 (toValueDef d)
+parse :: ValueDef a -> Anchored Aeson.Value -> Result a
+parse = parse1
 
 parse1 :: ValueDef a -> Anchored Aeson.Value -> Result a
 parse1 (SimpleValueDef f) v = f v
@@ -326,8 +307,8 @@ lookupByTupleFieldDef (Anchored path v) (TupleFieldDef idx valuedef)
       Just x  -> parse valuedef (Anchored (path ++ [PathElemIndex idx]) x)
       Nothing -> resultWithThrow (Anchored (path ++ [PathElemIndex idx]) "missing key")
 
-fieldBy :: (IsValueDef d) => Text.Text -> d -> Ap FieldDef (IsValueDefResult d)
-fieldBy key valuedef = liftAp (FieldReqDef key (toValueDef valuedef))
+fieldBy :: Text.Text -> ValueDef a -> Ap FieldDef a
+fieldBy key valuedef = liftAp (FieldReqDef key valuedef)
 
 field :: (Unjson a) => Text.Text -> Ap FieldDef a
 field key = fieldBy key valueDef
@@ -335,8 +316,8 @@ field key = fieldBy key valueDef
 field' :: (Aeson.FromJSON a) => Text.Text -> Text.Text -> Ap FieldDef a
 field' key docstring = fieldBy key liftAesonFromJSON
 
-fieldOptBy :: (IsValueDef d) => Text.Text -> d -> Ap FieldDef (Maybe (IsValueDefResult d))
-fieldOptBy key valuedef = liftAp (FieldOptDef key (toValueDef valuedef))
+fieldOptBy :: Text.Text -> ValueDef a -> Ap FieldDef (Maybe a)
+fieldOptBy key valuedef = liftAp (FieldOptDef key valuedef)
 
 fieldOpt :: (Unjson a) => Text.Text -> Ap FieldDef (Maybe a)
 fieldOpt key = fieldOptBy key valueDef
@@ -344,8 +325,8 @@ fieldOpt key = fieldOptBy key valueDef
 fieldOpt' :: (Aeson.FromJSON a) => Text.Text -> Text.Text -> Ap FieldDef (Maybe a)
 fieldOpt' key docstring = fieldOptBy key liftAesonFromJSON
 
-fieldDefBy :: (IsValueDef d) => Text.Text -> (IsValueDefResult d) -> d -> Ap FieldDef (IsValueDefResult d)
-fieldDefBy key a valuedef = liftAp (FieldDefDef key a (toValueDef valuedef))
+fieldDefBy :: Text.Text -> a -> ValueDef a -> Ap FieldDef a
+fieldDefBy key a valuedef = liftAp (FieldDefDef key a valuedef)
 
 fieldDef :: (Unjson a) => Text.Text -> a -> Ap FieldDef a
 fieldDef key a = fieldDefBy key a valueDef
@@ -353,8 +334,8 @@ fieldDef key a = fieldDefBy key a valueDef
 fieldDef' :: (Aeson.FromJSON a) => Text.Text -> a -> Text.Text -> Ap FieldDef a
 fieldDef' key def docstring = fieldDefBy key def liftAesonFromJSON
 
-arrayOf :: (IsValueDef d) => d -> ValueDef [(IsValueDefResult d)]
-arrayOf valuedef = ArrayValueDef (toValueDef valuedef)
+arrayOf :: ValueDef a -> ValueDef [a]
+arrayOf valuedef = ArrayValueDef valuedef
 
 arrayOf' :: (Aeson.FromJSON a) => ValueDef [a]
 arrayOf' = arrayOf liftAesonFromJSON

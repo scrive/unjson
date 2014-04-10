@@ -44,12 +44,12 @@ library
 Test-Suite test
   type:                exitcode-stdio-1.0
   main-is:             Test.hs
-  hs-source-dirs:      test
+  hs-source-dirs:      src, test
   build-depends:       base
   build-depends:       Cabal
   build-depends:       text
   build-depends:       aeson
-  build-depends:       unjson
+  --build-depends:       unjson
   build-depends:       free
   build-depends:       scientific
   build-depends:       attoparsec

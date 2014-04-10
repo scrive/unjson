@@ -41,7 +41,7 @@ unjsonKonfig = pure Konfig
                  "The hostname this service is visible as"
            <*> fieldDef' "port" 80
                  "Port to listen on"
-           <*> fieldBy "credentials" unjsonCredentials
+           <*> fieldBy "credentials" (ObjectValueDef unjsonCredentials)
            <*> fieldOpt' "comment"
                  "Optional comment, free text"
            <*> fieldOptBy "alternates" arrayOf'
@@ -54,7 +54,7 @@ unjsonCredentials = pure Credentials
                           "Password for the user"
 
 instance Unjson Credentials where
-  valueDef = toValueDef unjsonCredentials
+  valueDef = ObjectValueDef unjsonCredentials
 
 test_proper_parse :: Test
 test_proper_parse = "Proper parsing of a complex structure" ~: do
@@ -74,7 +74,7 @@ test_proper_parse = "Proper parsing of a complex structure" ~: do
                , konfigAlternates = Nothing
                }
 
-  let Result val iss = parse unjsonKonfig (Anchored [] json)
+  let Result val iss = parse (ObjectValueDef unjsonKonfig) (Anchored [] json)
   assertEqual "There are no issues in parsing" [] iss
   assertEqual "Value parsed is the one expected" expect val
   return ()
@@ -97,7 +97,7 @@ test_missing_key = "Proper parsing of a complex structure" ~: do
                , konfigAlternates = Nothing
                }
 
-  let Result val iss = parse unjsonKonfig (Anchored [] json)
+  let Result val iss = parse (ObjectValueDef unjsonKonfig) (Anchored [] json)
   assertEqual "There is one issue in parsing" [Anchored [ PathElemKey "credentials"
                                                         , PathElemKey "password"
                                                         ] "missing key"] iss
