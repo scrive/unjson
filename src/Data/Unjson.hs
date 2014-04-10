@@ -104,6 +104,12 @@ instance (Unjson a) => Unjson [a] where
 instance Unjson Text.Text where
   valueDef = liftAesonFromJSON
 
+instance Unjson Int where
+  valueDef = liftAesonFromJSON
+
+instance Unjson String where
+  valueDef = liftAesonFromJSON
+
 instance (Unjson a,Unjson b) => Unjson (a,b) where
   valueDef = TupleValueDef
                  $ pure (,)
