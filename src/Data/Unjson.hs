@@ -262,9 +262,9 @@ data ValueDef a where
   TupleValueDef  :: Ap TupleFieldDef k -> ValueDef k
 
 data FieldDef a where
-  FieldReqDef :: Text.Text -> ValueDef a -> FieldDef a
-  FieldOptDef :: Text.Text -> ValueDef a -> FieldDef (Maybe a)
-  FieldDefDef :: Text.Text -> a -> ValueDef a -> FieldDef a
+  FieldReqDef :: Text.Text -> Text.Text -> ValueDef a -> FieldDef a
+  FieldOptDef :: Text.Text -> Text.Text -> ValueDef a -> FieldDef (Maybe a)
+  FieldDefDef :: Text.Text -> Text.Text -> a -> ValueDef a -> FieldDef a
 
 data TupleFieldDef a where
   TupleFieldDef :: Int -> ValueDef a -> TupleFieldDef a
@@ -286,15 +286,15 @@ parse1 (TupleValueDef f) (Anchored path (Aeson.Array v))
   = runAp (lookupByTupleFieldDef (Anchored path v)) f
 
 lookupByFieldDef :: Anchored Aeson.Object -> FieldDef a -> Result a
-lookupByFieldDef (Anchored path v) (FieldReqDef name valuedef)
+lookupByFieldDef (Anchored path v) (FieldReqDef name docstring valuedef)
   = case HashMap.lookup name v of
       Just x  -> parse valuedef (Anchored (path ++ [PathElemKey name]) x)
       Nothing -> resultWithThrow (Anchored (path ++ [PathElemKey name]) "missing key")
-lookupByFieldDef (Anchored path v) (FieldDefDef name def valuedef)
+lookupByFieldDef (Anchored path v) (FieldDefDef name docstring def valuedef)
   = case HashMap.lookup name v of
       Just x  -> parse valuedef (Anchored (path ++ [PathElemKey name]) x)
       Nothing -> Result def []
-lookupByFieldDef (Anchored path v) (FieldOptDef name valuedef)
+lookupByFieldDef (Anchored path v) (FieldOptDef name docstring valuedef)
   = case HashMap.lookup name v of
       Just x  -> fmap Just (parse valuedef (Anchored (path ++ [PathElemKey name]) x))
       Nothing -> Result Nothing []
@@ -306,7 +306,7 @@ lookupByTupleFieldDef (Anchored path v) (TupleFieldDef idx valuedef)
       Nothing -> resultWithThrow (Anchored (path ++ [PathElemIndex idx]) "missing key")
 
 fieldBy :: Text.Text -> Text.Text -> ValueDef a -> Ap FieldDef a
-fieldBy key docstring valuedef = liftAp (FieldReqDef key valuedef)
+fieldBy key docstring valuedef = liftAp (FieldReqDef key docstring valuedef)
 
 field :: (Unjson a) => Text.Text -> Text.Text -> Ap FieldDef a
 field key docstring = fieldBy key docstring valueDef
@@ -315,7 +315,7 @@ field' :: (Aeson.FromJSON a) => Text.Text -> Text.Text -> Ap FieldDef a
 field' key docstring = fieldBy key docstring liftAesonFromJSON
 
 fieldOptBy :: Text.Text -> Text.Text -> ValueDef a -> Ap FieldDef (Maybe a)
-fieldOptBy key docstring valuedef = liftAp (FieldOptDef key valuedef)
+fieldOptBy key docstring valuedef = liftAp (FieldOptDef key docstring valuedef)
 
 fieldOpt :: (Unjson a) => Text.Text -> Text.Text -> Ap FieldDef (Maybe a)
 fieldOpt key docstring = fieldOptBy key docstring valueDef
@@ -324,7 +324,7 @@ fieldOpt' :: (Aeson.FromJSON a) => Text.Text -> Text.Text -> Ap FieldDef (Maybe 
 fieldOpt' key docstring = fieldOptBy key docstring liftAesonFromJSON
 
 fieldDefBy :: Text.Text -> a -> Text.Text -> ValueDef a -> Ap FieldDef a
-fieldDefBy key def docstring valuedef = liftAp (FieldDefDef key def valuedef)
+fieldDefBy key def docstring valuedef = liftAp (FieldDefDef key docstring def valuedef)
 
 fieldDef :: (Unjson a) => Text.Text -> a -> Text.Text -> Ap FieldDef a
 fieldDef key def docstring = fieldDefBy key def docstring valueDef
