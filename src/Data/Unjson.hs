@@ -11,6 +11,7 @@ where
 * need to support bidirectional, it is very annoying to try to write it both ways
 * looks like bidirectional could provide for update...
 * create useful export list
+* can have item-or-array mode: make an array out of singular items, this could be automatic provided that nested value def is not array def... might be confusing though
 
 
 -}
