@@ -171,10 +171,28 @@ test_tuple_parsing = "Tuple parsing" ~: do
 
   return ()
 
+test_symmetry_of_serialization :: Test
+test_symmetry_of_serialization = "Key missing" ~: do
+  let expect = Konfig
+               { konfigHostname = "www.example.com"
+               , konfigPort = 12345
+               , konfigComment = Just "nice server"
+               , konfigCredentials = Credentials "usr1" "pass1"
+               , konfigAlternates = Nothing
+               }
+
+  let json = serialize1 (ObjectValueDef unjsonKonfig) expect
+  let Result val iss = parse (ObjectValueDef unjsonKonfig) (Anchored [] json)
+  assertEqual "Serialize-parse produces no problems" expect val
+  assertEqual "Serialize-parse is identity" expect val
+  return ()
+
+
 tests = test [ test_proper_parse
              , test_missing_key
              , test_wrong_value_type
              , test_tuple_parsing
+             , test_symmetry_of_serialization
              ]
 
 main = runTestTT tests
