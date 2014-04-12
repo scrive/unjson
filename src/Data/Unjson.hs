@@ -301,7 +301,13 @@ parse1 (ObjectValueDef f) (Anchored path v)
 parse1 (TupleValueDef f) (Anchored path v)
   = case Aeson.parseEither Aeson.parseJSON v of
       Right v ->
-        runAp (lookupByTupleFieldDef (Anchored path v)) f
+        let r@(Result g h) = runAp (lookupByTupleFieldDef (Anchored path v)) f
+            tupleSize = countAp f
+            arrayLength = Vector.length v
+        in if tupleSize == arrayLength
+             then r
+             else Result g (h ++ [Anchored path ("cannot parse array of length " <> Text.pack (show arrayLength) <>
+                                                " into tuple of size " <> Text.pack (show tupleSize))])
       Left e ->
         resultWithThrow (Anchored path (Text.pack e))
 

@@ -147,7 +147,8 @@ test_tuple_parsing = "Tuple parsing" ~: do
   assertEqual "Third element of tuple" 123 val3
 
   let Result (xval1 :: String, xval2 :: Text.Text, xval3 :: Int, xval4 :: Int) iss = parse valueDef (Anchored [] json)
-  assertEqual "Issue in parsing" [Anchored [PathElemIndex 3] "missing key"] iss
+  assertEqual "Issue in parsing" [Anchored [PathElemIndex 3] "missing key"
+                                 ,Anchored [] "cannot parse array of length 3 into tuple of size 4"] iss
 
   ((xval4 `seq` return False) `catch` \(Anchored _ (t :: Text.Text)) -> return True) @? "Evaluating not parsed parts throws exception"
 
@@ -157,6 +158,9 @@ test_tuple_parsing = "Tuple parsing" ~: do
                 , Anchored [PathElemIndex 1] "when expecting a Integral, encountered String instead"
                 , Anchored [PathElemIndex 2] "when expecting a Text, encountered Number instead"
                 ] iss
+
+  let Result (zval1 :: String, zval2 :: Text.Text) iss = parse valueDef (Anchored [] json)
+  assertEqual "Array too long for 2-tuple" [Anchored [] "cannot parse array of length 3 into tuple of size 2"] iss
 
   return ()
 
