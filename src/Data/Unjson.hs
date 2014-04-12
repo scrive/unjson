@@ -114,24 +114,25 @@ instance Unjson String where
 instance (Unjson a,Unjson b) => Unjson (a,b) where
   valueDef = TupleValueDef
                  $ pure (,)
-               <*> liftAp (TupleFieldDef 0 valueDef)
-               <*> liftAp (TupleFieldDef 1 valueDef)
+               <*> liftAp (TupleFieldDef 0 (\(p,_) -> p) valueDef)
+               <*> liftAp (TupleFieldDef 1 (\(_,p) -> p) valueDef)
 
 instance (Unjson a,Unjson b,Unjson c) => Unjson (a,b,c) where
   valueDef = TupleValueDef
                $ pure (,,)
-               <*> liftAp (TupleFieldDef 0 valueDef)
-               <*> liftAp (TupleFieldDef 1 valueDef)
-               <*> liftAp (TupleFieldDef 2 valueDef)
+               <*> liftAp (TupleFieldDef 0 (\(p,_,_) -> p) valueDef)
+               <*> liftAp (TupleFieldDef 1 (\(_,p,_) -> p) valueDef)
+               <*> liftAp (TupleFieldDef 2 (\(_,_,p) -> p) valueDef)
 
 instance (Unjson a,Unjson b,Unjson c,Unjson d) => Unjson (a,b,c,d) where
   valueDef = TupleValueDef
                $ pure (,,,)
-               <*> liftAp (TupleFieldDef 0 valueDef)
-               <*> liftAp (TupleFieldDef 1 valueDef)
-               <*> liftAp (TupleFieldDef 2 valueDef)
-               <*> liftAp (TupleFieldDef 3 valueDef)
+               <*> liftAp (TupleFieldDef 0 (\(p,_,_,_) -> p) valueDef)
+               <*> liftAp (TupleFieldDef 1 (\(_,p,_,_) -> p) valueDef)
+               <*> liftAp (TupleFieldDef 2 (\(_,_,p,_) -> p) valueDef)
+               <*> liftAp (TupleFieldDef 3 (\(_,_,_,p) -> p) valueDef)
 
+{-
 instance (Unjson a,Unjson b,Unjson c,Unjson d
          ,Unjson e) => Unjson (a,b,c,d
                               ,e) where
@@ -262,28 +263,34 @@ instance (Unjson a,Unjson b,Unjson c,Unjson d
                <*> liftAp (TupleFieldDef 9 valueDef)
                <*> liftAp (TupleFieldDef 10 valueDef)
                <*> liftAp (TupleFieldDef 11 valueDef)
+-}
 
 data ValueDef a where
   SimpleValueDef :: (Anchored Aeson.Value -> Result k) -> (k -> Aeson.Value) -> ValueDef k
   ArrayValueDef  :: ValueDef k -> ValueDef [k]
   ObjectValueDef :: Ap FieldDef k -> ValueDef k
-  TupleValueDef  :: Ap TupleFieldDef k -> ValueDef k
+  TupleValueDef  :: Ap (TupleFieldDef k) k -> ValueDef k
 
 data FieldDef a where
   FieldReqDef :: Text.Text -> Text.Text -> ValueDef a -> FieldDef a
   FieldOptDef :: Text.Text -> Text.Text -> ValueDef a -> FieldDef (Maybe a)
   FieldDefDef :: Text.Text -> Text.Text -> a -> ValueDef a -> FieldDef a
 
-data TupleFieldDef a where
-  TupleFieldDef :: Int -> ValueDef a -> TupleFieldDef a
+data TupleFieldDef s a where
+  TupleFieldDef :: Int -> (s -> a) -> ValueDef a -> TupleFieldDef s a
+
+tupleDefToArray :: s -> Ap (TupleFieldDef s) a -> [Aeson.Value]
+tupleDefToArray _ (Pure _) = []
+tupleDefToArray s (Ap (TupleFieldDef _ f d) r) =  (serialize1 d (f s)) : tupleDefToArray s r
 
 
 serialize1 :: ValueDef a -> a -> Aeson.Value
 serialize1 (SimpleValueDef _ g) a = g a
-serialize1 (ArrayValueDef f) a =    -- here compiler should know that 'a' is a list
+serialize1 (ArrayValueDef f) a =              -- here compiler should know that 'a' is a list
   Aeson.toJSON (map (serialize1 f) a)
 serialize1 (ObjectValueDef{}) _ = error "ObjectValueDef not yet supported in serialize1"
-serialize1 (TupleValueDef{}) _ = error "TupleValueDef not yet supported in serialize1"
+serialize1 (TupleValueDef f) a =
+  Aeson.toJSON (tupleDefToArray a f)
 
 countAp :: Int -> Ap x a -> Int
 countAp !n (Pure _) = n
@@ -333,8 +340,8 @@ lookupByFieldDef (Anchored path v) (FieldOptDef name docstring valuedef)
       Just x  -> fmap Just (parse valuedef (Anchored (path ++ [PathElemKey name]) x))
       Nothing -> Result Nothing []
 
-lookupByTupleFieldDef :: Anchored Aeson.Array -> TupleFieldDef a -> Result a
-lookupByTupleFieldDef (Anchored path v) (TupleFieldDef idx valuedef)
+lookupByTupleFieldDef :: Anchored Aeson.Array -> TupleFieldDef s a -> Result a
+lookupByTupleFieldDef (Anchored path v) (TupleFieldDef idx _ valuedef)
   = case v Vector.!? idx of
       Just x  -> parse valuedef (Anchored (path ++ [PathElemIndex idx]) x)
       Nothing -> resultWithThrow (Anchored (path ++ [PathElemIndex idx]) "missing key")
