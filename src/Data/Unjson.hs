@@ -277,9 +277,9 @@ data FieldDef a where
 data TupleFieldDef a where
   TupleFieldDef :: Int -> ValueDef a -> TupleFieldDef a
 
-countAp :: Ap x a -> Int
-countAp (Pure _) = 0
-countAp (Ap _ r) = 1 + countAp r
+countAp :: Int -> Ap x a -> Int
+countAp !n (Pure _) = n
+countAp n (Ap _ r) = countAp (succ n) r
 
 parse :: ValueDef a -> Anchored Aeson.Value -> Result a
 parse = parse1
@@ -302,7 +302,7 @@ parse1 (TupleValueDef f) (Anchored path v)
   = case Aeson.parseEither Aeson.parseJSON v of
       Right v ->
         let r@(Result g h) = runAp (lookupByTupleFieldDef (Anchored path v)) f
-            tupleSize = countAp f
+            tupleSize = countAp 0 f
             arrayLength = Vector.length v
         in if tupleSize == arrayLength
              then r
