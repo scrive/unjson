@@ -132,17 +132,16 @@ instance (Unjson a,Unjson b,Unjson c,Unjson d) => Unjson (a,b,c,d) where
                <*> liftAp (TupleFieldDef 2 (\(_,_,p,_) -> p) valueDef)
                <*> liftAp (TupleFieldDef 3 (\(_,_,_,p) -> p) valueDef)
 
-{-
 instance (Unjson a,Unjson b,Unjson c,Unjson d
          ,Unjson e) => Unjson (a,b,c,d
                               ,e) where
   valueDef = TupleValueDef
                $ pure (,,,,)
-               <*> liftAp (TupleFieldDef 0 valueDef)
-               <*> liftAp (TupleFieldDef 1 valueDef)
-               <*> liftAp (TupleFieldDef 2 valueDef)
-               <*> liftAp (TupleFieldDef 3 valueDef)
-               <*> liftAp (TupleFieldDef 4 valueDef)
+               <*> liftAp (TupleFieldDef 0 (\(p,_,_,_,_) -> p) valueDef)
+               <*> liftAp (TupleFieldDef 1 (\(_,p,_,_,_) -> p) valueDef)
+               <*> liftAp (TupleFieldDef 2 (\(_,_,p,_,_) -> p) valueDef)
+               <*> liftAp (TupleFieldDef 3 (\(_,_,_,p,_) -> p) valueDef)
+               <*> liftAp (TupleFieldDef 4 (\(_,_,_,_,p) -> p) valueDef)
 
 instance (Unjson a,Unjson b,Unjson c,Unjson d
          ,Unjson e,Unjson f)
@@ -150,12 +149,12 @@ instance (Unjson a,Unjson b,Unjson c,Unjson d
                  ,e,f) where
   valueDef = TupleValueDef
                $ pure (,,,,,)
-               <*> liftAp (TupleFieldDef 0 valueDef)
-               <*> liftAp (TupleFieldDef 1 valueDef)
-               <*> liftAp (TupleFieldDef 2 valueDef)
-               <*> liftAp (TupleFieldDef 3 valueDef)
-               <*> liftAp (TupleFieldDef 4 valueDef)
-               <*> liftAp (TupleFieldDef 5 valueDef)
+               <*> liftAp (TupleFieldDef 0 (\(p,_,_,_,_,_) -> p) valueDef)
+               <*> liftAp (TupleFieldDef 1 (\(_,p,_,_,_,_) -> p) valueDef)
+               <*> liftAp (TupleFieldDef 2 (\(_,_,p,_,_,_) -> p) valueDef)
+               <*> liftAp (TupleFieldDef 3 (\(_,_,_,p,_,_) -> p) valueDef)
+               <*> liftAp (TupleFieldDef 4 (\(_,_,_,_,p,_) -> p) valueDef)
+               <*> liftAp (TupleFieldDef 5 (\(_,_,_,_,_,p) -> p) valueDef)
 
 instance (Unjson a,Unjson b,Unjson c,Unjson d
          ,Unjson e,Unjson f,Unjson g)
@@ -163,13 +162,13 @@ instance (Unjson a,Unjson b,Unjson c,Unjson d
                  ,e,f,g) where
   valueDef = TupleValueDef
                $ pure (,,,,,,)
-               <*> liftAp (TupleFieldDef 0 valueDef)
-               <*> liftAp (TupleFieldDef 1 valueDef)
-               <*> liftAp (TupleFieldDef 2 valueDef)
-               <*> liftAp (TupleFieldDef 3 valueDef)
-               <*> liftAp (TupleFieldDef 4 valueDef)
-               <*> liftAp (TupleFieldDef 5 valueDef)
-               <*> liftAp (TupleFieldDef 6 valueDef)
+               <*> liftAp (TupleFieldDef 0 (\(p,_,_,_,_,_,_) -> p) valueDef)
+               <*> liftAp (TupleFieldDef 1 (\(_,p,_,_,_,_,_) -> p) valueDef)
+               <*> liftAp (TupleFieldDef 2 (\(_,_,p,_,_,_,_) -> p) valueDef)
+               <*> liftAp (TupleFieldDef 3 (\(_,_,_,p,_,_,_) -> p) valueDef)
+               <*> liftAp (TupleFieldDef 4 (\(_,_,_,_,p,_,_) -> p) valueDef)
+               <*> liftAp (TupleFieldDef 5 (\(_,_,_,_,_,p,_) -> p) valueDef)
+               <*> liftAp (TupleFieldDef 6 (\(_,_,_,_,_,_,p) -> p) valueDef)
 
 instance (Unjson a,Unjson b,Unjson c,Unjson d
          ,Unjson e,Unjson f,Unjson g,Unjson h)
@@ -177,14 +176,14 @@ instance (Unjson a,Unjson b,Unjson c,Unjson d
                  ,e,f,g,h) where
   valueDef = TupleValueDef
                $ pure (,,,,,,,)
-               <*> liftAp (TupleFieldDef 0 valueDef)
-               <*> liftAp (TupleFieldDef 1 valueDef)
-               <*> liftAp (TupleFieldDef 2 valueDef)
-               <*> liftAp (TupleFieldDef 3 valueDef)
-               <*> liftAp (TupleFieldDef 4 valueDef)
-               <*> liftAp (TupleFieldDef 5 valueDef)
-               <*> liftAp (TupleFieldDef 6 valueDef)
-               <*> liftAp (TupleFieldDef 7 valueDef)
+               <*> liftAp (TupleFieldDef 0 (\(p,_,_,_,_,_,_,_) -> p) valueDef)
+               <*> liftAp (TupleFieldDef 1 (\(_,p,_,_,_,_,_,_) -> p) valueDef)
+               <*> liftAp (TupleFieldDef 2 (\(_,_,p,_,_,_,_,_) -> p) valueDef)
+               <*> liftAp (TupleFieldDef 3 (\(_,_,_,p,_,_,_,_) -> p) valueDef)
+               <*> liftAp (TupleFieldDef 4 (\(_,_,_,_,p,_,_,_) -> p) valueDef)
+               <*> liftAp (TupleFieldDef 5 (\(_,_,_,_,_,p,_,_) -> p) valueDef)
+               <*> liftAp (TupleFieldDef 6 (\(_,_,_,_,_,_,p,_) -> p) valueDef)
+               <*> liftAp (TupleFieldDef 7 (\(_,_,_,_,_,_,_,p) -> p) valueDef)
 
 instance (Unjson a,Unjson b,Unjson c,Unjson d
          ,Unjson e,Unjson f,Unjson g,Unjson h
@@ -194,15 +193,15 @@ instance (Unjson a,Unjson b,Unjson c,Unjson d
                  ,i) where
   valueDef = TupleValueDef
                $ pure (,,,,,,,,)
-               <*> liftAp (TupleFieldDef 0 valueDef)
-               <*> liftAp (TupleFieldDef 1 valueDef)
-               <*> liftAp (TupleFieldDef 2 valueDef)
-               <*> liftAp (TupleFieldDef 3 valueDef)
-               <*> liftAp (TupleFieldDef 4 valueDef)
-               <*> liftAp (TupleFieldDef 5 valueDef)
-               <*> liftAp (TupleFieldDef 6 valueDef)
-               <*> liftAp (TupleFieldDef 7 valueDef)
-               <*> liftAp (TupleFieldDef 8 valueDef)
+               <*> liftAp (TupleFieldDef 0 (\(p,_,_,_,_,_,_,_,_) -> p) valueDef)
+               <*> liftAp (TupleFieldDef 1 (\(_,p,_,_,_,_,_,_,_) -> p) valueDef)
+               <*> liftAp (TupleFieldDef 2 (\(_,_,p,_,_,_,_,_,_) -> p) valueDef)
+               <*> liftAp (TupleFieldDef 3 (\(_,_,_,p,_,_,_,_,_) -> p) valueDef)
+               <*> liftAp (TupleFieldDef 4 (\(_,_,_,_,p,_,_,_,_) -> p) valueDef)
+               <*> liftAp (TupleFieldDef 5 (\(_,_,_,_,_,p,_,_,_) -> p) valueDef)
+               <*> liftAp (TupleFieldDef 6 (\(_,_,_,_,_,_,p,_,_) -> p) valueDef)
+               <*> liftAp (TupleFieldDef 7 (\(_,_,_,_,_,_,_,p,_) -> p) valueDef)
+               <*> liftAp (TupleFieldDef 8 (\(_,_,_,_,_,_,_,_,p) -> p) valueDef)
 
 instance (Unjson a,Unjson b,Unjson c,Unjson d
          ,Unjson e,Unjson f,Unjson g,Unjson h
@@ -212,16 +211,16 @@ instance (Unjson a,Unjson b,Unjson c,Unjson d
                  ,i,j) where
   valueDef = TupleValueDef
                $ pure (,,,,,,,,,)
-               <*> liftAp (TupleFieldDef 0 valueDef)
-               <*> liftAp (TupleFieldDef 1 valueDef)
-               <*> liftAp (TupleFieldDef 2 valueDef)
-               <*> liftAp (TupleFieldDef 3 valueDef)
-               <*> liftAp (TupleFieldDef 4 valueDef)
-               <*> liftAp (TupleFieldDef 5 valueDef)
-               <*> liftAp (TupleFieldDef 6 valueDef)
-               <*> liftAp (TupleFieldDef 7 valueDef)
-               <*> liftAp (TupleFieldDef 8 valueDef)
-               <*> liftAp (TupleFieldDef 9 valueDef)
+               <*> liftAp (TupleFieldDef 0 (\(p,_,_,_,_,_,_,_,_,_) -> p) valueDef)
+               <*> liftAp (TupleFieldDef 1 (\(_,p,_,_,_,_,_,_,_,_) -> p) valueDef)
+               <*> liftAp (TupleFieldDef 2 (\(_,_,p,_,_,_,_,_,_,_) -> p) valueDef)
+               <*> liftAp (TupleFieldDef 3 (\(_,_,_,p,_,_,_,_,_,_) -> p) valueDef)
+               <*> liftAp (TupleFieldDef 4 (\(_,_,_,_,p,_,_,_,_,_) -> p) valueDef)
+               <*> liftAp (TupleFieldDef 5 (\(_,_,_,_,_,p,_,_,_,_) -> p) valueDef)
+               <*> liftAp (TupleFieldDef 6 (\(_,_,_,_,_,_,p,_,_,_) -> p) valueDef)
+               <*> liftAp (TupleFieldDef 7 (\(_,_,_,_,_,_,_,p,_,_) -> p) valueDef)
+               <*> liftAp (TupleFieldDef 8 (\(_,_,_,_,_,_,_,_,p,_) -> p) valueDef)
+               <*> liftAp (TupleFieldDef 9 (\(_,_,_,_,_,_,_,_,_,p) -> p) valueDef)
 
 instance (Unjson a,Unjson b,Unjson c,Unjson d
          ,Unjson e,Unjson f,Unjson g,Unjson h
@@ -231,17 +230,17 @@ instance (Unjson a,Unjson b,Unjson c,Unjson d
                  ,i,j,k) where
   valueDef = TupleValueDef
                $ pure (,,,,,,,,,,)
-               <*> liftAp (TupleFieldDef 0 valueDef)
-               <*> liftAp (TupleFieldDef 1 valueDef)
-               <*> liftAp (TupleFieldDef 2 valueDef)
-               <*> liftAp (TupleFieldDef 3 valueDef)
-               <*> liftAp (TupleFieldDef 4 valueDef)
-               <*> liftAp (TupleFieldDef 5 valueDef)
-               <*> liftAp (TupleFieldDef 6 valueDef)
-               <*> liftAp (TupleFieldDef 7 valueDef)
-               <*> liftAp (TupleFieldDef 8 valueDef)
-               <*> liftAp (TupleFieldDef 9 valueDef)
-               <*> liftAp (TupleFieldDef 10 valueDef)
+               <*> liftAp (TupleFieldDef 0 (\(p,_,_,_,_,_,_,_,_,_,_) -> p) valueDef)
+               <*> liftAp (TupleFieldDef 1 (\(_,p,_,_,_,_,_,_,_,_,_) -> p) valueDef)
+               <*> liftAp (TupleFieldDef 2 (\(_,_,p,_,_,_,_,_,_,_,_) -> p) valueDef)
+               <*> liftAp (TupleFieldDef 3 (\(_,_,_,p,_,_,_,_,_,_,_) -> p) valueDef)
+               <*> liftAp (TupleFieldDef 4 (\(_,_,_,_,p,_,_,_,_,_,_) -> p) valueDef)
+               <*> liftAp (TupleFieldDef 5 (\(_,_,_,_,_,p,_,_,_,_,_) -> p) valueDef)
+               <*> liftAp (TupleFieldDef 6 (\(_,_,_,_,_,_,p,_,_,_,_) -> p) valueDef)
+               <*> liftAp (TupleFieldDef 7 (\(_,_,_,_,_,_,_,p,_,_,_) -> p) valueDef)
+               <*> liftAp (TupleFieldDef 8 (\(_,_,_,_,_,_,_,_,p,_,_) -> p) valueDef)
+               <*> liftAp (TupleFieldDef 9 (\(_,_,_,_,_,_,_,_,_,p,_) -> p) valueDef)
+               <*> liftAp (TupleFieldDef 10 (\(_,_,_,_,_,_,_,_,_,_,p) -> p) valueDef)
 
 instance (Unjson a,Unjson b,Unjson c,Unjson d
          ,Unjson e,Unjson f,Unjson g,Unjson h
@@ -251,19 +250,18 @@ instance (Unjson a,Unjson b,Unjson c,Unjson d
                  ,i,j,k,l) where
   valueDef = TupleValueDef
                $ pure (,,,,,,,,,,,)
-               <*> liftAp (TupleFieldDef 0 valueDef)
-               <*> liftAp (TupleFieldDef 1 valueDef)
-               <*> liftAp (TupleFieldDef 2 valueDef)
-               <*> liftAp (TupleFieldDef 3 valueDef)
-               <*> liftAp (TupleFieldDef 4 valueDef)
-               <*> liftAp (TupleFieldDef 5 valueDef)
-               <*> liftAp (TupleFieldDef 6 valueDef)
-               <*> liftAp (TupleFieldDef 7 valueDef)
-               <*> liftAp (TupleFieldDef 8 valueDef)
-               <*> liftAp (TupleFieldDef 9 valueDef)
-               <*> liftAp (TupleFieldDef 10 valueDef)
-               <*> liftAp (TupleFieldDef 11 valueDef)
--}
+               <*> liftAp (TupleFieldDef 0 (\(p,_,_,_,_,_,_,_,_,_,_,_) -> p) valueDef)
+               <*> liftAp (TupleFieldDef 1 (\(_,p,_,_,_,_,_,_,_,_,_,_) -> p) valueDef)
+               <*> liftAp (TupleFieldDef 2 (\(_,_,p,_,_,_,_,_,_,_,_,_) -> p) valueDef)
+               <*> liftAp (TupleFieldDef 3 (\(_,_,_,p,_,_,_,_,_,_,_,_) -> p) valueDef)
+               <*> liftAp (TupleFieldDef 4 (\(_,_,_,_,p,_,_,_,_,_,_,_) -> p) valueDef)
+               <*> liftAp (TupleFieldDef 5 (\(_,_,_,_,_,p,_,_,_,_,_,_) -> p) valueDef)
+               <*> liftAp (TupleFieldDef 6 (\(_,_,_,_,_,_,p,_,_,_,_,_) -> p) valueDef)
+               <*> liftAp (TupleFieldDef 7 (\(_,_,_,_,_,_,_,p,_,_,_,_) -> p) valueDef)
+               <*> liftAp (TupleFieldDef 8 (\(_,_,_,_,_,_,_,_,p,_,_,_) -> p) valueDef)
+               <*> liftAp (TupleFieldDef 9 (\(_,_,_,_,_,_,_,_,_,p,_,_) -> p) valueDef)
+               <*> liftAp (TupleFieldDef 10 (\(_,_,_,_,_,_,_,_,_,_,p,_) -> p) valueDef)
+               <*> liftAp (TupleFieldDef 11 (\(_,_,_,_,_,_,_,_,_,_,_,p) -> p) valueDef)
 
 data ValueDef a where
   SimpleValueDef :: (Anchored Aeson.Value -> Result k) -> (k -> Aeson.Value) -> ValueDef k
