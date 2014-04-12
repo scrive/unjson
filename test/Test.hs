@@ -25,7 +25,7 @@ data Konfig =
             , konfigPort        :: Int
             , konfigCredentials :: Credentials
             , konfigComment     :: Maybe Text.Text
-            , konfigAlternates  :: Maybe [Text.Text]
+            , konfigAlternates  :: Maybe (Text.Text,Text.Text)
             }
   deriving (Eq,Ord,Show,Typeable)
 
@@ -33,6 +33,11 @@ data Credentials =
      Credentials { credentialsUsername :: Text.Text
                  , credentialsPassword :: Text.Text
                  }
+  deriving (Eq,Ord,Show,Typeable)
+
+data ExtendedTest =
+     ExtendedTest { extendedTestEither    :: Either Int Text.Text
+                  }
   deriving (Eq,Ord,Show,Typeable)
 
 unjsonKonfig :: ValueDef Konfig
@@ -50,10 +55,9 @@ unjsonKonfig = ObjectValueDef $ pure Konfig
            <*> fieldOpt' "comment"
                  konfigComment
                  "Optional comment, free text"
-           <*> fieldOptBy "alternates"
+           <*> fieldOpt "alternates"
                  konfigAlternates
                  "Alternate names for this server"
-                 arrayOf'
 
 unjsonCredentials :: ValueDef Credentials
 unjsonCredentials = ObjectValueDef $ pure Credentials
@@ -63,6 +67,21 @@ unjsonCredentials = ObjectValueDef $ pure Credentials
                     <*> field' "password"
                           credentialsPassword
                           "Password for the user"
+
+
+unjsonExtendedTest :: ValueDef ExtendedTest
+unjsonExtendedTest = ObjectValueDef $ pure ExtendedTest
+                    <*> (pure maybeMaybeToEither
+                          <*> fieldOpt' "numerical_value"
+                                (either Just (const Nothing) . extendedTestEither)
+                                "Numerical value"
+                          <*> fieldOpt' "text_value"
+                                (either (const Nothing) Just . extendedTestEither)
+                                "Text value")
+  where
+    maybeMaybeToEither (Just x) _ = Left x
+    maybeMaybeToEither _ (Just x) = Right x
+    maybeMaybeToEither _ _ = error "Disjoint unions need special support that is not available yet"
 
 instance Unjson Credentials where
   valueDef = unjsonCredentials
@@ -187,12 +206,55 @@ test_symmetry_of_serialization = "Key missing" ~: do
   assertEqual "Serialize-parse is identity" expect val
   return ()
 
+test_parse_either_field :: Test
+test_parse_either_field = "test_parse_either_field" ~: do
+  do
+    let json = Aeson.object
+                 [ "numerical_value" .= (12345 :: Int)
+                 ]
+    let Result val iss = parse unjsonExtendedTest (Anchored [] json)
+    assertEqual "Serialize-parse produces no problems" [] iss
+    assertEqual "Serialize-parse produces no problems" (Left 12345) (extendedTestEither val)
+  do
+    let json = Aeson.object
+                 [ "text_value" .= ("asfsdfaf" :: Text.Text)
+                 ]
+    let Result val iss = parse unjsonExtendedTest (Anchored [] json)
+    assertEqual "Serialize-parse produces no problems" [] iss
+    assertEqual "Serialize-parse produces no problems" (Right "asfsdfaf") (extendedTestEither val)
+  do
+    let json = Aeson.object
+                 [ "text_value" .= (False)
+                 , "numerical_value" .= (12345 :: Int)
+                 ]
+    let Result val iss = parse unjsonExtendedTest (Anchored [] json)
+    assertEqual "Serialize-parse produces no problems" [Anchored [PathElemKey "text_value"] "when expecting a Text, encountered Boolean instead"] iss
+    assertEqual "Serialize-parse produces no problems" (Left 12345) (extendedTestEither val)
+  do
+    let json = Aeson.object
+                 [ "text_value" .= ("asfsdfaf" :: Text.Text)
+                 , "numerical_value" .= (12345 :: Int)
+                 ]
+    let Result val iss = parse unjsonExtendedTest (Anchored [] json)
+    assertEqual "Serialize-parse produces no problems" [] iss
+    assertEqual "Serialize-parse produces no problems" (Left 12345) (extendedTestEither val)
+  {-
+    This is not yet working as disjoint unions need special support that is not avialable yet
+  do
+    let json = Aeson.object []
+    let Result val iss = parse unjsonExtendedTest (Anchored [] json)
+    assertEqual "Serialize-parse produces no problems" [] iss
+    assertEqual "Serialize-parse produces no problems" (Left 12345) (extendedTestEither val)
+  -}
+  return ()
+
 
 tests = test [ test_proper_parse
              , test_missing_key
              , test_wrong_value_type
              , test_tuple_parsing
              , test_symmetry_of_serialization
+             , test_parse_either_field
              ]
 
 main = runTestTT tests
