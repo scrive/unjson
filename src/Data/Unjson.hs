@@ -268,13 +268,13 @@ instance (Unjson a,Unjson b,Unjson c,Unjson d
 data ValueDef a where
   SimpleValueDef :: (Anchored Aeson.Value -> Result k) -> (k -> Aeson.Value) -> ValueDef k
   ArrayValueDef  :: ValueDef k -> ValueDef [k]
-  ObjectValueDef :: Ap FieldDef k -> ValueDef k
+  ObjectValueDef :: Ap (FieldDef k) k -> ValueDef k
   TupleValueDef  :: Ap (TupleFieldDef k) k -> ValueDef k
 
-data FieldDef a where
-  FieldReqDef :: Text.Text -> Text.Text -> ValueDef a -> FieldDef a
-  FieldOptDef :: Text.Text -> Text.Text -> ValueDef a -> FieldDef (Maybe a)
-  FieldDefDef :: Text.Text -> Text.Text -> a -> ValueDef a -> FieldDef a
+data FieldDef s a where
+  FieldReqDef :: Text.Text -> Text.Text -> (s -> a) -> ValueDef a -> FieldDef s a
+  FieldOptDef :: Text.Text -> Text.Text -> (s -> Maybe a) -> ValueDef a -> FieldDef s (Maybe a)
+  FieldDefDef :: Text.Text -> Text.Text -> a -> (s -> a) -> ValueDef a -> FieldDef s a
 
 data TupleFieldDef s a where
   TupleFieldDef :: Int -> (s -> a) -> ValueDef a -> TupleFieldDef s a
@@ -284,11 +284,21 @@ tupleDefToArray _ (Pure _) = []
 tupleDefToArray s (Ap (TupleFieldDef _ f d) r) =  (serialize1 d (f s)) : tupleDefToArray s r
 
 
+objectDefToArray :: s -> Ap (FieldDef s) a -> [(Text.Text,Aeson.Value)]
+objectDefToArray _ (Pure _) = []
+objectDefToArray s (Ap (FieldReqDef key _ f d) r) = (key,serialize1 d (f s)) : objectDefToArray s r
+objectDefToArray s (Ap (FieldOptDef key _ f d) r) =
+  case f s of
+    Nothing -> objectDefToArray s r
+    Just g ->  (key,serialize1 d g) : objectDefToArray s r
+objectDefToArray s (Ap (FieldDefDef key _ _ f d) r) = (key,serialize1 d (f s)) : objectDefToArray s r
+
 serialize1 :: ValueDef a -> a -> Aeson.Value
 serialize1 (SimpleValueDef _ g) a = g a
 serialize1 (ArrayValueDef f) a =              -- here compiler should know that 'a' is a list
   Aeson.toJSON (map (serialize1 f) a)
-serialize1 (ObjectValueDef{}) _ = error "ObjectValueDef not yet supported in serialize1"
+serialize1 (ObjectValueDef f) a =
+  Aeson.object (objectDefToArray a f)
 serialize1 (TupleValueDef f) a =
   Aeson.toJSON (tupleDefToArray a f)
 
@@ -326,16 +336,16 @@ parse1 (TupleValueDef f) (Anchored path v)
       Left e ->
         resultWithThrow (Anchored path (Text.pack e))
 
-lookupByFieldDef :: Anchored Aeson.Object -> FieldDef a -> Result a
-lookupByFieldDef (Anchored path v) (FieldReqDef name docstring valuedef)
+lookupByFieldDef :: Anchored Aeson.Object -> FieldDef s a -> Result a
+lookupByFieldDef (Anchored path v) (FieldReqDef name docstring _ valuedef)
   = case HashMap.lookup name v of
       Just x  -> parse valuedef (Anchored (path ++ [PathElemKey name]) x)
       Nothing -> resultWithThrow (Anchored (path ++ [PathElemKey name]) "missing key")
-lookupByFieldDef (Anchored path v) (FieldDefDef name docstring def valuedef)
+lookupByFieldDef (Anchored path v) (FieldDefDef name docstring def _ valuedef)
   = case HashMap.lookup name v of
       Just x  -> parse valuedef (Anchored (path ++ [PathElemKey name]) x)
       Nothing -> Result def []
-lookupByFieldDef (Anchored path v) (FieldOptDef name docstring valuedef)
+lookupByFieldDef (Anchored path v) (FieldOptDef name docstring _ valuedef)
   = case HashMap.lookup name v of
       Just x  -> fmap Just (parse valuedef (Anchored (path ++ [PathElemKey name]) x))
       Nothing -> Result Nothing []
@@ -346,31 +356,31 @@ lookupByTupleFieldDef (Anchored path v) (TupleFieldDef idx _ valuedef)
       Just x  -> parse valuedef (Anchored (path ++ [PathElemIndex idx]) x)
       Nothing -> resultWithThrow (Anchored (path ++ [PathElemIndex idx]) "missing key")
 
-fieldBy :: Text.Text -> Text.Text -> ValueDef a -> Ap FieldDef a
-fieldBy key docstring valuedef = liftAp (FieldReqDef key docstring valuedef)
+fieldBy :: Text.Text -> Text.Text -> ValueDef a -> Ap (FieldDef s) a
+fieldBy key docstring valuedef = liftAp (FieldReqDef key docstring undefined valuedef)
 
-field :: (Unjson a) => Text.Text -> Text.Text -> Ap FieldDef a
+field :: (Unjson a) => Text.Text -> Text.Text -> Ap (FieldDef s) a
 field key docstring = fieldBy key docstring valueDef
 
-field' :: (Aeson.FromJSON a,Aeson.ToJSON a) => Text.Text -> Text.Text -> Ap FieldDef a
+field' :: (Aeson.FromJSON a,Aeson.ToJSON a) => Text.Text -> Text.Text -> Ap (FieldDef s) a
 field' key docstring = fieldBy key docstring liftAesonFromJSON
 
-fieldOptBy :: Text.Text -> Text.Text -> ValueDef a -> Ap FieldDef (Maybe a)
-fieldOptBy key docstring valuedef = liftAp (FieldOptDef key docstring valuedef)
+fieldOptBy :: Text.Text -> Text.Text -> ValueDef a -> Ap (FieldDef s) (Maybe a)
+fieldOptBy key docstring valuedef = liftAp (FieldOptDef key docstring undefined valuedef)
 
-fieldOpt :: (Unjson a) => Text.Text -> Text.Text -> Ap FieldDef (Maybe a)
+fieldOpt :: (Unjson a) => Text.Text -> Text.Text -> Ap (FieldDef s) (Maybe a)
 fieldOpt key docstring = fieldOptBy key docstring valueDef
 
-fieldOpt' :: (Aeson.FromJSON a,Aeson.ToJSON a) => Text.Text -> Text.Text -> Ap FieldDef (Maybe a)
+fieldOpt' :: (Aeson.FromJSON a,Aeson.ToJSON a) => Text.Text -> Text.Text -> Ap (FieldDef s) (Maybe a)
 fieldOpt' key docstring = fieldOptBy key docstring liftAesonFromJSON
 
-fieldDefBy :: Text.Text -> a -> Text.Text -> ValueDef a -> Ap FieldDef a
-fieldDefBy key def docstring valuedef = liftAp (FieldDefDef key docstring def valuedef)
+fieldDefBy :: Text.Text -> a -> Text.Text -> ValueDef a -> Ap (FieldDef s) a
+fieldDefBy key def docstring valuedef = liftAp (FieldDefDef key docstring def undefined valuedef)
 
-fieldDef :: (Unjson a) => Text.Text -> a -> Text.Text -> Ap FieldDef a
+fieldDef :: (Unjson a) => Text.Text -> a -> Text.Text -> Ap (FieldDef s) a
 fieldDef key def docstring = fieldDefBy key def docstring valueDef
 
-fieldDef' :: (Aeson.FromJSON a,Aeson.ToJSON a) => Text.Text -> a -> Text.Text -> Ap FieldDef a
+fieldDef' :: (Aeson.FromJSON a,Aeson.ToJSON a) => Text.Text -> a -> Text.Text -> Ap (FieldDef s) a
 fieldDef' key def docstring = fieldDefBy key def docstring liftAesonFromJSON
 
 arrayOf :: ValueDef a -> ValueDef [a]

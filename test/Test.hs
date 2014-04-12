@@ -35,7 +35,7 @@ data Credentials =
                  }
   deriving (Eq,Ord,Show,Typeable)
 
-unjsonKonfig :: Ap FieldDef Konfig
+unjsonKonfig :: Ap (FieldDef Konfig) Konfig
 unjsonKonfig = pure Konfig
            <*> field' "hostname"
                  "The hostname this service is visible as"
@@ -50,7 +50,7 @@ unjsonKonfig = pure Konfig
                  "Alternate names for this server"
                  arrayOf'
 
-unjsonCredentials :: Ap FieldDef Credentials
+unjsonCredentials :: Ap (FieldDef Credentials) Credentials
 unjsonCredentials = pure Credentials
                     <*> field' "username"
                           "Name of the user"
