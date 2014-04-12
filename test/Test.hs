@@ -38,23 +38,30 @@ data Credentials =
 unjsonKonfig :: Ap (FieldDef Konfig) Konfig
 unjsonKonfig = pure Konfig
            <*> field' "hostname"
+                 konfigHostname
                  "The hostname this service is visible as"
            <*> fieldDef' "port" 80
+                 konfigPort
                  "Port to listen on"
            <*> fieldBy "credentials"
+                 konfigCredentials
                  "User admin credentials"
                  (ObjectValueDef unjsonCredentials)
            <*> fieldOpt' "comment"
+                 konfigComment
                  "Optional comment, free text"
            <*> fieldOptBy "alternates"
+                 konfigAlternates
                  "Alternate names for this server"
                  arrayOf'
 
 unjsonCredentials :: Ap (FieldDef Credentials) Credentials
 unjsonCredentials = pure Credentials
                     <*> field' "username"
+                          credentialsUsername
                           "Name of the user"
                     <*> field' "password"
+                          credentialsPassword
                           "Password for the user"
 
 instance Unjson Credentials where

@@ -356,32 +356,32 @@ lookupByTupleFieldDef (Anchored path v) (TupleFieldDef idx _ valuedef)
       Just x  -> parse valuedef (Anchored (path ++ [PathElemIndex idx]) x)
       Nothing -> resultWithThrow (Anchored (path ++ [PathElemIndex idx]) "missing key")
 
-fieldBy :: Text.Text -> Text.Text -> ValueDef a -> Ap (FieldDef s) a
-fieldBy key docstring valuedef = liftAp (FieldReqDef key docstring undefined valuedef)
+fieldBy :: Text.Text -> (s -> a) -> Text.Text -> ValueDef a -> Ap (FieldDef s) a
+fieldBy key f docstring valuedef = liftAp (FieldReqDef key docstring f valuedef)
 
-field :: (Unjson a) => Text.Text -> Text.Text -> Ap (FieldDef s) a
-field key docstring = fieldBy key docstring valueDef
+field :: (Unjson a) => Text.Text -> (s -> a) -> Text.Text -> Ap (FieldDef s) a
+field key f docstring = fieldBy key f docstring valueDef
 
-field' :: (Aeson.FromJSON a,Aeson.ToJSON a) => Text.Text -> Text.Text -> Ap (FieldDef s) a
-field' key docstring = fieldBy key docstring liftAesonFromJSON
+field' :: (Aeson.FromJSON a,Aeson.ToJSON a) => Text.Text -> (s -> a) -> Text.Text -> Ap (FieldDef s) a
+field' key f docstring = fieldBy key f docstring liftAesonFromJSON
 
-fieldOptBy :: Text.Text -> Text.Text -> ValueDef a -> Ap (FieldDef s) (Maybe a)
-fieldOptBy key docstring valuedef = liftAp (FieldOptDef key docstring undefined valuedef)
+fieldOptBy :: Text.Text -> (s -> Maybe a) -> Text.Text -> ValueDef a -> Ap (FieldDef s) (Maybe a)
+fieldOptBy key f docstring valuedef = liftAp (FieldOptDef key docstring f valuedef)
 
-fieldOpt :: (Unjson a) => Text.Text -> Text.Text -> Ap (FieldDef s) (Maybe a)
-fieldOpt key docstring = fieldOptBy key docstring valueDef
+fieldOpt :: (Unjson a) => Text.Text -> (s -> Maybe a) -> Text.Text -> Ap (FieldDef s) (Maybe a)
+fieldOpt key f docstring = fieldOptBy key f docstring valueDef
 
-fieldOpt' :: (Aeson.FromJSON a,Aeson.ToJSON a) => Text.Text -> Text.Text -> Ap (FieldDef s) (Maybe a)
-fieldOpt' key docstring = fieldOptBy key docstring liftAesonFromJSON
+fieldOpt' :: (Aeson.FromJSON a,Aeson.ToJSON a) => Text.Text -> (s -> Maybe a) -> Text.Text -> Ap (FieldDef s) (Maybe a)
+fieldOpt' key f docstring = fieldOptBy key f docstring liftAesonFromJSON
 
-fieldDefBy :: Text.Text -> a -> Text.Text -> ValueDef a -> Ap (FieldDef s) a
-fieldDefBy key def docstring valuedef = liftAp (FieldDefDef key docstring def undefined valuedef)
+fieldDefBy :: Text.Text -> a -> (s -> a) -> Text.Text -> ValueDef a -> Ap (FieldDef s) a
+fieldDefBy key def f docstring valuedef = liftAp (FieldDefDef key docstring def f valuedef)
 
-fieldDef :: (Unjson a) => Text.Text -> a -> Text.Text -> Ap (FieldDef s) a
-fieldDef key def docstring = fieldDefBy key def docstring valueDef
+fieldDef :: (Unjson a) => Text.Text -> a -> (s -> a) -> Text.Text -> Ap (FieldDef s) a
+fieldDef key def f docstring = fieldDefBy key def f docstring valueDef
 
-fieldDef' :: (Aeson.FromJSON a,Aeson.ToJSON a) => Text.Text -> a -> Text.Text -> Ap (FieldDef s) a
-fieldDef' key def docstring = fieldDefBy key def docstring liftAesonFromJSON
+fieldDef' :: (Aeson.FromJSON a,Aeson.ToJSON a) => Text.Text -> a -> (s -> a) -> Text.Text -> Ap (FieldDef s) a
+fieldDef' key def f docstring = fieldDefBy key def f docstring liftAesonFromJSON
 
 arrayOf :: ValueDef a -> ValueDef [a]
 arrayOf valuedef = ArrayValueDef valuedef
