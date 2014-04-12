@@ -35,8 +35,8 @@ data Credentials =
                  }
   deriving (Eq,Ord,Show,Typeable)
 
-unjsonKonfig :: Ap (FieldDef Konfig) Konfig
-unjsonKonfig = pure Konfig
+unjsonKonfig :: ValueDef Konfig
+unjsonKonfig = ObjectValueDef $ pure Konfig
            <*> field' "hostname"
                  konfigHostname
                  "The hostname this service is visible as"
@@ -46,7 +46,7 @@ unjsonKonfig = pure Konfig
            <*> fieldBy "credentials"
                  konfigCredentials
                  "User admin credentials"
-                 (ObjectValueDef unjsonCredentials)
+                 unjsonCredentials
            <*> fieldOpt' "comment"
                  konfigComment
                  "Optional comment, free text"
@@ -55,8 +55,8 @@ unjsonKonfig = pure Konfig
                  "Alternate names for this server"
                  arrayOf'
 
-unjsonCredentials :: Ap (FieldDef Credentials) Credentials
-unjsonCredentials = pure Credentials
+unjsonCredentials :: ValueDef Credentials
+unjsonCredentials = ObjectValueDef $ pure Credentials
                     <*> field' "username"
                           credentialsUsername
                           "Name of the user"
@@ -65,7 +65,7 @@ unjsonCredentials = pure Credentials
                           "Password for the user"
 
 instance Unjson Credentials where
-  valueDef = ObjectValueDef unjsonCredentials
+  valueDef = unjsonCredentials
 
 test_proper_parse :: Test
 test_proper_parse = "Proper parsing of a complex structure" ~: do
@@ -85,7 +85,7 @@ test_proper_parse = "Proper parsing of a complex structure" ~: do
                , konfigAlternates = Nothing
                }
 
-  let Result val iss = parse (ObjectValueDef unjsonKonfig) (Anchored [] json)
+  let Result val iss = parse unjsonKonfig (Anchored [] json)
   assertEqual "There are no issues in parsing" [] iss
   assertEqual "Value parsed is the one expected" expect val
   return ()
@@ -108,7 +108,7 @@ test_missing_key = "Key missing" ~: do
                , konfigAlternates = Nothing
                }
 
-  let Result val iss = parse (ObjectValueDef unjsonKonfig) (Anchored [] json)
+  let Result val iss = parse unjsonKonfig (Anchored [] json)
   assertEqual "There is one issue in parsing" [Anchored [ PathElemKey "credentials"
                                                         , PathElemKey "password"
                                                         ] "missing key"] iss
@@ -126,7 +126,7 @@ test_wrong_value_type = "Value at key is wrong type" ~: do
                , "credentials" .= ("www.example.com" :: Text.Text)
                ]
 
-  let Result val iss = parse (ObjectValueDef unjsonKonfig) (Anchored [] json)
+  let Result val iss = parse unjsonKonfig (Anchored [] json)
   assertEqual "Number of issues in parsing" 3 (length iss)
   assertEqual "Hostname must be string error info is present"
                 (Anchored [ PathElemKey "hostname"
@@ -181,8 +181,8 @@ test_symmetry_of_serialization = "Key missing" ~: do
                , konfigAlternates = Nothing
                }
 
-  let json = serialize1 (ObjectValueDef unjsonKonfig) expect
-  let Result val iss = parse (ObjectValueDef unjsonKonfig) (Anchored [] json)
+  let json = serialize1 unjsonKonfig expect
+  let Result val iss = parse unjsonKonfig (Anchored [] json)
   assertEqual "Serialize-parse produces no problems" expect val
   assertEqual "Serialize-parse is identity" expect val
   return ()
