@@ -367,28 +367,32 @@ render :: ValueDef a -> String
 render = P.render . renderDoc
 
 renderDoc :: ValueDef a -> P.Doc
-renderDoc (SimpleValueDef _ _) = P.text "simple value"
+renderDoc (SimpleValueDef _ _) = P.empty
 renderDoc (ArrayValueDef f) = P.text "array" P.$+$
              P.nest 4 (renderDoc f)
-renderDoc (ObjectValueDef f) = P.text "object" P.$+$
+renderDoc (ObjectValueDef f) = -- P.text "object" P.$+$
              P.nest 4 (P.vcat (renderFields f))
-renderDoc (TupleValueDef f) = P.text "tuple" P.$+$
+renderDoc (TupleValueDef f) = P.text "tuple of size " P.<> P.int (countAp 0 f) P.$+$
              P.nest 4 (P.vcat (renderTupleFields f))
 
 renderFields :: Ap (FieldDef s) a -> [P.Doc]
 renderFields (Pure _) = []
 renderFields (Ap (FieldReqDef key docstring _f d) r) =
-  (P.text (Text.unpack key) P.<> P.text " (req): " P.<> P.text (Text.unpack docstring) P.$+$ renderDoc d)
+  (P.text (Text.unpack key) P.<> P.text " (req): " P.$+$ P.nest 4 (P.text (Text.unpack docstring) P.$+$ renderDoc d))
     : renderFields r
 renderFields (Ap (FieldOptDef key docstring _f d) r) =
-  (P.text (Text.unpack key) P.<> P.text " (opt): " P.<> P.text (Text.unpack docstring) P.$+$ renderDoc d)
+  (P.text (Text.unpack key) P.<> P.text " (opt): " P.$+$ P.nest 4 (P.text (Text.unpack docstring) P.$+$ renderDoc d))
     : renderFields r
 renderFields (Ap (FieldDefDef key docstring _f _ d) r) =
-  (P.text (Text.unpack key) P.<> P.text " (def): " P.<> P.text (Text.unpack docstring) P.$+$ renderDoc d)
+  (P.text (Text.unpack key) P.<> P.text " (def): " P.$+$ P.nest 4 (P.text (Text.unpack docstring) P.$+$ renderDoc d))
    : renderFields r
 
 renderTupleFields :: Ap (TupleFieldDef s) a -> [P.Doc]
 renderTupleFields (Pure _) = []
 renderTupleFields (Ap (TupleFieldDef index _f d) r) =
-  (P.int index P.<> P.text ": " P.$+$ renderDoc d)
+  (if P.isEmpty s
+     then P.empty
+     else (P.int index P.<> P.text ": " P.$+$ s))
     : renderTupleFields r
+  where
+    s = renderDoc d
