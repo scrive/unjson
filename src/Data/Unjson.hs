@@ -8,11 +8,9 @@ where
 * need to support the 'update' mode with null as reset to default functionality
 * write more documentation
 
-* need to support bidirectional, it is very annoying to try to write it both ways
 * looks like bidirectional could provide for update...
 * create useful export list
 * can have item-or-array mode: make an array out of singular items, this could be automatic provided that nested value def is not array def... might be confusing though
-
 
 -}
 
@@ -52,36 +50,6 @@ instance (Show a) => Show (Anchored a) where
 
 instance (Typeable a, Show a) => Exception (Anchored a)
 
-------------------------------------------------------------
-
-data DocumentValue
-  = DocumentValue { documentValueText :: Text.Text                   -- ^ description of this particular item
-                  , documentValueKeys :: [(Text.Text, DocumentKey)]  -- ^ description of its parts, key-value
-                  }
-  deriving (Eq, Ord, Show, Typeable)
-
-data DocumentKey
-  = DocumentKey { documentKeyText  :: Text.Text          -- ^ description of this particular item
-                , documentKeyValue :: DocumentValue      -- ^ description of its parts, key-value
-                }
-  deriving (Eq, Ord, Show, Typeable)
-
-
-{-
-documentF :: UnjsonX' a -> Documentation
-documentF (Field key docstring p) = Documentation "" [(key, docstring, document p)]
-documentF (Leaf _) = Documentation "" [] -- we could have documentation here...
-
-document :: UnjsonX a -> Documentation
-document (Pure x) = Documentation "" []
-document (Ap a b) = Documentation (a1 <> b1) (a2 <> b2)
-  where
-    Documentation a1 a2 = documentF a
-    Documentation b1 b2 = document b
--}
-
-----------------------------------
-
 type Problem = Anchored Text.Text
 type Problems = [Problem]
 
@@ -94,9 +62,6 @@ instance Applicative Result where
 
 resultWithThrow :: Anchored Text.Text -> Result a
 resultWithThrow msg = Result (throw msg) [msg]
-
-
-----------------------------------------
 
 class Unjson a where
   valueDef :: ValueDef a
