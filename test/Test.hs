@@ -25,7 +25,7 @@ data Konfig =
             , konfigPort        :: Int
             , konfigCredentials :: Credentials
             , konfigComment     :: Maybe Text.Text
-            , konfigAlternates  :: Maybe (Text.Text,Text.Text)
+            , konfigAlternates  :: Maybe (Text.Text,Credentials)
             }
   deriving (Eq,Ord,Show,Typeable)
 
