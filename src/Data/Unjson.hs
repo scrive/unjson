@@ -296,10 +296,10 @@ parseUpdating (ObjectValueDef f) ov (Anchored path v)
         runAp (lookupByFieldDefUpdate (Anchored path v) ov) f
       Left e ->
         resultWithThrow (Anchored path (Text.pack e))
-parseUpdating (TupleValueDef f) _ov (Anchored path v)
+parseUpdating (TupleValueDef f) ov (Anchored path v)
   = case Aeson.parseEither Aeson.parseJSON v of
       Right v ->
-        let r@(Result g h) = runAp (lookupByTupleFieldDef (Anchored path v)) f
+        let r@(Result g h) = runAp (lookupByTupleFieldDefUpdate (Anchored path v) ov) f
             tupleSize = countAp 0 f
             arrayLength = Vector.length v
         in if tupleSize == arrayLength
@@ -376,6 +376,12 @@ lookupByTupleFieldDef :: Anchored Aeson.Array -> TupleFieldDef s a -> Result a
 lookupByTupleFieldDef (Anchored path v) (TupleFieldDef idx _ valuedef)
   = case v Vector.!? idx of
       Just x  -> parse valuedef (Anchored (path ++ [PathElemIndex idx]) x)
+      Nothing -> resultWithThrow (Anchored (path ++ [PathElemIndex idx]) "missing key")
+
+lookupByTupleFieldDefUpdate :: Anchored Aeson.Array -> s -> TupleFieldDef s a -> Result a
+lookupByTupleFieldDefUpdate (Anchored path v) ov (TupleFieldDef idx f valuedef)
+  = case v Vector.!? idx of
+      Just x  -> parseUpdating valuedef (f ov) (Anchored (path ++ [PathElemIndex idx]) x)
       Nothing -> resultWithThrow (Anchored (path ++ [PathElemIndex idx]) "missing key")
 
 fieldBy :: Text.Text -> (s -> a) -> Text.Text -> ValueDef a -> Ap (FieldDef s) a
