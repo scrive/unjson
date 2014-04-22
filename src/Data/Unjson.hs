@@ -352,11 +352,10 @@ lookupByFieldDefUpdate (Anchored path v) ov (FieldDefDef name docstring def f va
 lookupByFieldDefUpdate (Anchored path v) ov (FieldOptDef name docstring f valuedef)
   = case HashMap.lookup name v of
       Just Aeson.Null -> Result Nothing []
-      Just x  -> fmap Just (parseUpdating valuedef (fromJust (f ov)) (Anchored (path ++ [PathElemKey name]) x))
+      Just x  -> case f ov of
+                   Just jov -> fmap Just (parseUpdating valuedef jov (Anchored (path ++ [PathElemKey name]) x))
+                   Nothing -> fmap Just (parse1 valuedef (Anchored (path ++ [PathElemKey name]) x))
       Nothing -> Result (f ov) []
-    where
-      fromJust (Just x) = x
-      fromJust _ = error "Nothing in lookupByFieldDefUpdate, this should be type-level statically impossible"
 
 lookupByFieldDef :: Anchored Aeson.Object -> FieldDef s a -> Result a
 lookupByFieldDef (Anchored path v) (FieldReqDef name docstring _ valuedef)

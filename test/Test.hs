@@ -297,7 +297,7 @@ test_update_from_serialization_with_reset_to_default = "test_update_from_seriali
                , konfigPort = 80
                , konfigComment = Nothing
                , konfigCredentials = Credentials "usr1" "pass1" (Nothing)
-               , konfigAlternates = Nothing
+               , konfigAlternates = Just ("abc", Credentials "usrx" "passx" Nothing)
                }
 
   let json = Aeson.object
@@ -306,6 +306,12 @@ test_update_from_serialization_with_reset_to_default = "test_update_from_seriali
                , "comment" .= Aeson.Null      -- optional field
                , "credentials" .= Aeson.object
                                [ "domain" .= Aeson.Null ]
+               , "alternates" .= [ Aeson.toJSON ("abc" :: Text.Text)
+                                 , Aeson.object
+                                   [ "username" .= ("usrx" :: Text.Text)
+                                   , "password" .= ("passx" :: Text.Text)
+                                   ]
+                                 ]
                ]
   let Result val iss = parseUpdating unjsonKonfig initial (Anchored [] json)
   assertEqual "Serialize-parse produces no problems"
