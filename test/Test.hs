@@ -32,6 +32,7 @@ data Konfig =
 data Credentials =
      Credentials { credentialsUsername :: Text.Text
                  , credentialsPassword :: Text.Text
+                 , credentialsDomain   :: Maybe Text.Text
                  }
   deriving (Eq,Ord,Show,Typeable)
 
@@ -67,6 +68,9 @@ unjsonCredentials = ObjectValueDef $ pure Credentials
                     <*> field' "password"
                           credentialsPassword
                           "Password for the user"
+                    <*> fieldOpt' "domain"
+                          credentialsDomain
+                          "Domain for user credentials"
 
 
 unjsonExtendedTest :: ValueDef ExtendedTest
@@ -100,7 +104,7 @@ test_proper_parse = "Proper parsing of a complex structure" ~: do
                { konfigHostname = "www.example.com"
                , konfigPort = 80
                , konfigComment = Just "nice server"
-               , konfigCredentials = Credentials "usr1" "pass1"
+               , konfigCredentials = Credentials "usr1" "pass1" Nothing
                , konfigAlternates = Nothing
                }
 
@@ -123,7 +127,7 @@ test_missing_key = "Key missing" ~: do
                { konfigHostname = "www.example.com"
                , konfigPort = 12345
                , konfigComment = Just "nice server"
-               , konfigCredentials = Credentials "usr1" "pass1"
+               , konfigCredentials = Credentials "usr1" "pass1" Nothing
                , konfigAlternates = Nothing
                }
 
@@ -196,7 +200,7 @@ test_symmetry_of_serialization = "Key missing" ~: do
                { konfigHostname = "www.example.com"
                , konfigPort = 12345
                , konfigComment = Just "nice server"
-               , konfigCredentials = Credentials "usr1" "pass1"
+               , konfigCredentials = Credentials "usr1" "pass1" Nothing
                , konfigAlternates = Nothing
                }
 
@@ -249,12 +253,74 @@ test_parse_either_field = "test_parse_either_field" ~: do
   return ()
 
 
+test_update_from_serialization :: Test
+test_update_from_serialization = "test_update_from_serialization" ~: do
+  let initial = Konfig
+               { konfigHostname = "old-www.server.com"
+               , konfigPort = 12345
+               , konfigComment = Just "nice server"
+               , konfigCredentials = Credentials "usr1" "pass1" Nothing
+               , konfigAlternates = Nothing
+               }
+  let expect = Konfig
+               { konfigHostname = "www.example.com"
+               , konfigPort = 999
+               , konfigComment = Just "a better server"
+               , konfigCredentials = Credentials "usr2" "pass1" (Just "domain")
+               , konfigAlternates = Nothing
+               }
+
+  let json = Aeson.object
+               [ "hostname" .= ("www.example.com" :: Text.Text)     -- mandatory field
+               , "port" .= (999 :: Int)                             -- optional with default
+               , "comment" .= ("a better server" :: Text.Text)      -- optional field
+               , "credentials" .= Aeson.object
+                               [ "domain" .= ("domain" :: Text.Text)
+                               , "username" .= ("usr2" :: Text.Text) ]
+               ]
+  let Result val iss = parseUpdating unjsonKonfig initial (Anchored [] json)
+  assertEqual "Serialize-parse produces no problems" [] iss
+  assertEqual "Serialize-parse is identity" expect val
+  return ()
+
+test_update_from_serialization_with_reset_to_default :: Test
+test_update_from_serialization_with_reset_to_default = "test_update_from_serialization_with_reset_to_default" ~: do
+  let initial = Konfig
+               { konfigHostname = "old-www.server.com"
+               , konfigPort = 12345
+               , konfigComment = Just "nice server"
+               , konfigCredentials = Credentials "usr1" "pass1" (Just "domain")
+               , konfigAlternates = Nothing
+               }
+  let expect = Konfig
+               { konfigHostname = "www.example.com"
+               , konfigPort = 80
+               , konfigComment = Nothing
+               , konfigCredentials = Credentials "usr1" "pass1" (Nothing)
+               , konfigAlternates = Nothing
+               }
+
+  let json = Aeson.object
+               [ "hostname" .= Aeson.Null     -- mandatory field
+               , "port" .= Aeson.Null         -- optional with default
+               , "comment" .= Aeson.Null      -- optional field
+               , "credentials" .= Aeson.object
+                               [ "domain" .= Aeson.Null ]
+               ]
+  let Result val iss = parseUpdating unjsonKonfig initial (Anchored [] json)
+  assertEqual "Serialize-parse produces no problems"
+                [Anchored [PathElemKey "hostname"] "when expecting a Text, encountered Null instead"] iss
+  assertEqual "Serialize-parse is identity" expect (val {konfigHostname = "www.example.com"})
+  return ()
+
 tests = test [ test_proper_parse
              , test_missing_key
              , test_wrong_value_type
              , test_tuple_parsing
              , test_symmetry_of_serialization
              , test_parse_either_field
+             , test_update_from_serialization
+             , test_update_from_serialization_with_reset_to_default
              ]
 
 main = runTestTT tests

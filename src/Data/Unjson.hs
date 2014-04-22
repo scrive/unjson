@@ -272,6 +272,33 @@ countAp :: Int -> Ap x a -> Int
 countAp !n (Pure _) = n
 countAp n (Ap _ r) = countAp (succ n) r
 
+parseUpdating :: ValueDef a -> a -> Anchored Aeson.Value -> Result a
+parseUpdating (SimpleValueDef f _) _ov v = f v
+parseUpdating (ArrayValueDef f) _ov (Anchored path v)
+  = case Aeson.parseEither Aeson.parseJSON v of
+      Right v ->
+        sequenceA (zipWith (\v i -> parse1 f (Anchored (path ++ [PathElemIndex i]) v)) (Vector.toList v) [0..])
+      Left e ->
+        resultWithThrow (Anchored path (Text.pack e))
+parseUpdating (ObjectValueDef f) ov (Anchored path v)
+  = case Aeson.parseEither Aeson.parseJSON v of
+      Right v ->
+        runAp (lookupByFieldDefUpdate (Anchored path v) ov) f
+      Left e ->
+        resultWithThrow (Anchored path (Text.pack e))
+parseUpdating (TupleValueDef f) _ov (Anchored path v)
+  = case Aeson.parseEither Aeson.parseJSON v of
+      Right v ->
+        let r@(Result g h) = runAp (lookupByTupleFieldDef (Anchored path v)) f
+            tupleSize = countAp 0 f
+            arrayLength = Vector.length v
+        in if tupleSize == arrayLength
+             then r
+             else Result g (h ++ [Anchored path ("cannot parse array of length " <> Text.pack (show arrayLength) <>
+                                                " into tuple of size " <> Text.pack (show tupleSize))])
+      Left e ->
+        resultWithThrow (Anchored path (Text.pack e))
+
 parse :: ValueDef a -> Anchored Aeson.Value -> Result a
 parse = parse1
 
@@ -301,6 +328,25 @@ parse1 (TupleValueDef f) (Anchored path v)
                                                 " into tuple of size " <> Text.pack (show tupleSize))])
       Left e ->
         resultWithThrow (Anchored path (Text.pack e))
+
+lookupByFieldDefUpdate :: Anchored Aeson.Object -> s -> FieldDef s a -> Result a
+lookupByFieldDefUpdate (Anchored path v) ov (FieldReqDef name docstring f valuedef)
+  = case HashMap.lookup name v of
+      Just x  -> parseUpdating valuedef (f ov) (Anchored (path ++ [PathElemKey name]) x)
+      Nothing -> Result (f ov) []
+lookupByFieldDefUpdate (Anchored path v) ov (FieldDefDef name docstring def f valuedef)
+  = case HashMap.lookup name v of
+      Just Aeson.Null -> Result def []
+      Just x  -> parseUpdating valuedef (f ov) (Anchored (path ++ [PathElemKey name]) x)
+      Nothing -> Result (f ov) []
+lookupByFieldDefUpdate (Anchored path v) ov (FieldOptDef name docstring f valuedef)
+  = case HashMap.lookup name v of
+      Just Aeson.Null -> Result Nothing []
+      Just x  -> fmap Just (parseUpdating valuedef (fromJust (f ov)) (Anchored (path ++ [PathElemKey name]) x))
+      Nothing -> Result (f ov) []
+    where
+      fromJust (Just x) = x
+      fromJust _ = error "Nothing in lookupByFieldDefUpdate, this should be type-level statically impossible"
 
 lookupByFieldDef :: Anchored Aeson.Object -> FieldDef s a -> Result a
 lookupByFieldDef (Anchored path v) (FieldReqDef name docstring _ valuedef)
