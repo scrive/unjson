@@ -291,20 +291,26 @@ countAp !n (Pure _) = n
 countAp n (Ap _ r) = countAp (succ n) r
 
 parseUpdating :: ValueDef a -> a -> Anchored Aeson.Value -> Result a
-parseUpdating (SimpleValueDef f _) _ov v = f v
-parseUpdating (ArrayValueDef _m f) _ov (Anchored path v)
+parseUpdating v a = parseUpdating1 v (Just a)
+
+parseUpdating1 :: ValueDef a -> Maybe a -> Anchored Aeson.Value -> Result a
+parseUpdating1 (SimpleValueDef f _) _ov v = f v
+parseUpdating1 (ArrayValueDef m f) _ov (Anchored path v)
   = case Aeson.parseEither Aeson.parseJSON v of
       Right v ->
-        sequenceA (zipWith (\v i -> parse1 f (Anchored (path ++ [PathElemIndex i]) v)) (Vector.toList v) [0..])
-      Left e ->
-        resultWithThrow (Anchored path (Text.pack e))
-parseUpdating (ObjectValueDef f) ov (Anchored path v)
+        sequenceA (zipWith (\v i -> parseUpdating1 f Nothing (Anchored (path ++ [PathElemIndex i]) v)) (Vector.toList v) [0..])
+      Left e -> case m of
+          ArrayValueModeStrict ->
+            resultWithThrow (Anchored path (Text.pack e))
+          _ ->
+            sequenceA [parseUpdating1 f Nothing (Anchored (path ++ [PathElemIndex 0]) v)]
+parseUpdating1 (ObjectValueDef f) ov (Anchored path v)
   = case Aeson.parseEither Aeson.parseJSON v of
       Right v ->
         runAp (lookupByFieldDefUpdate (Anchored path v) ov) f
       Left e ->
         resultWithThrow (Anchored path (Text.pack e))
-parseUpdating (TupleValueDef f) ov (Anchored path v)
+parseUpdating1 (TupleValueDef f) ov (Anchored path v)
   = case Aeson.parseEither Aeson.parseJSON v of
       Right v ->
         let r@(Result g h) = runAp (lookupByTupleFieldDefUpdate (Anchored path v) ov) f
@@ -318,80 +324,38 @@ parseUpdating (TupleValueDef f) ov (Anchored path v)
         resultWithThrow (Anchored path (Text.pack e))
 
 parse :: ValueDef a -> Anchored Aeson.Value -> Result a
-parse = parse1
+parse vd = parseUpdating1 vd Nothing
 
-parse1 :: ValueDef a -> Anchored Aeson.Value -> Result a
-parse1 (SimpleValueDef f _) v = f v
-parse1 (ArrayValueDef m f) (Anchored path v)
-  = case Aeson.parseEither Aeson.parseJSON v of
-      Right v ->
-        sequenceA (zipWith (\v i -> parse1 f (Anchored (path ++ [PathElemIndex i]) v)) (Vector.toList v) [0..])
-      Left e -> case m of
-          ArrayValueModeStrict ->
-            resultWithThrow (Anchored path (Text.pack e))
-          _ ->
-            sequenceA [parse1 f (Anchored (path ++ [PathElemIndex 0]) v)]
-parse1 (ObjectValueDef f) (Anchored path v)
-  = case Aeson.parseEither Aeson.parseJSON v of
-      Right v ->
-        runAp (lookupByFieldDef (Anchored path v)) f
-      Left e ->
-        resultWithThrow (Anchored path (Text.pack e))
-parse1 (TupleValueDef f) (Anchored path v)
-  = case Aeson.parseEither Aeson.parseJSON v of
-      Right v ->
-        let r@(Result g h) = runAp (lookupByTupleFieldDef (Anchored path v)) f
-            tupleSize = countAp 0 f
-            arrayLength = Vector.length v
-        in if tupleSize == arrayLength
-             then r
-             else Result g (h ++ [Anchored path ("cannot parse array of length " <> Text.pack (show arrayLength) <>
-                                                " into tuple of size " <> Text.pack (show tupleSize))])
-      Left e ->
-        resultWithThrow (Anchored path (Text.pack e))
 
-lookupByFieldDefUpdate :: Anchored Aeson.Object -> s -> FieldDef s a -> Result a
+lookupByFieldDefUpdate :: Anchored Aeson.Object -> Maybe s -> FieldDef s a -> Result a
 lookupByFieldDefUpdate (Anchored path v) ov (FieldReqDef name docstring f valuedef)
   = case HashMap.lookup name v of
-      Just x  -> parseUpdating valuedef (f ov) (Anchored (path ++ [PathElemKey name]) x)
-      Nothing -> Result (f ov) []
+      Just x  -> parseUpdating1 valuedef (fmap f ov) (Anchored (path ++ [PathElemKey name]) x)
+      Nothing -> case ov of
+                   Just xov -> Result (f xov) []
+                   Nothing -> resultWithThrow (Anchored (path ++ [PathElemKey name]) "missing key")
 lookupByFieldDefUpdate (Anchored path v) ov (FieldDefDef name docstring def f valuedef)
   = case HashMap.lookup name v of
       Just Aeson.Null -> Result def []
-      Just x  -> parseUpdating valuedef (f ov) (Anchored (path ++ [PathElemKey name]) x)
-      Nothing -> Result (f ov) []
+      Just x  -> parseUpdating1 valuedef (fmap f ov) (Anchored (path ++ [PathElemKey name]) x)
+      Nothing -> case ov of
+                   Just xov -> Result (f xov) []
+                   Nothing -> Result def []
 lookupByFieldDefUpdate (Anchored path v) ov (FieldOptDef name docstring f valuedef)
   = case HashMap.lookup name v of
       Just Aeson.Null -> Result Nothing []
-      Just x  -> case f ov of
-                   Just jov -> fmap Just (parseUpdating valuedef jov (Anchored (path ++ [PathElemKey name]) x))
-                   Nothing -> fmap Just (parse1 valuedef (Anchored (path ++ [PathElemKey name]) x))
-      Nothing -> Result (f ov) []
+      Just x  -> case ov of
+                   Just xov -> fmap Just (parseUpdating1 valuedef (f xov) (Anchored (path ++ [PathElemKey name]) x))
+                   Nothing -> fmap Just (parseUpdating1 valuedef Nothing (Anchored (path ++ [PathElemKey name]) x))
+      Nothing -> case ov of
+                   Just xov -> Result (f xov) []
+                   Nothing -> Result Nothing []
 
-lookupByFieldDef :: Anchored Aeson.Object -> FieldDef s a -> Result a
-lookupByFieldDef (Anchored path v) (FieldReqDef name docstring _ valuedef)
-  = case HashMap.lookup name v of
-      Just x  -> parse valuedef (Anchored (path ++ [PathElemKey name]) x)
-      Nothing -> resultWithThrow (Anchored (path ++ [PathElemKey name]) "missing key")
-lookupByFieldDef (Anchored path v) (FieldDefDef name docstring def _ valuedef)
-  = case HashMap.lookup name v of
-      Just x  -> parse valuedef (Anchored (path ++ [PathElemKey name]) x)
-      Nothing -> Result def []
-lookupByFieldDef (Anchored path v) (FieldOptDef name docstring _ valuedef)
-  = case HashMap.lookup name v of
-      Just x  -> fmap Just (parse valuedef (Anchored (path ++ [PathElemKey name]) x))
-      Nothing -> Result Nothing []
 
-lookupByTupleFieldDef :: Anchored Aeson.Array -> TupleFieldDef s a -> Result a
-lookupByTupleFieldDef (Anchored path v) (TupleFieldDef idx _ valuedef)
-  = case v Vector.!? idx of
-      Just x  -> parse valuedef (Anchored (path ++ [PathElemIndex idx]) x)
-      Nothing -> resultWithThrow (Anchored (path ++ [PathElemIndex idx]) "missing key")
-
-lookupByTupleFieldDefUpdate :: Anchored Aeson.Array -> s -> TupleFieldDef s a -> Result a
+lookupByTupleFieldDefUpdate :: Anchored Aeson.Array -> Maybe s -> TupleFieldDef s a -> Result a
 lookupByTupleFieldDefUpdate (Anchored path v) ov (TupleFieldDef idx f valuedef)
   = case v Vector.!? idx of
-      Just x  -> parseUpdating valuedef (f ov) (Anchored (path ++ [PathElemIndex idx]) x)
+      Just x  -> parseUpdating1 valuedef (fmap f ov) (Anchored (path ++ [PathElemIndex idx]) x)
       Nothing -> resultWithThrow (Anchored (path ++ [PathElemIndex idx]) "missing key")
 
 fieldBy :: Text.Text -> (s -> a) -> Text.Text -> ValueDef a -> Ap (FieldDef s) a

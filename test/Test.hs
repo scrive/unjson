@@ -343,15 +343,15 @@ test_array_modes = "test_array_modes" ~: do
          <*> fieldBy "hostname" id
                  "Single value or array"
                  (ArrayValueDef ArrayValueModeParseAndOutputSingle liftAesonFromJSON))
-  let Result val0 iss0 = parse1 p0 (Anchored [] json)
+  let Result val0 iss0 = parse p0 (Anchored [] json)
   assertEqual "Serialize-parse produces no problems" [Anchored [PathElemKey "hostname"] "when expecting a Vector a, encountered String instead"] iss0
-  let Result val1 iss1 = parse1 p1 (Anchored [] json)
+  let Result val1 iss1 = parse p1 (Anchored [] json)
   assertEqual "Serialize-parse produces no problems" [] iss1
   assertEqual "Serialize-parse is identity" ["www.example.com" :: Text.Text] val1
   let sjson1 = serialize1 p1 val1
   assertEqual "Same json" json1 sjson1
 
-  let Result val2 iss2 = parse1 p2 (Anchored [] json)
+  let Result val2 iss2 = parse p2 (Anchored [] json)
   assertEqual "Serialize-parse produces no problems" [] iss2
   assertEqual "Serialize-parse is identity" ["www.example.com" :: Text.Text] val2
   let sjson2 = serialize1 p2 val2
