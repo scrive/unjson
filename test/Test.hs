@@ -337,12 +337,12 @@ test_array_modes = "test_array_modes" ~: do
       p1 = ObjectValueDef $ (pure id
          <*> fieldBy "hostname" id
                  "Single value or array"
-                 (ArrayValueDef ArrayValueModeParseSingle liftAesonFromJSON))
+                 (ArrayValueDef Nothing ArrayValueModeParseSingle liftAesonFromJSON))
   let p2 :: ValueDef [Text.Text]
       p2 = ObjectValueDef $ (pure id
          <*> fieldBy "hostname" id
                  "Single value or array"
-                 (ArrayValueDef ArrayValueModeParseAndOutputSingle liftAesonFromJSON))
+                 (ArrayValueDef Nothing ArrayValueModeParseAndOutputSingle liftAesonFromJSON))
   let Result val0 iss0 = parse p0 (Anchored [] json)
   assertEqual "Serialize-parse produces no problems" [Anchored [PathElemKey "hostname"] "when expecting a Vector a, encountered String instead"] iss0
   let Result val1 iss1 = parse p1 (Anchored [] json)
@@ -358,6 +358,63 @@ test_array_modes = "test_array_modes" ~: do
   assertEqual "Same json" json sjson2
   return ()
 
+test_array_update_by_primary_key :: Test
+test_array_update_by_primary_key = "test_array_update_by_primary_key" ~: do
+
+  let json = Aeson.object
+               [ "array" .= [ Aeson.object
+                              [ "id" .= (12::Int)
+                              , "value" .= ("for 12" ::Text.Text)
+                              ]
+                            , Aeson.object
+                              [ "id" .= (17::Int)
+                              , "value" .= ("for 17" ::Text.Text)
+                              ]
+                            , Aeson.object
+                              [ "id" .= (3::Int)
+                              , "value" .= ("for 3" ::Text.Text)
+                              ]
+                            ]
+               ]
+  let json1 = Aeson.object
+               [ "array" .= [ Aeson.object  -- 17 is first now, value left intact
+                              [ "id" .= (17::Int)
+                              ]
+                            , Aeson.object       -- 3 is not there, but 4 is new
+                              [ "id" .= (4::Int)
+                              , "value" .= ("for 4" ::Text.Text)
+                              ]
+                            , Aeson.object
+                              [ "id" .= (12::Int) -- 12 got new value
+                              , "value" .= ("for 12 new value" ::Text.Text)
+                              ]
+                            ]
+               ]
+  let unjsonPair = ObjectValueDef $ (pure (,)
+         <*> field "id"
+               fst
+               "Unique id"
+         <*> field "value"
+               snd
+               "Value")
+  let pk1 = fst
+      pk2 = ObjectValueDef $ field "id" id "Unique id"
+  let p0 :: ValueDef [(Int,Text.Text)]
+      p0 = ObjectValueDef $ (pure id
+         <*> fieldBy "array"
+                 id
+                 "Array updated by primary key"
+                 (ArrayValueDef (Just (PrimaryKeyExtraction pk1 pk2))
+                    ArrayValueModeStrict
+                    unjsonPair))
+  let Result val0 iss0 = parse p0 (Anchored [] json)
+  assertEqual "Serialize-parse produces no problems" [] iss0
+  assertEqual "Serialize-parse is identity" [(12,"for 12"),(17,"for 17"),(3,"for 3")] val0
+  let Result val1 iss1 = parseUpdating p0 val0 (Anchored [] json1)
+  assertEqual "Serialize-parse produces no problems" [] iss1
+  assertEqual "Serialize-parse is identity" [(17,"for 17"),(4,"for 4"),(12,"for 12 new value")] val1
+  return ()
+
 tests = test [ test_proper_parse
              , test_missing_key
              , test_wrong_value_type
@@ -367,6 +424,7 @@ tests = test [ test_proper_parse
              , test_update_from_serialization
              , test_update_from_serialization_with_reset_to_default
              , test_array_modes
+             , test_array_update_by_primary_key
              ]
 
 main = runTestTT tests

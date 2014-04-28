@@ -28,6 +28,7 @@ import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Types as Aeson
 import qualified Data.Text as Text
 import qualified Data.Vector as Vector
+import qualified Data.Map as Map
 import Data.Typeable
 import Data.Monoid
 import Control.Applicative
@@ -69,6 +70,11 @@ data Result a = Result a Problems
 instance Applicative Result where
   pure a = Result a []
   Result a pa <*> Result b pb = Result (a b) (pa ++ pb)
+
+instance Monad Result where
+  return = pure
+  Result a pa >>= m = case m a of
+                        Result ma pma -> Result ma (pa ++ pma)
 
 resultWithThrow :: Anchored Text.Text -> Result a
 resultWithThrow msg = Result (throw msg) [msg]
@@ -246,9 +252,11 @@ data ArrayValueMode
   | ArrayValueModeParseAndOutputSingle
   deriving (Eq, Ord, Show, Typeable)
 
+data PrimaryKeyExtraction k = forall pk . (Ord pk) => PrimaryKeyExtraction (k -> pk) (ValueDef pk)
+
 data ValueDef a where
   SimpleValueDef :: (Anchored Aeson.Value -> Result k) -> (k -> Aeson.Value) -> ValueDef k
-  ArrayValueDef  :: ArrayValueMode -> ValueDef k -> ValueDef [k]
+  ArrayValueDef  :: Maybe (PrimaryKeyExtraction k) -> ArrayValueMode -> ValueDef k -> ValueDef [k]
   ObjectValueDef :: Ap (FieldDef k) k -> ValueDef k
   TupleValueDef  :: Ap (TupleFieldDef k) k -> ValueDef k
   -- DisjointValueDef :: Ap (FieldDef k) k -> ValueDef k
@@ -277,9 +285,9 @@ objectDefToArray s (Ap (FieldDefDef key _ _ f d) r) = (key,serialize1 d (f s)) :
 
 serialize1 :: ValueDef a -> a -> Aeson.Value
 serialize1 (SimpleValueDef _ g) a = g a
-serialize1 (ArrayValueDef ArrayValueModeParseAndOutputSingle f) [a] =
+serialize1 (ArrayValueDef _ ArrayValueModeParseAndOutputSingle f) [a] =
   serialize1 f a
-serialize1 (ArrayValueDef _m f) a =              -- here compiler should know that 'a' is a list
+serialize1 (ArrayValueDef _ _m f) a =              -- here compiler should know that 'a' is a list
   Aeson.toJSON (map (serialize1 f) a)
 serialize1 (ObjectValueDef f) a =
   Aeson.object (objectDefToArray a f)
@@ -295,7 +303,25 @@ parseUpdating v a = parseUpdating1 v (Just a)
 
 parseUpdating1 :: ValueDef a -> Maybe a -> Anchored Aeson.Value -> Result a
 parseUpdating1 (SimpleValueDef f _) _ov v = f v
-parseUpdating1 (ArrayValueDef m f) _ov (Anchored path v)
+parseUpdating1 (ArrayValueDef (Just (PrimaryKeyExtraction pk_from_object pk_from_json)) m f) (Just ov) (Anchored path v)
+  = case Aeson.parseEither Aeson.parseJSON v of
+      Right v ->
+        sequenceA (zipWith (\v i -> (lookupObjectByJson (Anchored (path ++ [PathElemIndex i]) v)) >>= \ov ->
+                                        parseUpdating1 f ov
+                                        (Anchored (path ++ [PathElemIndex i]) v))
+                                    (Vector.toList v) [0..])
+      Left e -> case m of
+          ArrayValueModeStrict ->
+            resultWithThrow (Anchored path (Text.pack e))
+          _ ->
+            sequenceA [(lookupObjectByJson (Anchored (path ++ [PathElemIndex 0]) v)) >>= \ov ->
+                                        parseUpdating1 f ov
+                                        (Anchored (path ++ [PathElemIndex 0]) v)]
+  where
+    objectMap = Map.fromList (map (\o -> (pk_from_object o, o)) ov)
+    lookupObjectByJson js = parseUpdating1 pk_from_json Nothing js >>= \val -> return (Map.lookup val objectMap)
+
+parseUpdating1 (ArrayValueDef _ m f) _ov (Anchored path v)
   = case Aeson.parseEither Aeson.parseJSON v of
       Right v ->
         sequenceA (zipWith (\v i -> parseUpdating1 f Nothing (Anchored (path ++ [PathElemIndex i]) v)) (Vector.toList v) [0..])
@@ -304,6 +330,7 @@ parseUpdating1 (ArrayValueDef m f) _ov (Anchored path v)
             resultWithThrow (Anchored path (Text.pack e))
           _ ->
             sequenceA [parseUpdating1 f Nothing (Anchored (path ++ [PathElemIndex 0]) v)]
+
 parseUpdating1 (ObjectValueDef f) ov (Anchored path v)
   = case Aeson.parseEither Aeson.parseJSON v of
       Right v ->
@@ -386,7 +413,7 @@ fieldDef' :: (Aeson.FromJSON a,Aeson.ToJSON a) => Text.Text -> a -> (s -> a) -> 
 fieldDef' key def f docstring = fieldDefBy key def f docstring liftAesonFromJSON
 
 arrayOf :: ValueDef a -> ValueDef [a]
-arrayOf valuedef = ArrayValueDef ArrayValueModeStrict valuedef
+arrayOf valuedef = ArrayValueDef Nothing ArrayValueModeStrict valuedef
 
 arrayOf' :: (Aeson.FromJSON a,Aeson.ToJSON a) => ValueDef [a]
 arrayOf' = arrayOf liftAesonFromJSON
@@ -404,7 +431,7 @@ render = P.render . renderDoc
 
 renderDoc :: ValueDef a -> P.Doc
 renderDoc (SimpleValueDef _ _) = P.empty
-renderDoc (ArrayValueDef _m f) = P.text "array" P.$+$
+renderDoc (ArrayValueDef _ _m f) = P.text "array" P.$+$
              P.nest 4 (renderDoc f)
 renderDoc (ObjectValueDef f) = -- P.text "object" P.$+$
              P.nest 4 (P.vcat (renderFields f))
