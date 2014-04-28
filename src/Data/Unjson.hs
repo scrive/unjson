@@ -5,22 +5,7 @@ where
 {-
 
 * write more documentation
-
 * create useful export list
-* can have item-or-array mode: make an array out of singular items, this could be automatic provided that nested value def is not array def... might be confusing though
-
-* so object combining happens to implement field-wise combining function
-* array combining should be one of the following:
-  - replace of whole array value
-  - position-wise combining function
-  - primary key combining function
-    - iterate over old elements and create a map: (primaryKey x,x)
-    - iterate over new elements, get a primarykey from json (primaryKeyJS js), lookup in the map, see if it has a matching, if so update else parse
-  - or give people general update function, but this is problematic as it is S -> Aeson.Value so it is easy to do crap here
-  - I do not want the general update function
-
- * updating tuples should be field-wise (by index), although it is hard to say what Null means there... there are no defaults for tuples, so this is ok!
- * simple values may have general update function, just add a Maybe s argument in front and done!
 
 -}
 
