@@ -319,6 +319,45 @@ test_update_from_serialization_with_reset_to_default = "test_update_from_seriali
   assertEqual "Serialize-parse is identity" expect (val {konfigHostname = "www.example.com"})
   return ()
 
+test_array_modes :: Test
+test_array_modes = "test_array_modes" ~: do
+
+  let json = Aeson.object
+               [ "hostname" .= ("www.example.com" ::Text.Text)
+               ]
+  let json1 = Aeson.object
+               [ "hostname" .= ["www.example.com" ::Text.Text]
+               ]
+  let p0 :: ValueDef [Text.Text]
+      p0 = ObjectValueDef $ (pure id
+         <*> fieldBy "hostname" id
+                 "Single value or array"
+                 (arrayOf'))
+  let p1 :: ValueDef [Text.Text]
+      p1 = ObjectValueDef $ (pure id
+         <*> fieldBy "hostname" id
+                 "Single value or array"
+                 (ArrayValueDef ArrayValueModeParseSingle liftAesonFromJSON))
+  let p2 :: ValueDef [Text.Text]
+      p2 = ObjectValueDef $ (pure id
+         <*> fieldBy "hostname" id
+                 "Single value or array"
+                 (ArrayValueDef ArrayValueModeParseAndOutputSingle liftAesonFromJSON))
+  let Result val0 iss0 = parse1 p0 (Anchored [] json)
+  assertEqual "Serialize-parse produces no problems" [Anchored [PathElemKey "hostname"] "when expecting a Vector a, encountered String instead"] iss0
+  let Result val1 iss1 = parse1 p1 (Anchored [] json)
+  assertEqual "Serialize-parse produces no problems" [] iss1
+  assertEqual "Serialize-parse is identity" ["www.example.com" :: Text.Text] val1
+  let sjson1 = serialize1 p1 val1
+  assertEqual "Same json" json1 sjson1
+
+  let Result val2 iss2 = parse1 p2 (Anchored [] json)
+  assertEqual "Serialize-parse produces no problems" [] iss2
+  assertEqual "Serialize-parse is identity" ["www.example.com" :: Text.Text] val2
+  let sjson2 = serialize1 p2 val2
+  assertEqual "Same json" json sjson2
+  return ()
+
 tests = test [ test_proper_parse
              , test_missing_key
              , test_wrong_value_type
@@ -327,6 +366,7 @@ tests = test [ test_proper_parse
              , test_parse_either_field
              , test_update_from_serialization
              , test_update_from_serialization_with_reset_to_default
+             , test_array_modes
              ]
 
 main = runTestTT tests

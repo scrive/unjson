@@ -240,9 +240,15 @@ instance (Unjson a,Unjson b,Unjson c,Unjson d
                <*> liftAp (TupleFieldDef 10 (\(_,_,_,_,_,_,_,_,_,_,p,_) -> p) valueDef)
                <*> liftAp (TupleFieldDef 11 (\(_,_,_,_,_,_,_,_,_,_,_,p) -> p) valueDef)
 
+data ArrayValueMode
+  = ArrayValueModeStrict
+  | ArrayValueModeParseSingle
+  | ArrayValueModeParseAndOutputSingle
+  deriving (Eq, Ord, Show, Typeable)
+
 data ValueDef a where
   SimpleValueDef :: (Anchored Aeson.Value -> Result k) -> (k -> Aeson.Value) -> ValueDef k
-  ArrayValueDef  :: ValueDef k -> ValueDef [k]
+  ArrayValueDef  :: ArrayValueMode -> ValueDef k -> ValueDef [k]
   ObjectValueDef :: Ap (FieldDef k) k -> ValueDef k
   TupleValueDef  :: Ap (TupleFieldDef k) k -> ValueDef k
   -- DisjointValueDef :: Ap (FieldDef k) k -> ValueDef k
@@ -271,7 +277,9 @@ objectDefToArray s (Ap (FieldDefDef key _ _ f d) r) = (key,serialize1 d (f s)) :
 
 serialize1 :: ValueDef a -> a -> Aeson.Value
 serialize1 (SimpleValueDef _ g) a = g a
-serialize1 (ArrayValueDef f) a =              -- here compiler should know that 'a' is a list
+serialize1 (ArrayValueDef ArrayValueModeParseAndOutputSingle f) [a] =
+  serialize1 f a
+serialize1 (ArrayValueDef _m f) a =              -- here compiler should know that 'a' is a list
   Aeson.toJSON (map (serialize1 f) a)
 serialize1 (ObjectValueDef f) a =
   Aeson.object (objectDefToArray a f)
@@ -284,7 +292,7 @@ countAp n (Ap _ r) = countAp (succ n) r
 
 parseUpdating :: ValueDef a -> a -> Anchored Aeson.Value -> Result a
 parseUpdating (SimpleValueDef f _) _ov v = f v
-parseUpdating (ArrayValueDef f) _ov (Anchored path v)
+parseUpdating (ArrayValueDef _m f) _ov (Anchored path v)
   = case Aeson.parseEither Aeson.parseJSON v of
       Right v ->
         sequenceA (zipWith (\v i -> parse1 f (Anchored (path ++ [PathElemIndex i]) v)) (Vector.toList v) [0..])
@@ -314,12 +322,15 @@ parse = parse1
 
 parse1 :: ValueDef a -> Anchored Aeson.Value -> Result a
 parse1 (SimpleValueDef f _) v = f v
-parse1 (ArrayValueDef f) (Anchored path v)
+parse1 (ArrayValueDef m f) (Anchored path v)
   = case Aeson.parseEither Aeson.parseJSON v of
       Right v ->
         sequenceA (zipWith (\v i -> parse1 f (Anchored (path ++ [PathElemIndex i]) v)) (Vector.toList v) [0..])
-      Left e ->
-        resultWithThrow (Anchored path (Text.pack e))
+      Left e -> case m of
+          ArrayValueModeStrict ->
+            resultWithThrow (Anchored path (Text.pack e))
+          _ ->
+            sequenceA [parse1 f (Anchored (path ++ [PathElemIndex 0]) v)]
 parse1 (ObjectValueDef f) (Anchored path v)
   = case Aeson.parseEither Aeson.parseJSON v of
       Right v ->
@@ -411,7 +422,7 @@ fieldDef' :: (Aeson.FromJSON a,Aeson.ToJSON a) => Text.Text -> a -> (s -> a) -> 
 fieldDef' key def f docstring = fieldDefBy key def f docstring liftAesonFromJSON
 
 arrayOf :: ValueDef a -> ValueDef [a]
-arrayOf valuedef = ArrayValueDef valuedef
+arrayOf valuedef = ArrayValueDef ArrayValueModeStrict valuedef
 
 arrayOf' :: (Aeson.FromJSON a,Aeson.ToJSON a) => ValueDef [a]
 arrayOf' = arrayOf liftAesonFromJSON
@@ -429,7 +440,7 @@ render = P.render . renderDoc
 
 renderDoc :: ValueDef a -> P.Doc
 renderDoc (SimpleValueDef _ _) = P.empty
-renderDoc (ArrayValueDef f) = P.text "array" P.$+$
+renderDoc (ArrayValueDef _m f) = P.text "array" P.$+$
              P.nest 4 (renderDoc f)
 renderDoc (ObjectValueDef f) = -- P.text "object" P.$+$
              P.nest 4 (P.vcat (renderFields f))
