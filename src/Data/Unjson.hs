@@ -84,8 +84,8 @@ instance Applicative Result where
 
 instance Monad Result where
   return = pure
-  Result a pa >>= m = case m a of
-                        Result ma pma -> Result ma (pa ++ pma)
+  Result a pa >>= m = Result ma (pa ++ pma)
+    where Result ma pma = m a
 
 resultWithThrow :: Anchored Text.Text -> Result a
 resultWithThrow msg = Result (throw msg) [msg]
