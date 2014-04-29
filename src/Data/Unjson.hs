@@ -52,6 +52,14 @@ import Data.Traversable
 
 import qualified Text.PrettyPrint.HughesPJ as P
 
+-- | Describe a path from root JSON element to a specific
+-- position. JSON has only two types of containers: objects and
+-- arrays, so there are only two types of keys needed to index into
+-- those containers: 'Int' and 'Text.Text'.
+--
+-- 'PathElem's are rendered in a nice way. For example: @key.key2[34]@
+-- indexes into \"key\", then into \"key2\" then into index 34 of an
+-- array.
 data PathElem = PathElemKey Text.Text
               | PathElemIndex Int
   deriving (Typeable, Eq, Ord, Show)
@@ -64,6 +72,7 @@ showPath True (PathElemKey key : rest) = key <> showPath False rest
 showPath False (PathElemKey key : rest) = "." <> key <> showPath False rest
 showPath _ (PathElemIndex key : rest) = "[" <> Text.pack (show key) <> "]" <> showPath False rest
 
+-- | A value at a specific position in JSON object.
 data Anchored a = Anchored Path a
   deriving (Typeable, Functor, Eq, Ord)
 
@@ -75,6 +84,18 @@ instance (Typeable a, Show a) => Exception (Anchored a)
 type Problem = Anchored Text.Text
 type Problems = [Problem]
 
+-- | Parsing result. The value 'a' is only reliable when 'Problems' is
+-- an empty list.
+--
+-- 'Problems' is list of issues encountered while parsing. 'Unjson'
+-- parsers continue forward and are able to find many problems at
+-- once.
+--
+-- Note that problems are anchored to specific elements of JSON so it
+-- should be easy to find and spot an error.
+--
+-- Even if list of problems is not empty, the returned value may be
+-- partially usable.
 data Result a = Result a Problems
   deriving (Functor, Show, Ord, Eq)
 
@@ -90,7 +111,13 @@ instance Monad Result where
 resultWithThrow :: Anchored Text.Text -> Result a
 resultWithThrow msg = Result (throw msg) [msg]
 
+-- | 'Unjson' typeclass describes all types that can be parsed from
+-- JSON and JSON generated from their values.
+--
+-- Class 'Unjson' has primitive types lifted from 'Aeson.FromJSON' and
+-- 'Aeson.ToJSON'.
 class Unjson a where
+  -- | Definition of bidirectional parser for type 'a'.
   valueDef :: ValueDef a
 
 instance (Unjson a) => Unjson [a] where
@@ -257,12 +284,26 @@ instance (Unjson a,Unjson b,Unjson c,Unjson d
                <*> liftAp (TupleFieldDef 10 (\(_,_,_,_,_,_,_,_,_,_,p,_) -> p) valueDef)
                <*> liftAp (TupleFieldDef 11 (\(_,_,_,_,_,_,_,_,_,_,_,p) -> p) valueDef)
 
+-- | Specify how arrays should be handled. Default is
+-- 'ArrayValueModeStrict' that does not do anything special with
+-- arrays.
 data ArrayValueMode
+  -- | Require JSON array, output JSON array.
   = ArrayValueModeStrict
+
+  -- | Allow non-array element, in that case it will be treated as a
+  -- single element array. On output always output array.
   | ArrayValueModeParseSingle
+
+  -- | Allow non-array element, in that case it will be treated as a
+  -- single element array. On output output single element if array
+  -- has one element.
   | ArrayValueModeParseAndOutputSingle
   deriving (Eq, Ord, Show, Typeable)
 
+-- | Pair of functions. First one should extract a value uniquelly
+-- indentifying an element of an array, the second one should extract
+-- equivalent value from a JSON value. Use in array parsing.
 data PrimaryKeyExtraction k = forall pk . (Ord pk) => PrimaryKeyExtraction (k -> pk) (ValueDef pk)
 
 data ValueDef a where
@@ -294,6 +335,7 @@ objectDefToArray s (Ap (FieldOptDef key _ f d) r) =
     Just g ->  (key,serialize1 d g) : objectDefToArray s r
 objectDefToArray s (Ap (FieldDefDef key _ _ f d) r) = (key,serialize1 d (f s)) : objectDefToArray s r
 
+-- | Given a definition of a value and a value produce a JSON.
 serialize1 :: ValueDef a -> a -> Aeson.Value
 serialize1 (SimpleValueDef _ g) a = g a
 serialize1 (ArrayValueDef _ ArrayValueModeParseAndOutputSingle f) [a] =
@@ -396,39 +438,55 @@ lookupByTupleFieldDefUpdate (Anchored path v) ov (TupleFieldDef idx f valuedef)
       Just x  -> parseUpdating1 valuedef (fmap f ov) (Anchored (path ++ [PathElemIndex idx]) x)
       Nothing -> resultWithThrow (Anchored (path ++ [PathElemIndex idx]) "missing key")
 
+-- | Declare a required field with definition given inline by valuedef.
 fieldBy :: Text.Text -> (s -> a) -> Text.Text -> ValueDef a -> Ap (FieldDef s) a
 fieldBy key f docstring valuedef = liftAp (FieldReqDef key docstring f valuedef)
 
+-- | Declare a required field with definition from 'Unjson' typeclass.
 field :: (Unjson a) => Text.Text -> (s -> a) -> Text.Text -> Ap (FieldDef s) a
 field key f docstring = fieldBy key f docstring valueDef
 
+-- | Declare a required field of a primitive type.
 field' :: (Aeson.FromJSON a,Aeson.ToJSON a) => Text.Text -> (s -> a) -> Text.Text -> Ap (FieldDef s) a
 field' key f docstring = fieldBy key f docstring liftAesonFromJSON
 
+-- | Declare an optional field and definition by valuedef.
 fieldOptBy :: Text.Text -> (s -> Maybe a) -> Text.Text -> ValueDef a -> Ap (FieldDef s) (Maybe a)
 fieldOptBy key f docstring valuedef = liftAp (FieldOptDef key docstring f valuedef)
 
+-- | Declare an optional field and definition by 'Unjson' typeclass.
 fieldOpt :: (Unjson a) => Text.Text -> (s -> Maybe a) -> Text.Text -> Ap (FieldDef s) (Maybe a)
 fieldOpt key f docstring = fieldOptBy key f docstring valueDef
 
+-- | Declare an optional field of primitive type.
 fieldOpt' :: (Aeson.FromJSON a,Aeson.ToJSON a) => Text.Text -> (s -> Maybe a) -> Text.Text -> Ap (FieldDef s) (Maybe a)
 fieldOpt' key f docstring = fieldOptBy key f docstring liftAesonFromJSON
 
+-- | Declare a field with default value and definition by valuedef.
 fieldDefBy :: Text.Text -> a -> (s -> a) -> Text.Text -> ValueDef a -> Ap (FieldDef s) a
 fieldDefBy key def f docstring valuedef = liftAp (FieldDefDef key docstring def f valuedef)
 
+-- | Declare a field with default value and definition by 'Unjson' typeclass.
 fieldDef :: (Unjson a) => Text.Text -> a -> (s -> a) -> Text.Text -> Ap (FieldDef s) a
 fieldDef key def f docstring = fieldDefBy key def f docstring valueDef
 
+-- | Declate a field with primitive type lifted from Aeson and a default value.
 fieldDef' :: (Aeson.FromJSON a,Aeson.ToJSON a) => Text.Text -> a -> (s -> a) -> Text.Text -> Ap (FieldDef s) a
 fieldDef' key def f docstring = fieldDefBy key def f docstring liftAesonFromJSON
 
+-- | Declare array of values where each of them is described by valuedef.
 arrayOf :: ValueDef a -> ValueDef [a]
 arrayOf valuedef = ArrayValueDef Nothing ArrayValueModeStrict valuedef
 
+-- | Declare array of primitive values lifed from 'Aeson'.
 arrayOf' :: (Aeson.FromJSON a,Aeson.ToJSON a) => ValueDef [a]
 arrayOf' = arrayOf liftAesonFromJSON
 
+-- | Use 'Aeson.fromJSON' and 'Aeson.toJSON' to create a
+-- 'ValueDef'. This function is useful when lifted type is one of the
+-- primitives. Although it can be used to lift user defined instances,
+-- it is not advisable as there is too much information lost in the
+-- process and proper error infomation is not possible.
 liftAesonFromJSON :: (Aeson.FromJSON a,Aeson.ToJSON a) => ValueDef a
 liftAesonFromJSON = SimpleValueDef (\(Anchored path value) ->
                                         case Aeson.fromJSON value of
