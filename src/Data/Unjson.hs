@@ -1,11 +1,37 @@
 module Data.Unjson
+( Unjson(..)
+, ValueDef(..)
+, Problem
+, Problems
+, Path
+, PathElem(..)
+, ArrayValueMode(..)
+, serialize1
+, parseUpdating
+, field
+, field'
+, fieldBy
+, fieldOpt
+, fieldOpt'
+, fieldOptBy
+, fieldDef
+, fieldDef'
+, fieldDefBy
+, arrayOf
+, arrayOf'
+, render
+, liftAesonFromJSON
+, Result(..)
+, Anchored(..)
+, parse
+, PrimaryKeyExtraction(..)
+)
 where
 
 
 {-
 
 * write more documentation
-* create useful export list
 
 -}
 
