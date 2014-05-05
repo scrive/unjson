@@ -21,12 +21,12 @@
 -- 'serialize' and 'render'.
 module Data.Unjson
 ( Unjson(..)
-, ValueDef
+, UnjsonDef
 , Problem
 , Problems
 , Path
 , PathElem(..)
-, ArrayValueMode(..)
+, ArrayMode(..)
 , serialize
 , objectOf
 , field
@@ -119,6 +119,20 @@ type Problems = [Problem]
 --
 -- Even if list of problems is not empty, the returned value may be
 -- partially usable.
+--
+-- Examples of list of problems:
+--
+-- > [Anchored [PathElemKey "credentials",PathElemKey "password"] "missing key",
+-- >  Anchored [PathElemKey "tuple"] "cannot parse array of length 3 into tuple of size 4",
+-- >  Anchored [PathElemKey "text_array",PathElemIndex 0.PathElemKey "value"]
+-- >                                  "when expecting a Text, encountered Boolean instead"]
+--
+-- conveniently rendered as:
+--
+-- > "credentials.password": "missing key"
+-- > "tuple": "cannot parse array of length 3 into tuple of size 4"
+-- > "text_array[0].value": "when expecting a Text, encountered Boolean instead"
+
 data Result a = Result a Problems
   deriving (Functor, Show, Ord, Eq)
 
@@ -140,7 +154,7 @@ resultWithThrow msg = Result (throw msg) [msg]
 -- Example declaration:
 --
 -- > instance Unjson Thing where
--- >     valueDef = objectOf $ pure Thing
+-- >     unjsonDef = objectOf $ pure Thing
 -- >         <*> field "key1"
 -- >               thingField1
 -- >               "Required field of type with Unjson instance"
@@ -174,94 +188,94 @@ resultWithThrow msg = Result (throw msg) [msg]
 class Unjson a where
   -- | Definition of a bidirectional parser for a type 'a'. See
   -- 'parse, 'update', 'serialize' and 'render' to see how to use
-  -- 'ValueDef'.
-  valueDef :: ValueDef a
+  -- 'UnjsonDef'.
+  unjsonDef :: UnjsonDef a
 
 instance (Unjson a) => Unjson [a] where
-  valueDef = arrayOf valueDef
+  unjsonDef = arrayOf unjsonDef
 
 instance Unjson Text.Text where
-  valueDef = liftAesonFromJSON
+  unjsonDef = liftAesonFromJSON
 
 instance Unjson Int where
-  valueDef = liftAesonFromJSON
+  unjsonDef = liftAesonFromJSON
 
 instance Unjson String where
-  valueDef = liftAesonFromJSON
+  unjsonDef = liftAesonFromJSON
 
 instance (Unjson a,Unjson b) => Unjson (a,b) where
-  valueDef = TupleValueDef
+  unjsonDef = TupleUnjsonDef
                  $ pure (,)
-               <*> liftAp (TupleFieldDef 0 (\(p,_) -> p) valueDef)
-               <*> liftAp (TupleFieldDef 1 (\(_,p) -> p) valueDef)
+               <*> liftAp (TupleFieldDef 0 (\(p,_) -> p) unjsonDef)
+               <*> liftAp (TupleFieldDef 1 (\(_,p) -> p) unjsonDef)
 
 instance (Unjson a,Unjson b,Unjson c) => Unjson (a,b,c) where
-  valueDef = TupleValueDef
+  unjsonDef = TupleUnjsonDef
                $ pure (,,)
-               <*> liftAp (TupleFieldDef 0 (\(p,_,_) -> p) valueDef)
-               <*> liftAp (TupleFieldDef 1 (\(_,p,_) -> p) valueDef)
-               <*> liftAp (TupleFieldDef 2 (\(_,_,p) -> p) valueDef)
+               <*> liftAp (TupleFieldDef 0 (\(p,_,_) -> p) unjsonDef)
+               <*> liftAp (TupleFieldDef 1 (\(_,p,_) -> p) unjsonDef)
+               <*> liftAp (TupleFieldDef 2 (\(_,_,p) -> p) unjsonDef)
 
 instance (Unjson a,Unjson b,Unjson c,Unjson d) => Unjson (a,b,c,d) where
-  valueDef = TupleValueDef
+  unjsonDef = TupleUnjsonDef
                $ pure (,,,)
-               <*> liftAp (TupleFieldDef 0 (\(p,_,_,_) -> p) valueDef)
-               <*> liftAp (TupleFieldDef 1 (\(_,p,_,_) -> p) valueDef)
-               <*> liftAp (TupleFieldDef 2 (\(_,_,p,_) -> p) valueDef)
-               <*> liftAp (TupleFieldDef 3 (\(_,_,_,p) -> p) valueDef)
+               <*> liftAp (TupleFieldDef 0 (\(p,_,_,_) -> p) unjsonDef)
+               <*> liftAp (TupleFieldDef 1 (\(_,p,_,_) -> p) unjsonDef)
+               <*> liftAp (TupleFieldDef 2 (\(_,_,p,_) -> p) unjsonDef)
+               <*> liftAp (TupleFieldDef 3 (\(_,_,_,p) -> p) unjsonDef)
 
 instance (Unjson a,Unjson b,Unjson c,Unjson d
          ,Unjson e) => Unjson (a,b,c,d
                               ,e) where
-  valueDef = TupleValueDef
+  unjsonDef = TupleUnjsonDef
                $ pure (,,,,)
-               <*> liftAp (TupleFieldDef 0 (\(p,_,_,_,_) -> p) valueDef)
-               <*> liftAp (TupleFieldDef 1 (\(_,p,_,_,_) -> p) valueDef)
-               <*> liftAp (TupleFieldDef 2 (\(_,_,p,_,_) -> p) valueDef)
-               <*> liftAp (TupleFieldDef 3 (\(_,_,_,p,_) -> p) valueDef)
-               <*> liftAp (TupleFieldDef 4 (\(_,_,_,_,p) -> p) valueDef)
+               <*> liftAp (TupleFieldDef 0 (\(p,_,_,_,_) -> p) unjsonDef)
+               <*> liftAp (TupleFieldDef 1 (\(_,p,_,_,_) -> p) unjsonDef)
+               <*> liftAp (TupleFieldDef 2 (\(_,_,p,_,_) -> p) unjsonDef)
+               <*> liftAp (TupleFieldDef 3 (\(_,_,_,p,_) -> p) unjsonDef)
+               <*> liftAp (TupleFieldDef 4 (\(_,_,_,_,p) -> p) unjsonDef)
 
 instance (Unjson a,Unjson b,Unjson c,Unjson d
          ,Unjson e,Unjson f)
        => Unjson (a,b,c,d
                  ,e,f) where
-  valueDef = TupleValueDef
+  unjsonDef = TupleUnjsonDef
                $ pure (,,,,,)
-               <*> liftAp (TupleFieldDef 0 (\(p,_,_,_,_,_) -> p) valueDef)
-               <*> liftAp (TupleFieldDef 1 (\(_,p,_,_,_,_) -> p) valueDef)
-               <*> liftAp (TupleFieldDef 2 (\(_,_,p,_,_,_) -> p) valueDef)
-               <*> liftAp (TupleFieldDef 3 (\(_,_,_,p,_,_) -> p) valueDef)
-               <*> liftAp (TupleFieldDef 4 (\(_,_,_,_,p,_) -> p) valueDef)
-               <*> liftAp (TupleFieldDef 5 (\(_,_,_,_,_,p) -> p) valueDef)
+               <*> liftAp (TupleFieldDef 0 (\(p,_,_,_,_,_) -> p) unjsonDef)
+               <*> liftAp (TupleFieldDef 1 (\(_,p,_,_,_,_) -> p) unjsonDef)
+               <*> liftAp (TupleFieldDef 2 (\(_,_,p,_,_,_) -> p) unjsonDef)
+               <*> liftAp (TupleFieldDef 3 (\(_,_,_,p,_,_) -> p) unjsonDef)
+               <*> liftAp (TupleFieldDef 4 (\(_,_,_,_,p,_) -> p) unjsonDef)
+               <*> liftAp (TupleFieldDef 5 (\(_,_,_,_,_,p) -> p) unjsonDef)
 
 instance (Unjson a,Unjson b,Unjson c,Unjson d
          ,Unjson e,Unjson f,Unjson g)
        => Unjson (a,b,c,d
                  ,e,f,g) where
-  valueDef = TupleValueDef
+  unjsonDef = TupleUnjsonDef
                $ pure (,,,,,,)
-               <*> liftAp (TupleFieldDef 0 (\(p,_,_,_,_,_,_) -> p) valueDef)
-               <*> liftAp (TupleFieldDef 1 (\(_,p,_,_,_,_,_) -> p) valueDef)
-               <*> liftAp (TupleFieldDef 2 (\(_,_,p,_,_,_,_) -> p) valueDef)
-               <*> liftAp (TupleFieldDef 3 (\(_,_,_,p,_,_,_) -> p) valueDef)
-               <*> liftAp (TupleFieldDef 4 (\(_,_,_,_,p,_,_) -> p) valueDef)
-               <*> liftAp (TupleFieldDef 5 (\(_,_,_,_,_,p,_) -> p) valueDef)
-               <*> liftAp (TupleFieldDef 6 (\(_,_,_,_,_,_,p) -> p) valueDef)
+               <*> liftAp (TupleFieldDef 0 (\(p,_,_,_,_,_,_) -> p) unjsonDef)
+               <*> liftAp (TupleFieldDef 1 (\(_,p,_,_,_,_,_) -> p) unjsonDef)
+               <*> liftAp (TupleFieldDef 2 (\(_,_,p,_,_,_,_) -> p) unjsonDef)
+               <*> liftAp (TupleFieldDef 3 (\(_,_,_,p,_,_,_) -> p) unjsonDef)
+               <*> liftAp (TupleFieldDef 4 (\(_,_,_,_,p,_,_) -> p) unjsonDef)
+               <*> liftAp (TupleFieldDef 5 (\(_,_,_,_,_,p,_) -> p) unjsonDef)
+               <*> liftAp (TupleFieldDef 6 (\(_,_,_,_,_,_,p) -> p) unjsonDef)
 
 instance (Unjson a,Unjson b,Unjson c,Unjson d
          ,Unjson e,Unjson f,Unjson g,Unjson h)
        => Unjson (a,b,c,d
                  ,e,f,g,h) where
-  valueDef = TupleValueDef
+  unjsonDef = TupleUnjsonDef
                $ pure (,,,,,,,)
-               <*> liftAp (TupleFieldDef 0 (\(p,_,_,_,_,_,_,_) -> p) valueDef)
-               <*> liftAp (TupleFieldDef 1 (\(_,p,_,_,_,_,_,_) -> p) valueDef)
-               <*> liftAp (TupleFieldDef 2 (\(_,_,p,_,_,_,_,_) -> p) valueDef)
-               <*> liftAp (TupleFieldDef 3 (\(_,_,_,p,_,_,_,_) -> p) valueDef)
-               <*> liftAp (TupleFieldDef 4 (\(_,_,_,_,p,_,_,_) -> p) valueDef)
-               <*> liftAp (TupleFieldDef 5 (\(_,_,_,_,_,p,_,_) -> p) valueDef)
-               <*> liftAp (TupleFieldDef 6 (\(_,_,_,_,_,_,p,_) -> p) valueDef)
-               <*> liftAp (TupleFieldDef 7 (\(_,_,_,_,_,_,_,p) -> p) valueDef)
+               <*> liftAp (TupleFieldDef 0 (\(p,_,_,_,_,_,_,_) -> p) unjsonDef)
+               <*> liftAp (TupleFieldDef 1 (\(_,p,_,_,_,_,_,_) -> p) unjsonDef)
+               <*> liftAp (TupleFieldDef 2 (\(_,_,p,_,_,_,_,_) -> p) unjsonDef)
+               <*> liftAp (TupleFieldDef 3 (\(_,_,_,p,_,_,_,_) -> p) unjsonDef)
+               <*> liftAp (TupleFieldDef 4 (\(_,_,_,_,p,_,_,_) -> p) unjsonDef)
+               <*> liftAp (TupleFieldDef 5 (\(_,_,_,_,_,p,_,_) -> p) unjsonDef)
+               <*> liftAp (TupleFieldDef 6 (\(_,_,_,_,_,_,p,_) -> p) unjsonDef)
+               <*> liftAp (TupleFieldDef 7 (\(_,_,_,_,_,_,_,p) -> p) unjsonDef)
 
 instance (Unjson a,Unjson b,Unjson c,Unjson d
          ,Unjson e,Unjson f,Unjson g,Unjson h
@@ -269,17 +283,17 @@ instance (Unjson a,Unjson b,Unjson c,Unjson d
        => Unjson (a,b,c,d
                  ,e,f,g,h
                  ,i) where
-  valueDef = TupleValueDef
+  unjsonDef = TupleUnjsonDef
                $ pure (,,,,,,,,)
-               <*> liftAp (TupleFieldDef 0 (\(p,_,_,_,_,_,_,_,_) -> p) valueDef)
-               <*> liftAp (TupleFieldDef 1 (\(_,p,_,_,_,_,_,_,_) -> p) valueDef)
-               <*> liftAp (TupleFieldDef 2 (\(_,_,p,_,_,_,_,_,_) -> p) valueDef)
-               <*> liftAp (TupleFieldDef 3 (\(_,_,_,p,_,_,_,_,_) -> p) valueDef)
-               <*> liftAp (TupleFieldDef 4 (\(_,_,_,_,p,_,_,_,_) -> p) valueDef)
-               <*> liftAp (TupleFieldDef 5 (\(_,_,_,_,_,p,_,_,_) -> p) valueDef)
-               <*> liftAp (TupleFieldDef 6 (\(_,_,_,_,_,_,p,_,_) -> p) valueDef)
-               <*> liftAp (TupleFieldDef 7 (\(_,_,_,_,_,_,_,p,_) -> p) valueDef)
-               <*> liftAp (TupleFieldDef 8 (\(_,_,_,_,_,_,_,_,p) -> p) valueDef)
+               <*> liftAp (TupleFieldDef 0 (\(p,_,_,_,_,_,_,_,_) -> p) unjsonDef)
+               <*> liftAp (TupleFieldDef 1 (\(_,p,_,_,_,_,_,_,_) -> p) unjsonDef)
+               <*> liftAp (TupleFieldDef 2 (\(_,_,p,_,_,_,_,_,_) -> p) unjsonDef)
+               <*> liftAp (TupleFieldDef 3 (\(_,_,_,p,_,_,_,_,_) -> p) unjsonDef)
+               <*> liftAp (TupleFieldDef 4 (\(_,_,_,_,p,_,_,_,_) -> p) unjsonDef)
+               <*> liftAp (TupleFieldDef 5 (\(_,_,_,_,_,p,_,_,_) -> p) unjsonDef)
+               <*> liftAp (TupleFieldDef 6 (\(_,_,_,_,_,_,p,_,_) -> p) unjsonDef)
+               <*> liftAp (TupleFieldDef 7 (\(_,_,_,_,_,_,_,p,_) -> p) unjsonDef)
+               <*> liftAp (TupleFieldDef 8 (\(_,_,_,_,_,_,_,_,p) -> p) unjsonDef)
 
 instance (Unjson a,Unjson b,Unjson c,Unjson d
          ,Unjson e,Unjson f,Unjson g,Unjson h
@@ -287,18 +301,18 @@ instance (Unjson a,Unjson b,Unjson c,Unjson d
        => Unjson (a,b,c,d
                  ,e,f,g,h
                  ,i,j) where
-  valueDef = TupleValueDef
+  unjsonDef = TupleUnjsonDef
                $ pure (,,,,,,,,,)
-               <*> liftAp (TupleFieldDef 0 (\(p,_,_,_,_,_,_,_,_,_) -> p) valueDef)
-               <*> liftAp (TupleFieldDef 1 (\(_,p,_,_,_,_,_,_,_,_) -> p) valueDef)
-               <*> liftAp (TupleFieldDef 2 (\(_,_,p,_,_,_,_,_,_,_) -> p) valueDef)
-               <*> liftAp (TupleFieldDef 3 (\(_,_,_,p,_,_,_,_,_,_) -> p) valueDef)
-               <*> liftAp (TupleFieldDef 4 (\(_,_,_,_,p,_,_,_,_,_) -> p) valueDef)
-               <*> liftAp (TupleFieldDef 5 (\(_,_,_,_,_,p,_,_,_,_) -> p) valueDef)
-               <*> liftAp (TupleFieldDef 6 (\(_,_,_,_,_,_,p,_,_,_) -> p) valueDef)
-               <*> liftAp (TupleFieldDef 7 (\(_,_,_,_,_,_,_,p,_,_) -> p) valueDef)
-               <*> liftAp (TupleFieldDef 8 (\(_,_,_,_,_,_,_,_,p,_) -> p) valueDef)
-               <*> liftAp (TupleFieldDef 9 (\(_,_,_,_,_,_,_,_,_,p) -> p) valueDef)
+               <*> liftAp (TupleFieldDef 0 (\(p,_,_,_,_,_,_,_,_,_) -> p) unjsonDef)
+               <*> liftAp (TupleFieldDef 1 (\(_,p,_,_,_,_,_,_,_,_) -> p) unjsonDef)
+               <*> liftAp (TupleFieldDef 2 (\(_,_,p,_,_,_,_,_,_,_) -> p) unjsonDef)
+               <*> liftAp (TupleFieldDef 3 (\(_,_,_,p,_,_,_,_,_,_) -> p) unjsonDef)
+               <*> liftAp (TupleFieldDef 4 (\(_,_,_,_,p,_,_,_,_,_) -> p) unjsonDef)
+               <*> liftAp (TupleFieldDef 5 (\(_,_,_,_,_,p,_,_,_,_) -> p) unjsonDef)
+               <*> liftAp (TupleFieldDef 6 (\(_,_,_,_,_,_,p,_,_,_) -> p) unjsonDef)
+               <*> liftAp (TupleFieldDef 7 (\(_,_,_,_,_,_,_,p,_,_) -> p) unjsonDef)
+               <*> liftAp (TupleFieldDef 8 (\(_,_,_,_,_,_,_,_,p,_) -> p) unjsonDef)
+               <*> liftAp (TupleFieldDef 9 (\(_,_,_,_,_,_,_,_,_,p) -> p) unjsonDef)
 
 instance (Unjson a,Unjson b,Unjson c,Unjson d
          ,Unjson e,Unjson f,Unjson g,Unjson h
@@ -306,19 +320,19 @@ instance (Unjson a,Unjson b,Unjson c,Unjson d
        => Unjson (a,b,c,d
                  ,e,f,g,h
                  ,i,j,k) where
-  valueDef = TupleValueDef
+  unjsonDef = TupleUnjsonDef
                $ pure (,,,,,,,,,,)
-               <*> liftAp (TupleFieldDef 0 (\(p,_,_,_,_,_,_,_,_,_,_) -> p) valueDef)
-               <*> liftAp (TupleFieldDef 1 (\(_,p,_,_,_,_,_,_,_,_,_) -> p) valueDef)
-               <*> liftAp (TupleFieldDef 2 (\(_,_,p,_,_,_,_,_,_,_,_) -> p) valueDef)
-               <*> liftAp (TupleFieldDef 3 (\(_,_,_,p,_,_,_,_,_,_,_) -> p) valueDef)
-               <*> liftAp (TupleFieldDef 4 (\(_,_,_,_,p,_,_,_,_,_,_) -> p) valueDef)
-               <*> liftAp (TupleFieldDef 5 (\(_,_,_,_,_,p,_,_,_,_,_) -> p) valueDef)
-               <*> liftAp (TupleFieldDef 6 (\(_,_,_,_,_,_,p,_,_,_,_) -> p) valueDef)
-               <*> liftAp (TupleFieldDef 7 (\(_,_,_,_,_,_,_,p,_,_,_) -> p) valueDef)
-               <*> liftAp (TupleFieldDef 8 (\(_,_,_,_,_,_,_,_,p,_,_) -> p) valueDef)
-               <*> liftAp (TupleFieldDef 9 (\(_,_,_,_,_,_,_,_,_,p,_) -> p) valueDef)
-               <*> liftAp (TupleFieldDef 10 (\(_,_,_,_,_,_,_,_,_,_,p) -> p) valueDef)
+               <*> liftAp (TupleFieldDef 0 (\(p,_,_,_,_,_,_,_,_,_,_) -> p) unjsonDef)
+               <*> liftAp (TupleFieldDef 1 (\(_,p,_,_,_,_,_,_,_,_,_) -> p) unjsonDef)
+               <*> liftAp (TupleFieldDef 2 (\(_,_,p,_,_,_,_,_,_,_,_) -> p) unjsonDef)
+               <*> liftAp (TupleFieldDef 3 (\(_,_,_,p,_,_,_,_,_,_,_) -> p) unjsonDef)
+               <*> liftAp (TupleFieldDef 4 (\(_,_,_,_,p,_,_,_,_,_,_) -> p) unjsonDef)
+               <*> liftAp (TupleFieldDef 5 (\(_,_,_,_,_,p,_,_,_,_,_) -> p) unjsonDef)
+               <*> liftAp (TupleFieldDef 6 (\(_,_,_,_,_,_,p,_,_,_,_) -> p) unjsonDef)
+               <*> liftAp (TupleFieldDef 7 (\(_,_,_,_,_,_,_,p,_,_,_) -> p) unjsonDef)
+               <*> liftAp (TupleFieldDef 8 (\(_,_,_,_,_,_,_,_,p,_,_) -> p) unjsonDef)
+               <*> liftAp (TupleFieldDef 9 (\(_,_,_,_,_,_,_,_,_,p,_) -> p) unjsonDef)
+               <*> liftAp (TupleFieldDef 10 (\(_,_,_,_,_,_,_,_,_,_,p) -> p) unjsonDef)
 
 instance (Unjson a,Unjson b,Unjson c,Unjson d
          ,Unjson e,Unjson f,Unjson g,Unjson h
@@ -326,36 +340,36 @@ instance (Unjson a,Unjson b,Unjson c,Unjson d
        => Unjson (a,b,c,d
                  ,e,f,g,h
                  ,i,j,k,l) where
-  valueDef = TupleValueDef
+  unjsonDef = TupleUnjsonDef
                $ pure (,,,,,,,,,,,)
-               <*> liftAp (TupleFieldDef 0 (\(p,_,_,_,_,_,_,_,_,_,_,_) -> p) valueDef)
-               <*> liftAp (TupleFieldDef 1 (\(_,p,_,_,_,_,_,_,_,_,_,_) -> p) valueDef)
-               <*> liftAp (TupleFieldDef 2 (\(_,_,p,_,_,_,_,_,_,_,_,_) -> p) valueDef)
-               <*> liftAp (TupleFieldDef 3 (\(_,_,_,p,_,_,_,_,_,_,_,_) -> p) valueDef)
-               <*> liftAp (TupleFieldDef 4 (\(_,_,_,_,p,_,_,_,_,_,_,_) -> p) valueDef)
-               <*> liftAp (TupleFieldDef 5 (\(_,_,_,_,_,p,_,_,_,_,_,_) -> p) valueDef)
-               <*> liftAp (TupleFieldDef 6 (\(_,_,_,_,_,_,p,_,_,_,_,_) -> p) valueDef)
-               <*> liftAp (TupleFieldDef 7 (\(_,_,_,_,_,_,_,p,_,_,_,_) -> p) valueDef)
-               <*> liftAp (TupleFieldDef 8 (\(_,_,_,_,_,_,_,_,p,_,_,_) -> p) valueDef)
-               <*> liftAp (TupleFieldDef 9 (\(_,_,_,_,_,_,_,_,_,p,_,_) -> p) valueDef)
-               <*> liftAp (TupleFieldDef 10 (\(_,_,_,_,_,_,_,_,_,_,p,_) -> p) valueDef)
-               <*> liftAp (TupleFieldDef 11 (\(_,_,_,_,_,_,_,_,_,_,_,p) -> p) valueDef)
+               <*> liftAp (TupleFieldDef 0 (\(p,_,_,_,_,_,_,_,_,_,_,_) -> p) unjsonDef)
+               <*> liftAp (TupleFieldDef 1 (\(_,p,_,_,_,_,_,_,_,_,_,_) -> p) unjsonDef)
+               <*> liftAp (TupleFieldDef 2 (\(_,_,p,_,_,_,_,_,_,_,_,_) -> p) unjsonDef)
+               <*> liftAp (TupleFieldDef 3 (\(_,_,_,p,_,_,_,_,_,_,_,_) -> p) unjsonDef)
+               <*> liftAp (TupleFieldDef 4 (\(_,_,_,_,p,_,_,_,_,_,_,_) -> p) unjsonDef)
+               <*> liftAp (TupleFieldDef 5 (\(_,_,_,_,_,p,_,_,_,_,_,_) -> p) unjsonDef)
+               <*> liftAp (TupleFieldDef 6 (\(_,_,_,_,_,_,p,_,_,_,_,_) -> p) unjsonDef)
+               <*> liftAp (TupleFieldDef 7 (\(_,_,_,_,_,_,_,p,_,_,_,_) -> p) unjsonDef)
+               <*> liftAp (TupleFieldDef 8 (\(_,_,_,_,_,_,_,_,p,_,_,_) -> p) unjsonDef)
+               <*> liftAp (TupleFieldDef 9 (\(_,_,_,_,_,_,_,_,_,p,_,_) -> p) unjsonDef)
+               <*> liftAp (TupleFieldDef 10 (\(_,_,_,_,_,_,_,_,_,_,p,_) -> p) unjsonDef)
+               <*> liftAp (TupleFieldDef 11 (\(_,_,_,_,_,_,_,_,_,_,_,p) -> p) unjsonDef)
 
 -- | Specify how arrays should be handled. Default is
--- 'ArrayValueModeStrict' that does not do anything special with
+-- 'ArrayModeStrict' that does not do anything special with
 -- arrays.
-data ArrayValueMode
+data ArrayMode
   -- | Require JSON array. On output always output array.
-  = ArrayValueModeStrict
+  = ArrayModeStrict
 
   -- | Allow non-array element, in that case it will be treated as a
   -- single element array. On output always output array.
-  | ArrayValueModeParseSingle
+  | ArrayModeParseSingle
 
   -- | Allow non-array element, in that case it will be treated as a
   -- single element array. On output output single element if array
   -- has one element.
-  | ArrayValueModeParseAndOutputSingle
+  | ArrayModeParseAndOutputSingle
   deriving (Eq, Ord, Show, Typeable)
 
 -- | 'PrimaryKeyExtraction' is needed to keep 'Ord pk' constraint
@@ -365,15 +379,15 @@ data ArrayValueMode
 -- so that lookups are efficient. Then for each element in JSON a
 -- corresponding element in old object is looked for. If found the
 -- element is updated, if not found it is parsed fresh.
-data PrimaryKeyExtraction k = forall pk . (Ord pk) => PrimaryKeyExtraction (k -> pk) (ValueDef pk)
+data PrimaryKeyExtraction k = forall pk . (Ord pk) => PrimaryKeyExtraction (k -> pk) (UnjsonDef pk)
 
--- | Opaque 'ValueDef' defines a bidirectional JSON parser.
-data ValueDef a where
-  SimpleValueDef :: (Anchored Aeson.Value -> Result k) -> (k -> Aeson.Value) -> ValueDef k
-  ArrayValueDef  :: Maybe (PrimaryKeyExtraction k) -> ArrayValueMode -> ValueDef k -> ValueDef [k]
-  ObjectValueDef :: Ap (FieldDef k) k -> ValueDef k
-  TupleValueDef  :: Ap (TupleFieldDef k) k -> ValueDef k
-  -- DisjointValueDef :: Ap (FieldDef k) k -> ValueDef k
+-- | Opaque 'UnjsonDef' defines a bidirectional JSON parser.
+data UnjsonDef a where
+  SimpleUnjsonDef :: (Anchored Aeson.Value -> Result k) -> (k -> Aeson.Value) -> UnjsonDef k
+  ArrayUnjsonDef  :: Maybe (PrimaryKeyExtraction k) -> ArrayMode -> UnjsonDef k -> UnjsonDef [k]
+  ObjectUnjsonDef :: Ap (FieldDef k) k -> UnjsonDef k
+  TupleUnjsonDef  :: Ap (TupleFieldDef k) k -> UnjsonDef k
+  -- DisjointUnjsonDef :: Ap (FieldDef k) k -> UnjsonDef k
 
 -- | Define a relation between a field of an object in JSON and a
 -- field in a Haskell record structure.  'FieldDef' holds information
@@ -381,14 +395,14 @@ data ValueDef a where
 -- parsing definition.  'FieldDef' has three cases for fields that are
 -- required, optional (via 'Maybe') or jave default value.
 data FieldDef s a where
-  FieldReqDef :: Text.Text -> Text.Text -> (s -> a) -> ValueDef a -> FieldDef s a
-  FieldOptDef :: Text.Text -> Text.Text -> (s -> Maybe a) -> ValueDef a -> FieldDef s (Maybe a)
-  FieldDefDef :: Text.Text -> Text.Text -> a -> (s -> a) -> ValueDef a -> FieldDef s a
+  FieldReqDef :: Text.Text -> Text.Text -> (s -> a) -> UnjsonDef a -> FieldDef s a
+  FieldOptDef :: Text.Text -> Text.Text -> (s -> Maybe a) -> UnjsonDef a -> FieldDef s (Maybe a)
+  FieldDefDef :: Text.Text -> Text.Text -> a -> (s -> a) -> UnjsonDef a -> FieldDef s a
 
 -- | Define a tuple element. 'TupleFieldDef' holds information about
 -- index, accessor function and a parser definition.
 data TupleFieldDef s a where
-  TupleFieldDef :: Int -> (s -> a) -> ValueDef a -> TupleFieldDef s a
+  TupleFieldDef :: Int -> (s -> a) -> UnjsonDef a -> TupleFieldDef s a
 
 tupleDefToArray :: s -> Ap (TupleFieldDef s) a -> [Aeson.Value]
 tupleDefToArray _ (Pure _) = []
@@ -411,15 +425,15 @@ objectDefToArray s (Ap (FieldDefDef key _ _ f d) r) = (key,serialize d (f s)) : 
 -- > let v = Thing { ... }
 -- > let json = serialize unjsonThing v
 --
-serialize :: ValueDef a -> a -> Aeson.Value
-serialize (SimpleValueDef _ g) a = g a
-serialize (ArrayValueDef _ ArrayValueModeParseAndOutputSingle f) [a] =
+serialize :: UnjsonDef a -> a -> Aeson.Value
+serialize (SimpleUnjsonDef _ g) a = g a
+serialize (ArrayUnjsonDef _ ArrayModeParseAndOutputSingle f) [a] =
   serialize f a
-serialize (ArrayValueDef _ _m f) a =              -- here compiler should know that 'a' is a list
+serialize (ArrayUnjsonDef _ _m f) a =              -- here compiler should know that 'a' is a list
   Aeson.toJSON (map (serialize f) a)
-serialize (ObjectValueDef f) a =
+serialize (ObjectUnjsonDef f) a =
   Aeson.object (objectDefToArray a f)
-serialize (TupleValueDef f) a =
+serialize (TupleUnjsonDef f) a =
   Aeson.toJSON (tupleDefToArray a f)
 
 -- | Count how many applications there are. Useful for error
@@ -428,9 +442,9 @@ countAp :: Int -> Ap x a -> Int
 countAp !n (Pure _) = n
 countAp n (Ap _ r) = countAp (succ n) r
 
-parseUpdating :: ValueDef a -> Maybe a -> Anchored Aeson.Value -> Result a
-parseUpdating (SimpleValueDef f _) _ov v = f v
-parseUpdating (ArrayValueDef (Just (PrimaryKeyExtraction pk_from_object pk_from_json)) m f) (Just ov) (Anchored path v)
+parseUpdating :: UnjsonDef a -> Maybe a -> Anchored Aeson.Value -> Result a
+parseUpdating (SimpleUnjsonDef f _) _ov v = f v
+parseUpdating (ArrayUnjsonDef (Just (PrimaryKeyExtraction pk_from_object pk_from_json)) m f) (Just ov) (Anchored path v)
   = case Aeson.parseEither Aeson.parseJSON v of
       Right v ->
         sequenceA (zipWith (\v i -> (lookupObjectByJson (Anchored (path ++ [PathElemIndex i]) v)) >>= \ov ->
@@ -438,7 +452,7 @@ parseUpdating (ArrayValueDef (Just (PrimaryKeyExtraction pk_from_object pk_from_
                                         (Anchored (path ++ [PathElemIndex i]) v))
                                     (Vector.toList v) [0..])
       Left e -> case m of
-          ArrayValueModeStrict ->
+          ArrayModeStrict ->
             resultWithThrow (Anchored path (Text.pack e))
           _ ->
             sequenceA [(lookupObjectByJson (Anchored (path ++ [PathElemIndex 0]) v)) >>= \ov ->
@@ -448,23 +462,23 @@ parseUpdating (ArrayValueDef (Just (PrimaryKeyExtraction pk_from_object pk_from_
     objectMap = Map.fromList (map (\o -> (pk_from_object o, o)) ov)
     lookupObjectByJson js = parseUpdating pk_from_json Nothing js >>= \val -> return (Map.lookup val objectMap)
 
-parseUpdating (ArrayValueDef _ m f) _ov (Anchored path v)
+parseUpdating (ArrayUnjsonDef _ m f) _ov (Anchored path v)
   = case Aeson.parseEither Aeson.parseJSON v of
       Right v ->
         sequenceA (zipWith (\v i -> parseUpdating f Nothing (Anchored (path ++ [PathElemIndex i]) v)) (Vector.toList v) [0..])
       Left e -> case m of
-          ArrayValueModeStrict ->
+          ArrayModeStrict ->
             resultWithThrow (Anchored path (Text.pack e))
           _ ->
             sequenceA [parseUpdating f Nothing (Anchored (path ++ [PathElemIndex 0]) v)]
 
-parseUpdating (ObjectValueDef f) ov (Anchored path v)
+parseUpdating (ObjectUnjsonDef f) ov (Anchored path v)
   = case Aeson.parseEither Aeson.parseJSON v of
       Right v ->
         runAp (lookupByFieldDef (Anchored path v) ov) f
       Left e ->
         resultWithThrow (Anchored path (Text.pack e))
-parseUpdating (TupleValueDef f) ov (Anchored path v)
+parseUpdating (TupleUnjsonDef f) ov (Anchored path v)
   = case Aeson.parseEither Aeson.parseJSON v of
       Right v ->
         let r@(Result g h) = runAp (lookupByTupleFieldDef (Anchored path v) ov) f
@@ -487,6 +501,8 @@ parseUpdating (TupleValueDef f) ov (Anchored path v)
 -- >   then putStrLn ("Parsed: " ++ show val)
 -- >   else putStrLn ("Not parsed, issues: " ++ show iss)
 --
+-- Error reporting is a strong side of Unjson, see 'Result'.
+--
 -- For parsing of fields the following rules apply:
 --
 -- - required fields generate an error if json key is missing
@@ -501,7 +517,7 @@ parseUpdating (TupleValueDef f) ov (Anchored path v)
 -- values that result in parse errors.
 --
 -- For discussion of update mode see 'update'.
-parse :: ValueDef a -> Anchored Aeson.Value -> Result a
+parse :: UnjsonDef a -> Anchored Aeson.Value -> Result a
 parse vd = parseUpdating vd Nothing
 
 -- | Update object with JSON according to unjson definition.
@@ -514,6 +530,8 @@ parse vd = parseUpdating vd Nothing
 -- > if null iss
 -- >   then putStrLn ("Updated: " ++ show val)
 -- >   else putStrLn ("Not updated, issues: " ++ show iss)
+--
+-- Error reporting is a strong side of Unjson, see 'Result'.
 --
 -- For updating of fields the following rules apply:
 --
@@ -531,7 +549,7 @@ parse vd = parseUpdating vd Nothing
 -- values that result in parse errors.
 --
 -- For discussion of parse mode see 'parse'.
-update :: a -> ValueDef a -> Anchored Aeson.Value -> Result a
+update :: a -> UnjsonDef a -> Anchored Aeson.Value -> Result a
 update a vd = parseUpdating vd (Just a)
 
 lookupByFieldDef :: Anchored Aeson.Object -> Maybe s -> FieldDef s a -> Result a
@@ -569,7 +587,7 @@ lookupByTupleFieldDef (Anchored path v) ov (TupleFieldDef idx f valuedef)
 --
 -- Example:
 --
--- > unjsonThing :: ValueDef Thing
+-- > unjsonThing :: UnjsonDef Thing
 -- > unjsonThing = objectOf $ pure Thing
 -- >    <*> fieldBy "credentials"
 -- >          thingCredentials
@@ -577,15 +595,15 @@ lookupByTupleFieldDef (Anchored path v) ov (TupleFieldDef idx f valuedef)
 -- >          unjsonCredentials
 -- >
 -- > data Thing = Thing { thingCredentials :: Credentials, ... }
--- > unjsonCredentials :: ValueDef Credentials
-fieldBy :: Text.Text -> (s -> a) -> Text.Text -> ValueDef a -> Ap (FieldDef s) a
+-- > unjsonCredentials :: UnjsonDef Credentials
+fieldBy :: Text.Text -> (s -> a) -> Text.Text -> UnjsonDef a -> Ap (FieldDef s) a
 fieldBy key f docstring valuedef = liftAp (FieldReqDef key docstring f valuedef)
 
 -- | Declare a required field with definition from 'Unjson' typeclass.
 --
 -- Example:
 --
--- > unjsonThing :: ValueDef Thing
+-- > unjsonThing :: UnjsonDef Thing
 -- > unjsonThing = objectOf $ pure Thing
 -- >    <*> field "credentials"
 -- >          thingCredentials
@@ -594,13 +612,13 @@ fieldBy key f docstring valuedef = liftAp (FieldReqDef key docstring f valuedef)
 -- > data Thing = Thing { thingCredentials :: Credentials, ... }
 -- > instance Unjson Credentials where ...
 field :: (Unjson a) => Text.Text -> (s -> a) -> Text.Text -> Ap (FieldDef s) a
-field key f docstring = fieldBy key f docstring valueDef
+field key f docstring = fieldBy key f docstring unjsonDef
 
 -- | Declare a required field of a primitive type.
 --
 -- Example:
 --
--- > unjsonThing :: ValueDef Thing
+-- > unjsonThing :: UnjsonDef Thing
 -- > unjsonThing = objectOf $ pure Thing
 -- >    <*> field' "port"
 -- >          thingPort
@@ -614,7 +632,7 @@ field' key f docstring = fieldBy key f docstring liftAesonFromJSON
 --
 -- Example:
 --
--- > unjsonThing :: ValueDef Thing
+-- > unjsonThing :: UnjsonDef Thing
 -- > unjsonThing = objectOf $ pure Thing
 -- >    <*> fieldOptBy "credentials"
 -- >          thingCredentials
@@ -622,15 +640,15 @@ field' key f docstring = fieldBy key f docstring liftAesonFromJSON
 -- >          unjsonCredentials
 -- >
 -- > data Thing = Thing { thingCredentials :: Credentials, ... }
--- > unjsonCredentials :: ValueDef Credentials
-fieldOptBy :: Text.Text -> (s -> Maybe a) -> Text.Text -> ValueDef a -> Ap (FieldDef s) (Maybe a)
+-- > unjsonCredentials :: UnjsonDef Credentials
+fieldOptBy :: Text.Text -> (s -> Maybe a) -> Text.Text -> UnjsonDef a -> Ap (FieldDef s) (Maybe a)
 fieldOptBy key f docstring valuedef = liftAp (FieldOptDef key docstring f valuedef)
 
 -- | Declare an optional field and definition by 'Unjson' typeclass.
 --
 -- Example:
 --
--- > unjsonThing :: ValueDef Thing
+-- > unjsonThing :: UnjsonDef Thing
 -- > unjsonThing = objectOf $ pure Thing
 -- >    <*> fieldOpt "credentials"
 -- >          thingCredentials
@@ -639,13 +657,13 @@ fieldOptBy key f docstring valuedef = liftAp (FieldOptDef key docstring f valued
 -- > data Thing = Thing { thingCredentials :: Credentials, ... }
 -- > instance Unjson Credentials where ...
 fieldOpt :: (Unjson a) => Text.Text -> (s -> Maybe a) -> Text.Text -> Ap (FieldDef s) (Maybe a)
-fieldOpt key f docstring = fieldOptBy key f docstring valueDef
+fieldOpt key f docstring = fieldOptBy key f docstring unjsonDef
 
 -- | Declare an optional field of primitive type.
 --
 -- Example:
 --
--- > unjsonThing :: ValueDef Thing
+-- > unjsonThing :: UnjsonDef Thing
 -- > unjsonThing = objectOf $ pure Thing
 -- >    <*> fieldDef' "port"
 -- >          thingPort
@@ -659,7 +677,7 @@ fieldOpt' key f docstring = fieldOptBy key f docstring liftAesonFromJSON
 --
 -- Example:
 --
--- > unjsonThing :: ValueDef Thing
+-- > unjsonThing :: UnjsonDef Thing
 -- > unjsonThing = objectOf $ pure Thing
 -- >    <*> fieldDefBy "credentials" defaultCredentials
 -- >          thingCredentials
@@ -667,15 +685,15 @@ fieldOpt' key f docstring = fieldOptBy key f docstring liftAesonFromJSON
 -- >          unjsonCredentials
 -- >
 -- > data Thing = Thing { thingCredentials :: Credentials, ... }
--- > unjsonCredentials :: ValueDef Credentials
-fieldDefBy :: Text.Text -> a -> (s -> a) -> Text.Text -> ValueDef a -> Ap (FieldDef s) a
+-- > unjsonCredentials :: UnjsonDef Credentials
+fieldDefBy :: Text.Text -> a -> (s -> a) -> Text.Text -> UnjsonDef a -> Ap (FieldDef s) a
 fieldDefBy key def f docstring valuedef = liftAp (FieldDefDef key docstring def f valuedef)
 
 -- | Declare a field with default value and definition by 'Unjson' typeclass.
 --
 -- Example:
 --
--- > unjsonThing :: ValueDef Thing
+-- > unjsonThing :: UnjsonDef Thing
 -- > unjsonThing = objectOf $ pure Thing
 -- >    <*> fieldDef "credentials" defaultCredentials
 -- >          thingCredentials
@@ -684,13 +702,13 @@ fieldDefBy key def f docstring valuedef = liftAp (FieldDefDef key docstring def 
 -- > data Thing = Thing { thingCredentials :: Credentials, ... }
 -- > instance Unjson Credentials where ...
 fieldDef :: (Unjson a) => Text.Text -> a -> (s -> a) -> Text.Text -> Ap (FieldDef s) a
-fieldDef key def f docstring = fieldDefBy key def f docstring valueDef
+fieldDef key def f docstring = fieldDefBy key def f docstring unjsonDef
 
 -- | Declate a field with primitive type lifted from Aeson and a default value.
 --
 -- Example:
 --
--- > unjsonThing :: ValueDef Thing
+-- > unjsonThing :: UnjsonDef Thing
 -- > unjsonThing = objectOf $ pure Thing
 -- >    <*> fieldDef' "port" 80
 -- >          thingPort
@@ -704,48 +722,48 @@ fieldDef' key def f docstring = fieldDefBy key def f docstring liftAesonFromJSON
 --
 -- Example:
 --
--- > unjsonThing :: ValueDef Thing
+-- > unjsonThing :: UnjsonDef Thing
 -- > unjsonThing = objectOf $ pure Thing
 -- >    ...field definitions go here
 --
 -- Use field functions to specify fields of an object: 'field',
 -- 'field'', 'fieldBy', 'fieldOpt', 'fieldOpt'', 'fieldOptBy',
 -- 'fieldDef', 'fieldDef'' or 'fieldDefBy'.
-objectOf :: Ap (FieldDef a) a -> ValueDef a
-objectOf fields = ObjectValueDef fields
+objectOf :: Ap (FieldDef a) a -> UnjsonDef a
+objectOf fields = ObjectUnjsonDef fields
 
 -- | Declare array of values where each of them is described by valuedef.
 --
 -- Example:
 --
--- > unjsonArrayOfThings :: ValueDef [Thing]
+-- > unjsonArrayOfThings :: UnjsonDef [Thing]
 -- > unjsonArrayOfThings = arrayOf unjsonThing
 -- >
--- > unjsonThing :: ValueDef Thing
+-- > unjsonThing :: UnjsonDef Thing
 -- > unjsonThing = ...
-arrayOf :: ValueDef a -> ValueDef [a]
-arrayOf = arrayWithModeOf ArrayValueModeStrict
+arrayOf :: UnjsonDef a -> UnjsonDef [a]
+arrayOf = arrayWithModeOf ArrayModeStrict
 
 -- | Declare array of values where each of them is described by
 -- valuedef. Accepts mode specifier.
 --
 -- Example:
 --
--- > unjsonArrayOfThings :: ValueDef [Thing]
+-- > unjsonArrayOfThings :: UnjsonDef [Thing]
 -- > unjsonArrayOfThings = arrayOf unjsonThing
 -- >
--- > unjsonThing :: ValueDef Thing
+-- > unjsonThing :: UnjsonDef Thing
 -- > unjsonThing = ...
-arrayWithModeOf :: ArrayValueMode -> ValueDef a -> ValueDef [a]
-arrayWithModeOf mode valuedef = ArrayValueDef Nothing mode valuedef
+arrayWithModeOf :: ArrayMode -> UnjsonDef a -> UnjsonDef [a]
+arrayWithModeOf mode valuedef = ArrayUnjsonDef Nothing mode valuedef
 
 -- | Declare array of primitive values lifed from 'Aeson'.
 --
 -- Example:
 --
--- > unjsonArrayOfInt :: ValueDef [Int]
+-- > unjsonArrayOfInt :: UnjsonDef [Int]
 -- > unjsonArrayOfInt = arrayOf'
-arrayOf' :: (Aeson.FromJSON a,Aeson.ToJSON a) => ValueDef [a]
+arrayOf' :: (Aeson.FromJSON a,Aeson.ToJSON a) => UnjsonDef [a]
 arrayOf' = arrayOf liftAesonFromJSON
 
 -- | Declare array of primitive values lifed from 'Aeson'. Accepts
@@ -753,11 +771,11 @@ arrayOf' = arrayOf liftAesonFromJSON
 --
 -- Example:
 --
--- > unjsonArrayOfIntOrSimpleInt :: ValueDef [Int]
+-- > unjsonArrayOfIntOrSimpleInt :: UnjsonDef [Int]
 -- > unjsonArrayOfIntOrSimpleInt = arrayWithModeOf'
 arrayWithModeOf' :: (Aeson.FromJSON a,Aeson.ToJSON a)
-                 => ArrayValueMode
-                 -> ValueDef [a]
+                 => ArrayMode
+                 -> UnjsonDef [a]
 arrayWithModeOf' mode = arrayWithModeOf mode liftAesonFromJSON
 
 
@@ -766,34 +784,34 @@ arrayWithModeOf' mode = arrayWithModeOf mode liftAesonFromJSON
 --
 -- Example:
 --
--- > unjsonArrayOfIntOrSimpleInt :: ValueDef [Int]
+-- > unjsonArrayOfIntOrSimpleInt :: UnjsonDef [Int]
 -- > unjsonArrayOfIntOrSimpleInt = arrayWithModeOf'
 arrayWithModeAndPrimaryKeyOf :: (Ord pk)
-                             => ArrayValueMode
+                             => ArrayMode
                              -> (a -> pk)
-                             -> ValueDef pk
-                             -> ValueDef a
-                             -> ValueDef [a]
+                             -> UnjsonDef pk
+                             -> UnjsonDef a
+                             -> UnjsonDef [a]
 arrayWithModeAndPrimaryKeyOf mode pk1 pk2 valuedef =
-  ArrayValueDef (Just (PrimaryKeyExtraction pk1 pk2)) mode valuedef
+  ArrayUnjsonDef (Just (PrimaryKeyExtraction pk1 pk2)) mode valuedef
 
 -- | Declare array pf objects with given parsers that should be
 -- matched by a primary key. Accepts mode specifier.
 --
 -- Example:
 --
--- > unjsonArrayOfIntOrSimpleInt :: ValueDef [Int]
+-- > unjsonArrayOfIntOrSimpleInt :: UnjsonDef [Int]
 -- > unjsonArrayOfIntOrSimpleInt = arrayWithModeOf'
 arrayWithPrimaryKeyOf :: (Ord pk)
                       => (a -> pk)
-                      -> ValueDef pk
-                      -> ValueDef a
-                      -> ValueDef [a]
+                      -> UnjsonDef pk
+                      -> UnjsonDef a
+                      -> UnjsonDef [a]
 arrayWithPrimaryKeyOf pk1 pk2 valuedef =
-  arrayWithModeAndPrimaryKeyOf ArrayValueModeStrict pk1 pk2 valuedef
+  arrayWithModeAndPrimaryKeyOf ArrayModeStrict pk1 pk2 valuedef
 
 -- | Use 'Aeson.fromJSON' and 'Aeson.toJSON' to create a
--- 'ValueDef'. This function is useful when lifted type is one of the
+-- 'UnjsonDef'. This function is useful when lifted type is one of the
 -- primitives. Although it can be used to lift user defined instances,
 -- it is not advisable as there is too much information lost in the
 -- process and proper error infomation is not possible.
@@ -801,9 +819,9 @@ arrayWithPrimaryKeyOf pk1 pk2 valuedef =
 -- Example:
 --
 -- > instance Unjson MyType where
--- >     valueDef = liftAesonFromJSON
-liftAesonFromJSON :: (Aeson.FromJSON a,Aeson.ToJSON a) => ValueDef a
-liftAesonFromJSON = SimpleValueDef (\(Anchored path value) ->
+-- >     unjsonDef = liftAesonFromJSON
+liftAesonFromJSON :: (Aeson.FromJSON a,Aeson.ToJSON a) => UnjsonDef a
+liftAesonFromJSON = SimpleUnjsonDef (\(Anchored path value) ->
                                         case Aeson.fromJSON value of
                                           Aeson.Success result -> Result result []
                                           Aeson.Error message -> resultWithThrow (Anchored path (Text.pack message)))
@@ -841,18 +859,18 @@ liftAesonFromJSON = SimpleValueDef (\(Anchored path value) ->
 -- >                domain (opt):
 -- >                    Domain for user credentials
 -- >
-render :: ValueDef a -> String
+render :: UnjsonDef a -> String
 render = P.render . renderDoc
 
 -- | Renders documentation for a parser into a 'P.Doc'. See 'render'
 -- for example.
-renderDoc :: ValueDef a -> P.Doc
-renderDoc (SimpleValueDef _ _) = P.empty
-renderDoc (ArrayValueDef _ _m f) = P.text "array" P.$+$
+renderDoc :: UnjsonDef a -> P.Doc
+renderDoc (SimpleUnjsonDef _ _) = P.empty
+renderDoc (ArrayUnjsonDef _ _m f) = P.text "array" P.$+$
              P.nest 4 (renderDoc f)
-renderDoc (ObjectValueDef f) = -- P.text "object" P.$+$
+renderDoc (ObjectUnjsonDef f) = -- P.text "object" P.$+$
              P.nest 4 (P.vcat (renderFields f))
-renderDoc (TupleValueDef f) = P.text "tuple of size " P.<> P.int (countAp 0 f) P.$+$
+renderDoc (TupleUnjsonDef f) = P.text "tuple of size " P.<> P.int (countAp 0 f) P.$+$
              P.nest 4 (P.vcat (renderTupleFields f))
 
 renderFields :: Ap (FieldDef s) a -> [P.Doc]

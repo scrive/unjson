@@ -41,7 +41,7 @@ data ExtendedTest =
                   }
   deriving (Eq,Ord,Show,Typeable)
 
-unjsonKonfig :: ValueDef Konfig
+unjsonKonfig :: UnjsonDef Konfig
 unjsonKonfig = objectOf $ pure Konfig
            <*> field' "hostname"
                  konfigHostname
@@ -60,7 +60,7 @@ unjsonKonfig = objectOf $ pure Konfig
                  konfigAlternates
                  "Alternate names for this server"
 
-unjsonCredentials :: ValueDef Credentials
+unjsonCredentials :: UnjsonDef Credentials
 unjsonCredentials = objectOf $ pure Credentials
                     <*> field' "username"
                           credentialsUsername
@@ -73,7 +73,7 @@ unjsonCredentials = objectOf $ pure Credentials
                           "Domain for user credentials"
 
 
-unjsonExtendedTest :: ValueDef ExtendedTest
+unjsonExtendedTest :: UnjsonDef ExtendedTest
 unjsonExtendedTest = objectOf $ pure ExtendedTest
                     <*> (pure maybeMaybeToEither
                           <*> fieldOpt' "numerical_value"
@@ -88,7 +88,7 @@ unjsonExtendedTest = objectOf $ pure ExtendedTest
     maybeMaybeToEither _ _ = error "Disjoint unions need special support that is not available yet"
 
 instance Unjson Credentials where
-  valueDef = unjsonCredentials
+  unjsonDef = unjsonCredentials
 
 test_proper_parse :: Test
 test_proper_parse = "Proper parsing of a complex structure" ~: do
@@ -170,26 +170,26 @@ test_tuple_parsing = "Tuple parsing" ~: do
                , (Aeson.toJSON (123 :: Int))
                ]
 
-  let Result (val1 :: String, val2 :: Text.Text, val3 ::Int) iss = parse valueDef (Anchored [] json)
+  let Result (val1 :: String, val2 :: Text.Text, val3 ::Int) iss = parse unjsonDef (Anchored [] json)
   assertEqual "Number of issues in parsing" [] iss
   assertEqual "First element of tuple" "hostname" val1
   assertEqual "Second element of tuple" "port" val2
   assertEqual "Third element of tuple" 123 val3
 
-  let Result (xval1 :: String, xval2 :: Text.Text, xval3 :: Int, xval4 :: Int) iss = parse valueDef (Anchored [] json)
+  let Result (xval1 :: String, xval2 :: Text.Text, xval3 :: Int, xval4 :: Int) iss = parse unjsonDef (Anchored [] json)
   assertEqual "Issue in parsing" [Anchored [PathElemIndex 3] "missing key"
                                  ,Anchored [] "cannot parse array of length 3 into tuple of size 4"] iss
 
   ((xval4 `seq` return False) `catch` \(Anchored _ (t :: Text.Text)) -> return True) @? "Evaluating not parsed parts throws exception"
 
-  let Result (yval1 :: Int, yval2 :: Int, yval3 :: Text.Text) iss = parse valueDef (Anchored [] json)
+  let Result (yval1 :: Int, yval2 :: Int, yval3 :: Text.Text) iss = parse unjsonDef (Anchored [] json)
   assertEqual "Issues in parsing"
                 [ Anchored [PathElemIndex 0] "when expecting a Integral, encountered String instead"
                 , Anchored [PathElemIndex 1] "when expecting a Integral, encountered String instead"
                 , Anchored [PathElemIndex 2] "when expecting a Text, encountered Number instead"
                 ] iss
 
-  let Result (zval1 :: String, zval2 :: Text.Text) iss = parse valueDef (Anchored [] json)
+  let Result (zval1 :: String, zval2 :: Text.Text) iss = parse unjsonDef (Anchored [] json)
   assertEqual "Array too long for 2-tuple" [Anchored [] "cannot parse array of length 3 into tuple of size 2"] iss
 
   return ()
@@ -328,21 +328,21 @@ test_array_modes = "test_array_modes" ~: do
   let json1 = Aeson.object
                [ "hostname" .= ["www.example.com" ::Text.Text]
                ]
-  let p0 :: ValueDef [Text.Text]
+  let p0 :: UnjsonDef [Text.Text]
       p0 = objectOf $ pure id
          <*> fieldBy "hostname" id
                  "Single value or array"
                  (arrayOf')
-  let p1 :: ValueDef [Text.Text]
+  let p1 :: UnjsonDef [Text.Text]
       p1 = objectOf $ pure id
          <*> fieldBy "hostname" id
                  "Single value or array"
-                 (arrayWithModeOf ArrayValueModeParseSingle liftAesonFromJSON)
-  let p2 :: ValueDef [Text.Text]
+                 (arrayWithModeOf ArrayModeParseSingle liftAesonFromJSON)
+  let p2 :: UnjsonDef [Text.Text]
       p2 = objectOf $ pure id
          <*> fieldBy "hostname" id
                  "Single value or array"
-                 (arrayWithModeOf' ArrayValueModeParseAndOutputSingle)
+                 (arrayWithModeOf' ArrayModeParseAndOutputSingle)
   let Result val0 iss0 = parse p0 (Anchored [] json)
   assertEqual "Serialize-parse produces no problems" [Anchored [PathElemKey "hostname"] "when expecting a Vector a, encountered String instead"] iss0
   let Result val1 iss1 = parse p1 (Anchored [] json)
@@ -399,7 +399,7 @@ test_array_update_by_primary_key = "test_array_update_by_primary_key" ~: do
                "Value"
   let pk1 = fst
       pk2 = objectOf $ field "id" id "Unique id"
-  let p0 :: ValueDef [(Int,Text.Text)]
+  let p0 :: UnjsonDef [(Int,Text.Text)]
       p0 = objectOf $ pure id
          <*> fieldBy "array"
                  id
