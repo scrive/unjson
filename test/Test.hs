@@ -337,12 +337,12 @@ test_array_modes = "test_array_modes" ~: do
       p1 = ObjectValueDef $ (pure id
          <*> fieldBy "hostname" id
                  "Single value or array"
-                 (ArrayValueDef Nothing ArrayValueModeParseSingle liftAesonFromJSON))
+                 (arrayWithModeOf ArrayValueModeParseSingle liftAesonFromJSON))
   let p2 :: ValueDef [Text.Text]
       p2 = ObjectValueDef $ (pure id
          <*> fieldBy "hostname" id
                  "Single value or array"
-                 (ArrayValueDef Nothing ArrayValueModeParseAndOutputSingle liftAesonFromJSON))
+                 (arrayWithModeOf' ArrayValueModeParseAndOutputSingle))
   let Result val0 iss0 = parse p0 (Anchored [] json)
   assertEqual "Serialize-parse produces no problems" [Anchored [PathElemKey "hostname"] "when expecting a Vector a, encountered String instead"] iss0
   let Result val1 iss1 = parse p1 (Anchored [] json)
@@ -400,13 +400,11 @@ test_array_update_by_primary_key = "test_array_update_by_primary_key" ~: do
   let pk1 = fst
       pk2 = ObjectValueDef $ field "id" id "Unique id"
   let p0 :: ValueDef [(Int,Text.Text)]
-      p0 = ObjectValueDef $ (pure id
+      p0 = ObjectValueDef $ pure id
          <*> fieldBy "array"
                  id
                  "Array updated by primary key"
-                 (ArrayValueDef (Just (PrimaryKeyExtraction pk1 pk2))
-                    ArrayValueModeStrict
-                    unjsonPair))
+                 (arrayWithPrimaryKeyOf pk1 pk2 unjsonPair)
   let Result val0 iss0 = parse p0 (Anchored [] json)
   assertEqual "Serialize-parse produces no problems" [] iss0
   assertEqual "Serialize-parse is identity" [(12,"for 12"),(17,"for 17"),(3,"for 3")] val0

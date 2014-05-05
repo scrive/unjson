@@ -1,7 +1,7 @@
--- | Unjson: bidirectional JSON (de)serialization with strong error
+-- | @Unjson@: bidirectional JSON (de)serialization with strong error
 -- reporting capabilities and automatica documentation generation.
 --
--- 'Unjson' offers:
+-- @Data.Unjson@ offers:
 --
 -- * single definition for serialization and deserialization
 --
@@ -36,13 +36,17 @@ module Data.Unjson
 , fieldDef'
 , fieldDefBy
 , arrayOf
+, arrayWithModeOf
 , arrayOf'
+, arrayWithModeOf'
+, arrayWithPrimaryKeyOf
+, arrayWithModeAndPrimaryKeyOf
 , render
+, renderDoc
 , liftAesonFromJSON
 , Result(..)
 , Anchored(..)
 , parse
-, PrimaryKeyExtraction(..)
 )
 where
 
@@ -133,7 +137,7 @@ resultWithThrow msg = Result (throw msg) [msg]
 -- Example declaration:
 --
 -- > instance Unjson Thing where
--- >     valueDef = ObjectValueDef . pure Thing
+-- >     valueDef = ObjectValueDef $ pure Thing
 -- >         <*> field "key1"
 -- >               thingField1
 -- >               "Required field of type with Unjson instance"
@@ -165,7 +169,7 @@ resultWithThrow msg = Result (throw msg) [msg]
 -- >               thingField9
 -- >               "Optional field with default of type with (ToJSON,FromjSON) instances"
 class Unjson a where
-  -- | Definition of bidirectional parser for type 'a'.
+  -- | Definition of a bidirectional parser for a type 'a'.
   valueDef :: ValueDef a
 
 instance (Unjson a) => Unjson [a] where
@@ -349,10 +353,13 @@ data ArrayValueMode
   | ArrayValueModeParseAndOutputSingle
   deriving (Eq, Ord, Show, Typeable)
 
--- | Pair of functions. First one should extract a value uniquelly
--- indentifying an element of an array, the second one should extract
--- equivalent value from a JSON value. Used in array parsing, see
--- 'ArrayValueDef'.
+-- | 'PrimaryKeyExtraction' is needed to keep 'Ord pk' constraint
+-- attached. Elements of array may be matched based on a primary
+-- key. A primary key has to be extracted both from existing array
+-- structure and from JSON array elements. Then a 'Set' is constructed
+-- so that lookups are efficient. Then for each element in JSON a
+-- corresponding element in old object is looked for. If found the
+-- element is updated, if not found it is parsed fresh.
 data PrimaryKeyExtraction k = forall pk . (Ord pk) => PrimaryKeyExtraction (k -> pk) (ValueDef pk)
 
 data ValueDef a where
@@ -501,7 +508,7 @@ lookupByTupleFieldDef (Anchored path v) ov (TupleFieldDef idx f valuedef)
 -- Example:
 --
 -- > unjsonThing :: ValueDef Thing
--- > unjsonThing = ObjectValueDef . pure Thing
+-- > unjsonThing = ObjectValueDef $ pure Thing
 -- >    <*> fieldBy "credentials"
 -- >          thingCredentials
 -- >          "Credentials to use"
@@ -517,7 +524,7 @@ fieldBy key f docstring valuedef = liftAp (FieldReqDef key docstring f valuedef)
 -- Example:
 --
 -- > unjsonThing :: ValueDef Thing
--- > unjsonThing = ObjectValueDef . pure Thing
+-- > unjsonThing = ObjectValueDef $ pure Thing
 -- >    <*> field "credentials"
 -- >          thingCredentials
 -- >          "Credentials to use"
@@ -532,7 +539,7 @@ field key f docstring = fieldBy key f docstring valueDef
 -- Example:
 --
 -- > unjsonThing :: ValueDef Thing
--- > unjsonThing = ObjectValueDef . pure Thing
+-- > unjsonThing = ObjectValueDef $ pure Thing
 -- >    <*> field' "port"
 -- >          thingPort
 -- >          "Port to listen on"
@@ -546,7 +553,7 @@ field' key f docstring = fieldBy key f docstring liftAesonFromJSON
 -- Example:
 --
 -- > unjsonThing :: ValueDef Thing
--- > unjsonThing = ObjectValueDef . pure Thing
+-- > unjsonThing = ObjectValueDef $ pure Thing
 -- >    <*> fieldOptBy "credentials"
 -- >          thingCredentials
 -- >          "Optional credentials to use"
@@ -562,7 +569,7 @@ fieldOptBy key f docstring valuedef = liftAp (FieldOptDef key docstring f valued
 -- Example:
 --
 -- > unjsonThing :: ValueDef Thing
--- > unjsonThing = ObjectValueDef . pure Thing
+-- > unjsonThing = ObjectValueDef $ pure Thing
 -- >    <*> fieldOpt "credentials"
 -- >          thingCredentials
 -- >          "Optional credentials to use"
@@ -577,7 +584,7 @@ fieldOpt key f docstring = fieldOptBy key f docstring valueDef
 -- Example:
 --
 -- > unjsonThing :: ValueDef Thing
--- > unjsonThing = ObjectValueDef . pure Thing
+-- > unjsonThing = ObjectValueDef $ pure Thing
 -- >    <*> fieldDef' "port"
 -- >          thingPort
 -- >          "Optional port to listen on"
@@ -591,7 +598,7 @@ fieldOpt' key f docstring = fieldOptBy key f docstring liftAesonFromJSON
 -- Example:
 --
 -- > unjsonThing :: ValueDef Thing
--- > unjsonThing = ObjectValueDef . pure Thing
+-- > unjsonThing = ObjectValueDef $ pure Thing
 -- >    <*> fieldDefBy "credentials" defaultCredentials
 -- >          thingCredentials
 -- >          "Credentials to use, defaults to defaultCredentials"
@@ -607,7 +614,7 @@ fieldDefBy key def f docstring valuedef = liftAp (FieldDefDef key docstring def 
 -- Example:
 --
 -- > unjsonThing :: ValueDef Thing
--- > unjsonThing = ObjectValueDef . pure Thing
+-- > unjsonThing = ObjectValueDef $ pure Thing
 -- >    <*> fieldDef "credentials" defaultCredentials
 -- >          thingCredentials
 -- >          "Credentials to use, defaults to defaultCredentials"
@@ -622,7 +629,7 @@ fieldDef key def f docstring = fieldDefBy key def f docstring valueDef
 -- Example:
 --
 -- > unjsonThing :: ValueDef Thing
--- > unjsonThing = ObjectValueDef . pure Thing
+-- > unjsonThing = ObjectValueDef $ pure Thing
 -- >    <*> fieldDef' "port" 80
 -- >          thingPort
 -- >          "Port to listen on, defaults to 80"
@@ -641,7 +648,20 @@ fieldDef' key def f docstring = fieldDefBy key def f docstring liftAesonFromJSON
 -- > unjsonThing :: ValueDef Thing
 -- > unjsonThing = ...
 arrayOf :: ValueDef a -> ValueDef [a]
-arrayOf valuedef = ArrayValueDef Nothing ArrayValueModeStrict valuedef
+arrayOf = arrayWithModeOf ArrayValueModeStrict
+
+-- | Declare array of values where each of them is described by
+-- valuedef. Accepts mode specifier.
+--
+-- Example:
+--
+-- > unjsonArrayOfThings :: ValueDef [Thing]
+-- > unjsonArrayOfThings = arrayOf unjsonThing
+-- >
+-- > unjsonThing :: ValueDef Thing
+-- > unjsonThing = ...
+arrayWithModeOf :: ArrayValueMode -> ValueDef a -> ValueDef [a]
+arrayWithModeOf mode valuedef = ArrayValueDef Nothing mode valuedef
 
 -- | Declare array of primitive values lifed from 'Aeson'.
 --
@@ -651,6 +671,50 @@ arrayOf valuedef = ArrayValueDef Nothing ArrayValueModeStrict valuedef
 -- > unjsonArrayOfInt = arrayOf'
 arrayOf' :: (Aeson.FromJSON a,Aeson.ToJSON a) => ValueDef [a]
 arrayOf' = arrayOf liftAesonFromJSON
+
+-- | Declare array of primitive values lifed from 'Aeson'. Accepts
+-- mode specifier.
+--
+-- Example:
+--
+-- > unjsonArrayOfIntOrSimpleInt :: ValueDef [Int]
+-- > unjsonArrayOfIntOrSimpleInt = arrayWithModeOf'
+arrayWithModeOf' :: (Aeson.FromJSON a,Aeson.ToJSON a)
+                 => ArrayValueMode
+                 -> ValueDef [a]
+arrayWithModeOf' mode = arrayWithModeOf mode liftAesonFromJSON
+
+
+-- | Declare array pf objects with given parsers that should be
+-- matched by a primary key. Accepts mode specifier.
+--
+-- Example:
+--
+-- > unjsonArrayOfIntOrSimpleInt :: ValueDef [Int]
+-- > unjsonArrayOfIntOrSimpleInt = arrayWithModeOf'
+arrayWithModeAndPrimaryKeyOf :: (Ord pk)
+                             => ArrayValueMode
+                             -> (a -> pk)
+                             -> ValueDef pk
+                             -> ValueDef a
+                             -> ValueDef [a]
+arrayWithModeAndPrimaryKeyOf mode pk1 pk2 valuedef =
+  ArrayValueDef (Just (PrimaryKeyExtraction pk1 pk2)) mode valuedef
+
+-- | Declare array pf objects with given parsers that should be
+-- matched by a primary key. Accepts mode specifier.
+--
+-- Example:
+--
+-- > unjsonArrayOfIntOrSimpleInt :: ValueDef [Int]
+-- > unjsonArrayOfIntOrSimpleInt = arrayWithModeOf'
+arrayWithPrimaryKeyOf :: (Ord pk)
+                      => (a -> pk)
+                      -> ValueDef pk
+                      -> ValueDef a
+                      -> ValueDef [a]
+arrayWithPrimaryKeyOf pk1 pk2 valuedef =
+  arrayWithModeAndPrimaryKeyOf ArrayValueModeStrict pk1 pk2 valuedef
 
 -- | Use 'Aeson.fromJSON' and 'Aeson.toJSON' to create a
 -- 'ValueDef'. This function is useful when lifted type is one of the
