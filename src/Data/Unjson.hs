@@ -1,3 +1,8 @@
+
+
+
+-- | Very nice module
+
 module Data.Unjson
 ( Unjson(..)
 , ValueDef(..)
@@ -81,7 +86,12 @@ instance (Show a) => Show (Anchored a) where
 
 instance (Typeable a, Show a) => Exception (Anchored a)
 
+-- | Problem information is represented as a 'Text.Text' attached to a
+-- specific point in the JSON represenation tree.
 type Problem = Anchored Text.Text
+
+-- | In general JSON deserialization may result in many
+-- problems. Unjson reports all the problems at once.
 type Problems = [Problem]
 
 -- | Parsing result. The value 'a' is only reliable when 'Problems' is
@@ -288,7 +298,7 @@ instance (Unjson a,Unjson b,Unjson c,Unjson d
 -- 'ArrayValueModeStrict' that does not do anything special with
 -- arrays.
 data ArrayValueMode
-  -- | Require JSON array, output JSON array.
+  -- | Require JSON array. On output always output array.
   = ArrayValueModeStrict
 
   -- | Allow non-array element, in that case it will be treated as a
@@ -303,7 +313,8 @@ data ArrayValueMode
 
 -- | Pair of functions. First one should extract a value uniquelly
 -- indentifying an element of an array, the second one should extract
--- equivalent value from a JSON value. Use in array parsing.
+-- equivalent value from a JSON value. Used in array parsing, see
+-- 'ArrayValueDef'.
 data PrimaryKeyExtraction k = forall pk . (Ord pk) => PrimaryKeyExtraction (k -> pk) (ValueDef pk)
 
 data ValueDef a where
@@ -313,11 +324,18 @@ data ValueDef a where
   TupleValueDef  :: Ap (TupleFieldDef k) k -> ValueDef k
   -- DisjointValueDef :: Ap (FieldDef k) k -> ValueDef k
 
+-- | Define a relation between a field of an object in JSON and a
+-- field in a Haskell record structure.  'FieldDef' holds information
+-- about a documentation string, key name, Haskell data accessor and
+-- parsing definition.  'FieldDef' has three cases for fields that are
+-- required, optional (via 'Maybe') or jave default value.
 data FieldDef s a where
   FieldReqDef :: Text.Text -> Text.Text -> (s -> a) -> ValueDef a -> FieldDef s a
   FieldOptDef :: Text.Text -> Text.Text -> (s -> Maybe a) -> ValueDef a -> FieldDef s (Maybe a)
   FieldDefDef :: Text.Text -> Text.Text -> a -> (s -> a) -> ValueDef a -> FieldDef s a
 
+-- | Define a tuple element. 'TupleFieldDef' holds information about
+-- index, accessor function and a parser definition.
 data TupleFieldDef s a where
   TupleFieldDef :: Int -> (s -> a) -> ValueDef a -> TupleFieldDef s a
 
@@ -347,6 +365,8 @@ serialize1 (ObjectValueDef f) a =
 serialize1 (TupleValueDef f) a =
   Aeson.toJSON (tupleDefToArray a f)
 
+-- | Count how many applications there are. Useful for error
+-- reporting.
 countAp :: Int -> Ap x a -> Int
 countAp !n (Pure _) = n
 countAp n (Ap _ r) = countAp (succ n) r
@@ -387,13 +407,13 @@ parseUpdating1 (ArrayValueDef _ m f) _ov (Anchored path v)
 parseUpdating1 (ObjectValueDef f) ov (Anchored path v)
   = case Aeson.parseEither Aeson.parseJSON v of
       Right v ->
-        runAp (lookupByFieldDefUpdate (Anchored path v) ov) f
+        runAp (lookupByFieldDef (Anchored path v) ov) f
       Left e ->
         resultWithThrow (Anchored path (Text.pack e))
 parseUpdating1 (TupleValueDef f) ov (Anchored path v)
   = case Aeson.parseEither Aeson.parseJSON v of
       Right v ->
-        let r@(Result g h) = runAp (lookupByTupleFieldDefUpdate (Anchored path v) ov) f
+        let r@(Result g h) = runAp (lookupByTupleFieldDef (Anchored path v) ov) f
             tupleSize = countAp 0 f
             arrayLength = Vector.length v
         in if tupleSize == arrayLength
@@ -407,21 +427,21 @@ parse :: ValueDef a -> Anchored Aeson.Value -> Result a
 parse vd = parseUpdating1 vd Nothing
 
 
-lookupByFieldDefUpdate :: Anchored Aeson.Object -> Maybe s -> FieldDef s a -> Result a
-lookupByFieldDefUpdate (Anchored path v) ov (FieldReqDef name docstring f valuedef)
+lookupByFieldDef :: Anchored Aeson.Object -> Maybe s -> FieldDef s a -> Result a
+lookupByFieldDef (Anchored path v) ov (FieldReqDef name docstring f valuedef)
   = case HashMap.lookup name v of
       Just x  -> parseUpdating1 valuedef (fmap f ov) (Anchored (path ++ [PathElemKey name]) x)
       Nothing -> case ov of
                    Just xov -> Result (f xov) []
                    Nothing -> resultWithThrow (Anchored (path ++ [PathElemKey name]) "missing key")
-lookupByFieldDefUpdate (Anchored path v) ov (FieldDefDef name docstring def f valuedef)
+lookupByFieldDef (Anchored path v) ov (FieldDefDef name docstring def f valuedef)
   = case HashMap.lookup name v of
       Just Aeson.Null -> Result def []
       Just x  -> parseUpdating1 valuedef (fmap f ov) (Anchored (path ++ [PathElemKey name]) x)
       Nothing -> case ov of
                    Just xov -> Result (f xov) []
                    Nothing -> Result def []
-lookupByFieldDefUpdate (Anchored path v) ov (FieldOptDef name docstring f valuedef)
+lookupByFieldDef (Anchored path v) ov (FieldOptDef name docstring f valuedef)
   = case HashMap.lookup name v of
       Just Aeson.Null -> Result Nothing []
       Just x  -> case ov of
@@ -432,8 +452,8 @@ lookupByFieldDefUpdate (Anchored path v) ov (FieldOptDef name docstring f valued
                    Nothing -> Result Nothing []
 
 
-lookupByTupleFieldDefUpdate :: Anchored Aeson.Array -> Maybe s -> TupleFieldDef s a -> Result a
-lookupByTupleFieldDefUpdate (Anchored path v) ov (TupleFieldDef idx f valuedef)
+lookupByTupleFieldDef :: Anchored Aeson.Array -> Maybe s -> TupleFieldDef s a -> Result a
+lookupByTupleFieldDef (Anchored path v) ov (TupleFieldDef idx f valuedef)
   = case v Vector.!? idx of
       Just x  -> parseUpdating1 valuedef (fmap f ov) (Anchored (path ++ [PathElemIndex idx]) x)
       Nothing -> resultWithThrow (Anchored (path ++ [PathElemIndex idx]) "missing key")
@@ -495,9 +515,13 @@ liftAesonFromJSON = SimpleValueDef (\(Anchored path value) ->
                                    Aeson.toJSON
 
 
+-- | Renders documentation for a parser into a multiline string. It is
+-- expected that this string is a human readable representation that
+-- can go directly to console.
 render :: ValueDef a -> String
 render = P.render . renderDoc
 
+-- | Renders documentation for a parser into a 'P.Doc'.
 renderDoc :: ValueDef a -> P.Doc
 renderDoc (SimpleValueDef _ _) = P.empty
 renderDoc (ArrayValueDef _ _m f) = P.text "array" P.$+$
