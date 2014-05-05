@@ -329,20 +329,20 @@ test_array_modes = "test_array_modes" ~: do
                [ "hostname" .= ["www.example.com" ::Text.Text]
                ]
   let p0 :: ValueDef [Text.Text]
-      p0 = ObjectValueDef $ (pure id
+      p0 = ObjectValueDef $ pure id
          <*> fieldBy "hostname" id
                  "Single value or array"
-                 (arrayOf'))
+                 (arrayOf')
   let p1 :: ValueDef [Text.Text]
-      p1 = ObjectValueDef $ (pure id
+      p1 = ObjectValueDef $ pure id
          <*> fieldBy "hostname" id
                  "Single value or array"
-                 (arrayWithModeOf ArrayValueModeParseSingle liftAesonFromJSON))
+                 (arrayWithModeOf ArrayValueModeParseSingle liftAesonFromJSON)
   let p2 :: ValueDef [Text.Text]
-      p2 = ObjectValueDef $ (pure id
+      p2 = ObjectValueDef $ pure id
          <*> fieldBy "hostname" id
                  "Single value or array"
-                 (arrayWithModeOf' ArrayValueModeParseAndOutputSingle))
+                 (arrayWithModeOf' ArrayValueModeParseAndOutputSingle)
   let Result val0 iss0 = parse p0 (Anchored [] json)
   assertEqual "Serialize-parse produces no problems" [Anchored [PathElemKey "hostname"] "when expecting a Vector a, encountered String instead"] iss0
   let Result val1 iss1 = parse p1 (Anchored [] json)
@@ -390,13 +390,13 @@ test_array_update_by_primary_key = "test_array_update_by_primary_key" ~: do
                               ]
                             ]
                ]
-  let unjsonPair = ObjectValueDef $ (pure (,)
+  let unjsonPair = ObjectValueDef $ pure (,)
          <*> field "id"
                fst
                "Unique id"
          <*> field "value"
                snd
-               "Value")
+               "Value"
   let pk1 = fst
       pk2 = ObjectValueDef $ field "id" id "Unique id"
   let p0 :: ValueDef [(Int,Text.Text)]
