@@ -17,8 +17,8 @@
 --
 -- * automatic documentation generation
 --
--- For examples have a look at 'Unjson', 'parse', 'update' and
--- 'render'.
+-- For examples have a look at 'Unjson', 'parse', 'update',
+-- 'serialize' and 'render'.
 module Data.Unjson
 ( Unjson(..)
 , ValueDef
@@ -173,7 +173,8 @@ resultWithThrow msg = Result (throw msg) [msg]
 -- >               "Optional field with default of type with (ToJSON,FromjSON) instances"
 class Unjson a where
   -- | Definition of a bidirectional parser for a type 'a'. See
-  -- 'parse, 'update', 'render' to see how to use it.
+  -- 'parse, 'update', 'serialize' and 'render' to see how to use
+  -- 'ValueDef'.
   valueDef :: ValueDef a
 
 instance (Unjson a) => Unjson [a] where
@@ -404,6 +405,12 @@ objectDefToArray s (Ap (FieldOptDef key _ f d) r) =
 objectDefToArray s (Ap (FieldDefDef key _ _ f d) r) = (key,serialize d (f s)) : objectDefToArray s r
 
 -- | Given a definition of a value and a value produce a JSON.
+--
+-- Example:
+--
+-- > let v = Thing { ... }
+-- > let json = serialize unjsonThing v
+--
 serialize :: ValueDef a -> a -> Aeson.Value
 serialize (SimpleValueDef _ g) a = g a
 serialize (ArrayValueDef _ ArrayValueModeParseAndOutputSingle f) [a] =
