@@ -337,7 +337,7 @@ test_array_modes = "test_array_modes" ~: do
       p1 = objectOf $ pure id
          <*> fieldBy "hostname" id
                  "Single value or array"
-                 (arrayWithModeOf ArrayModeParseSingle liftAesonFromJSON)
+                 (arrayWithModeOf ArrayModeParseSingle liftAeson)
   let p2 :: UnjsonDef [Text.Text]
       p2 = objectOf $ pure id
          <*> fieldBy "hostname" id

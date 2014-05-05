@@ -46,7 +46,7 @@ module Data.Unjson
 , arrayWithModeAndPrimaryKeyOf
 , render
 , renderDoc
-, liftAesonFromJSON
+, liftAeson
 , Result(..)
 , Anchored(..)
 , parse
@@ -195,13 +195,13 @@ instance (Unjson a) => Unjson [a] where
   unjsonDef = arrayOf unjsonDef
 
 instance Unjson Text.Text where
-  unjsonDef = liftAesonFromJSON
+  unjsonDef = liftAeson
 
 instance Unjson Int where
-  unjsonDef = liftAesonFromJSON
+  unjsonDef = liftAeson
 
 instance Unjson String where
-  unjsonDef = liftAesonFromJSON
+  unjsonDef = liftAeson
 
 instance (Unjson a,Unjson b) => Unjson (a,b) where
   unjsonDef = TupleUnjsonDef
@@ -626,7 +626,7 @@ field key f docstring = fieldBy key f docstring unjsonDef
 -- >
 -- > data Thing = Thing { thingPort :: Int, ... }
 field' :: (Aeson.FromJSON a,Aeson.ToJSON a) => Text.Text -> (s -> a) -> Text.Text -> Ap (FieldDef s) a
-field' key f docstring = fieldBy key f docstring liftAesonFromJSON
+field' key f docstring = fieldBy key f docstring liftAeson
 
 -- | Declare an optional field and definition by valuedef.
 --
@@ -671,7 +671,7 @@ fieldOpt key f docstring = fieldOptBy key f docstring unjsonDef
 -- >
 -- > data Thing = Thing { thingPort :: Int, ... }
 fieldOpt' :: (Aeson.FromJSON a,Aeson.ToJSON a) => Text.Text -> (s -> Maybe a) -> Text.Text -> Ap (FieldDef s) (Maybe a)
-fieldOpt' key f docstring = fieldOptBy key f docstring liftAesonFromJSON
+fieldOpt' key f docstring = fieldOptBy key f docstring liftAeson
 
 -- | Declare a field with default value and definition by valuedef.
 --
@@ -716,7 +716,7 @@ fieldDef key def f docstring = fieldDefBy key def f docstring unjsonDef
 -- >
 -- > data Thing = Thing { thingPort :: Int, ... }
 fieldDef' :: (Aeson.FromJSON a,Aeson.ToJSON a) => Text.Text -> a -> (s -> a) -> Text.Text -> Ap (FieldDef s) a
-fieldDef' key def f docstring = fieldDefBy key def f docstring liftAesonFromJSON
+fieldDef' key def f docstring = fieldDefBy key def f docstring liftAeson
 
 -- | Declare an object as bidirectional mapping from JSON object to Haskell record and back.
 --
@@ -764,7 +764,7 @@ arrayWithModeOf mode valuedef = ArrayUnjsonDef Nothing mode valuedef
 -- > unjsonArrayOfInt :: UnjsonDef [Int]
 -- > unjsonArrayOfInt = arrayOf'
 arrayOf' :: (Aeson.FromJSON a,Aeson.ToJSON a) => UnjsonDef [a]
-arrayOf' = arrayOf liftAesonFromJSON
+arrayOf' = arrayOf liftAeson
 
 -- | Declare array of primitive values lifed from 'Aeson'. Accepts
 -- mode specifier.
@@ -776,7 +776,7 @@ arrayOf' = arrayOf liftAesonFromJSON
 arrayWithModeOf' :: (Aeson.FromJSON a,Aeson.ToJSON a)
                  => ArrayMode
                  -> UnjsonDef [a]
-arrayWithModeOf' mode = arrayWithModeOf mode liftAesonFromJSON
+arrayWithModeOf' mode = arrayWithModeOf mode liftAeson
 
 
 -- | Declare array pf objects with given parsers that should be
@@ -819,9 +819,9 @@ arrayWithPrimaryKeyOf pk1 pk2 valuedef =
 -- Example:
 --
 -- > instance Unjson MyType where
--- >     unjsonDef = liftAesonFromJSON
-liftAesonFromJSON :: (Aeson.FromJSON a,Aeson.ToJSON a) => UnjsonDef a
-liftAesonFromJSON = SimpleUnjsonDef (\(Anchored path value) ->
+-- >     unjsonDef = liftAeson
+liftAeson :: (Aeson.FromJSON a,Aeson.ToJSON a) => UnjsonDef a
+liftAeson = SimpleUnjsonDef (\(Anchored path value) ->
                                         case Aeson.fromJSON value of
                                           Aeson.Success result -> Result result []
                                           Aeson.Error message -> resultWithThrow (Anchored path (Text.pack message)))
