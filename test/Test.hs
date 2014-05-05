@@ -42,7 +42,7 @@ data ExtendedTest =
   deriving (Eq,Ord,Show,Typeable)
 
 unjsonKonfig :: ValueDef Konfig
-unjsonKonfig = ObjectValueDef $ pure Konfig
+unjsonKonfig = objectOf $ pure Konfig
            <*> field' "hostname"
                  konfigHostname
                  "The hostname this service is visible as"
@@ -61,7 +61,7 @@ unjsonKonfig = ObjectValueDef $ pure Konfig
                  "Alternate names for this server"
 
 unjsonCredentials :: ValueDef Credentials
-unjsonCredentials = ObjectValueDef $ pure Credentials
+unjsonCredentials = objectOf $ pure Credentials
                     <*> field' "username"
                           credentialsUsername
                           "Name of the user"
@@ -74,7 +74,7 @@ unjsonCredentials = ObjectValueDef $ pure Credentials
 
 
 unjsonExtendedTest :: ValueDef ExtendedTest
-unjsonExtendedTest = ObjectValueDef $ pure ExtendedTest
+unjsonExtendedTest = objectOf $ pure ExtendedTest
                     <*> (pure maybeMaybeToEither
                           <*> fieldOpt' "numerical_value"
                                 (either Just (const Nothing) . extendedTestEither)
@@ -278,7 +278,7 @@ test_update_from_serialization = "test_update_from_serialization" ~: do
                                [ "domain" .= ("domain" :: Text.Text)
                                , "username" .= ("usr2" :: Text.Text) ]
                ]
-  let Result val iss = parseUpdating unjsonKonfig initial (Anchored [] json)
+  let Result val iss = update initial unjsonKonfig (Anchored [] json)
   assertEqual "Serialize-parse produces no problems" [] iss
   assertEqual "Serialize-parse is identity" expect val
   return ()
@@ -313,7 +313,7 @@ test_update_from_serialization_with_reset_to_default = "test_update_from_seriali
                                    ]
                                  ]
                ]
-  let Result val iss = parseUpdating unjsonKonfig initial (Anchored [] json)
+  let Result val iss = update initial unjsonKonfig (Anchored [] json)
   assertEqual "Serialize-parse produces no problems"
                 [Anchored [PathElemKey "hostname"] "when expecting a Text, encountered Null instead"] iss
   assertEqual "Serialize-parse is identity" expect (val {konfigHostname = "www.example.com"})
@@ -329,17 +329,17 @@ test_array_modes = "test_array_modes" ~: do
                [ "hostname" .= ["www.example.com" ::Text.Text]
                ]
   let p0 :: ValueDef [Text.Text]
-      p0 = ObjectValueDef $ pure id
+      p0 = objectOf $ pure id
          <*> fieldBy "hostname" id
                  "Single value or array"
                  (arrayOf')
   let p1 :: ValueDef [Text.Text]
-      p1 = ObjectValueDef $ pure id
+      p1 = objectOf $ pure id
          <*> fieldBy "hostname" id
                  "Single value or array"
                  (arrayWithModeOf ArrayValueModeParseSingle liftAesonFromJSON)
   let p2 :: ValueDef [Text.Text]
-      p2 = ObjectValueDef $ pure id
+      p2 = objectOf $ pure id
          <*> fieldBy "hostname" id
                  "Single value or array"
                  (arrayWithModeOf' ArrayValueModeParseAndOutputSingle)
@@ -390,7 +390,7 @@ test_array_update_by_primary_key = "test_array_update_by_primary_key" ~: do
                               ]
                             ]
                ]
-  let unjsonPair = ObjectValueDef $ pure (,)
+  let unjsonPair = objectOf $ pure (,)
          <*> field "id"
                fst
                "Unique id"
@@ -398,9 +398,9 @@ test_array_update_by_primary_key = "test_array_update_by_primary_key" ~: do
                snd
                "Value"
   let pk1 = fst
-      pk2 = ObjectValueDef $ field "id" id "Unique id"
+      pk2 = objectOf $ field "id" id "Unique id"
   let p0 :: ValueDef [(Int,Text.Text)]
-      p0 = ObjectValueDef $ pure id
+      p0 = objectOf $ pure id
          <*> fieldBy "array"
                  id
                  "Array updated by primary key"
@@ -408,7 +408,7 @@ test_array_update_by_primary_key = "test_array_update_by_primary_key" ~: do
   let Result val0 iss0 = parse p0 (Anchored [] json)
   assertEqual "Serialize-parse produces no problems" [] iss0
   assertEqual "Serialize-parse is identity" [(12,"for 12"),(17,"for 17"),(3,"for 3")] val0
-  let Result val1 iss1 = parseUpdating p0 val0 (Anchored [] json1)
+  let Result val1 iss1 = update val0 p0 (Anchored [] json1)
   assertEqual "Serialize-parse produces no problems" [] iss1
   assertEqual "Serialize-parse is identity" [(17,"for 17"),(4,"for 4"),(12,"for 12 new value")] val1
   return ()

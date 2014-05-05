@@ -18,14 +18,14 @@
 
 module Data.Unjson
 ( Unjson(..)
-, ValueDef(..)
+, ValueDef
 , Problem
 , Problems
 , Path
 , PathElem(..)
 , ArrayValueMode(..)
 , serialize1
-, parseUpdating
+, objectOf
 , field
 , field'
 , fieldBy
@@ -47,6 +47,7 @@ module Data.Unjson
 , Result(..)
 , Anchored(..)
 , parse
+, update
 )
 where
 
@@ -70,15 +71,14 @@ import qualified Text.PrettyPrint.HughesPJ as P
 -- | Describe a path from root JSON element to a specific
 -- position. JSON has only two types of containers: objects and
 -- arrays, so there are only two types of keys needed to index into
--- those containers: 'Int' and 'Text.Text'.
---
--- 'PathElem's are rendered in a nice way. For example: @key.key2[34]@
--- indexes into \"key\", then into \"key2\" then into index 34 of an
--- array.
+-- those containers: 'Int' and 'Text.Text'. See 'Path'.
 data PathElem = PathElemKey Text.Text
               | PathElemIndex Int
   deriving (Typeable, Eq, Ord, Show)
 
+-- | 'Path's are rendered in a nice way. For example: @key.key2[34]@
+-- indexes into \"key\", then into \"key2\" then into index 34 of an
+-- array.
 type Path = [PathElem]
 
 showPath :: Bool -> Path -> Text.Text
@@ -137,7 +137,7 @@ resultWithThrow msg = Result (throw msg) [msg]
 -- Example declaration:
 --
 -- > instance Unjson Thing where
--- >     valueDef = ObjectValueDef $ pure Thing
+-- >     valueDef = objectOf $ pure Thing
 -- >         <*> field "key1"
 -- >               thingField1
 -- >               "Required field of type with Unjson instance"
@@ -362,6 +362,7 @@ data ArrayValueMode
 -- element is updated, if not found it is parsed fresh.
 data PrimaryKeyExtraction k = forall pk . (Ord pk) => PrimaryKeyExtraction (k -> pk) (ValueDef pk)
 
+-- | Opaque 'ValueDef' defines a bidirectional JSON parser.
 data ValueDef a where
   SimpleValueDef :: (Anchored Aeson.Value -> Result k) -> (k -> Aeson.Value) -> ValueDef k
   ArrayValueDef  :: Maybe (PrimaryKeyExtraction k) -> ArrayValueMode -> ValueDef k -> ValueDef [k]
@@ -416,16 +417,13 @@ countAp :: Int -> Ap x a -> Int
 countAp !n (Pure _) = n
 countAp n (Ap _ r) = countAp (succ n) r
 
-parseUpdating :: ValueDef a -> a -> Anchored Aeson.Value -> Result a
-parseUpdating v a = parseUpdating1 v (Just a)
-
-parseUpdating1 :: ValueDef a -> Maybe a -> Anchored Aeson.Value -> Result a
-parseUpdating1 (SimpleValueDef f _) _ov v = f v
-parseUpdating1 (ArrayValueDef (Just (PrimaryKeyExtraction pk_from_object pk_from_json)) m f) (Just ov) (Anchored path v)
+parseUpdating :: ValueDef a -> Maybe a -> Anchored Aeson.Value -> Result a
+parseUpdating (SimpleValueDef f _) _ov v = f v
+parseUpdating (ArrayValueDef (Just (PrimaryKeyExtraction pk_from_object pk_from_json)) m f) (Just ov) (Anchored path v)
   = case Aeson.parseEither Aeson.parseJSON v of
       Right v ->
         sequenceA (zipWith (\v i -> (lookupObjectByJson (Anchored (path ++ [PathElemIndex i]) v)) >>= \ov ->
-                                        parseUpdating1 f ov
+                                        parseUpdating f ov
                                         (Anchored (path ++ [PathElemIndex i]) v))
                                     (Vector.toList v) [0..])
       Left e -> case m of
@@ -433,29 +431,29 @@ parseUpdating1 (ArrayValueDef (Just (PrimaryKeyExtraction pk_from_object pk_from
             resultWithThrow (Anchored path (Text.pack e))
           _ ->
             sequenceA [(lookupObjectByJson (Anchored (path ++ [PathElemIndex 0]) v)) >>= \ov ->
-                                        parseUpdating1 f ov
+                                        parseUpdating f ov
                                         (Anchored (path ++ [PathElemIndex 0]) v)]
   where
     objectMap = Map.fromList (map (\o -> (pk_from_object o, o)) ov)
-    lookupObjectByJson js = parseUpdating1 pk_from_json Nothing js >>= \val -> return (Map.lookup val objectMap)
+    lookupObjectByJson js = parseUpdating pk_from_json Nothing js >>= \val -> return (Map.lookup val objectMap)
 
-parseUpdating1 (ArrayValueDef _ m f) _ov (Anchored path v)
+parseUpdating (ArrayValueDef _ m f) _ov (Anchored path v)
   = case Aeson.parseEither Aeson.parseJSON v of
       Right v ->
-        sequenceA (zipWith (\v i -> parseUpdating1 f Nothing (Anchored (path ++ [PathElemIndex i]) v)) (Vector.toList v) [0..])
+        sequenceA (zipWith (\v i -> parseUpdating f Nothing (Anchored (path ++ [PathElemIndex i]) v)) (Vector.toList v) [0..])
       Left e -> case m of
           ArrayValueModeStrict ->
             resultWithThrow (Anchored path (Text.pack e))
           _ ->
-            sequenceA [parseUpdating1 f Nothing (Anchored (path ++ [PathElemIndex 0]) v)]
+            sequenceA [parseUpdating f Nothing (Anchored (path ++ [PathElemIndex 0]) v)]
 
-parseUpdating1 (ObjectValueDef f) ov (Anchored path v)
+parseUpdating (ObjectValueDef f) ov (Anchored path v)
   = case Aeson.parseEither Aeson.parseJSON v of
       Right v ->
         runAp (lookupByFieldDef (Anchored path v) ov) f
       Left e ->
         resultWithThrow (Anchored path (Text.pack e))
-parseUpdating1 (TupleValueDef f) ov (Anchored path v)
+parseUpdating (TupleValueDef f) ov (Anchored path v)
   = case Aeson.parseEither Aeson.parseJSON v of
       Right v ->
         let r@(Result g h) = runAp (lookupByTupleFieldDef (Anchored path v) ov) f
@@ -468,21 +466,42 @@ parseUpdating1 (TupleValueDef f) ov (Anchored path v)
       Left e ->
         resultWithThrow (Anchored path (Text.pack e))
 
+-- | Parse JSON according to unjson definition.
+--
+-- Example:
+--
+-- > let json = Aeson.object [ ... ]
+-- > let Result val iss = parse unjsonThing (Anchored [] json)
+-- > if null iss
+-- >   then putStrLn ("Parsed: " ++ show val)
+-- >   else putStrLn ("Not parsed, issues: " ++ show iss)
 parse :: ValueDef a -> Anchored Aeson.Value -> Result a
-parse vd = parseUpdating1 vd Nothing
+parse vd = parseUpdating vd Nothing
 
+-- | Update object with JSON according to unjson definition.
+--
+-- Example:
+--
+-- > let original = Thing { ... }
+-- > let json = Aeson.object [ ... ]
+-- > let Result val iss = update original unjsonThing (Anchored [] json)
+-- > if null iss
+-- >   then putStrLn ("Updated: " ++ show val)
+-- >   else putStrLn ("Not updated, issues: " ++ show iss)
+update :: a -> ValueDef a -> Anchored Aeson.Value -> Result a
+update a vd = parseUpdating vd (Just a)
 
 lookupByFieldDef :: Anchored Aeson.Object -> Maybe s -> FieldDef s a -> Result a
 lookupByFieldDef (Anchored path v) ov (FieldReqDef name docstring f valuedef)
   = case HashMap.lookup name v of
-      Just x  -> parseUpdating1 valuedef (fmap f ov) (Anchored (path ++ [PathElemKey name]) x)
+      Just x  -> parseUpdating valuedef (fmap f ov) (Anchored (path ++ [PathElemKey name]) x)
       Nothing -> case ov of
                    Just xov -> Result (f xov) []
                    Nothing -> resultWithThrow (Anchored (path ++ [PathElemKey name]) "missing key")
 lookupByFieldDef (Anchored path v) ov (FieldDefDef name docstring def f valuedef)
   = case HashMap.lookup name v of
       Just Aeson.Null -> Result def []
-      Just x  -> parseUpdating1 valuedef (fmap f ov) (Anchored (path ++ [PathElemKey name]) x)
+      Just x  -> parseUpdating valuedef (fmap f ov) (Anchored (path ++ [PathElemKey name]) x)
       Nothing -> case ov of
                    Just xov -> Result (f xov) []
                    Nothing -> Result def []
@@ -490,8 +509,8 @@ lookupByFieldDef (Anchored path v) ov (FieldOptDef name docstring f valuedef)
   = case HashMap.lookup name v of
       Just Aeson.Null -> Result Nothing []
       Just x  -> case ov of
-                   Just xov -> fmap Just (parseUpdating1 valuedef (f xov) (Anchored (path ++ [PathElemKey name]) x))
-                   Nothing -> fmap Just (parseUpdating1 valuedef Nothing (Anchored (path ++ [PathElemKey name]) x))
+                   Just xov -> fmap Just (parseUpdating valuedef (f xov) (Anchored (path ++ [PathElemKey name]) x))
+                   Nothing -> fmap Just (parseUpdating valuedef Nothing (Anchored (path ++ [PathElemKey name]) x))
       Nothing -> case ov of
                    Just xov -> Result (f xov) []
                    Nothing -> Result Nothing []
@@ -500,7 +519,7 @@ lookupByFieldDef (Anchored path v) ov (FieldOptDef name docstring f valuedef)
 lookupByTupleFieldDef :: Anchored Aeson.Array -> Maybe s -> TupleFieldDef s a -> Result a
 lookupByTupleFieldDef (Anchored path v) ov (TupleFieldDef idx f valuedef)
   = case v Vector.!? idx of
-      Just x  -> parseUpdating1 valuedef (fmap f ov) (Anchored (path ++ [PathElemIndex idx]) x)
+      Just x  -> parseUpdating valuedef (fmap f ov) (Anchored (path ++ [PathElemIndex idx]) x)
       Nothing -> resultWithThrow (Anchored (path ++ [PathElemIndex idx]) "missing key")
 
 -- | Declare a required field with definition given inline by valuedef.
@@ -508,7 +527,7 @@ lookupByTupleFieldDef (Anchored path v) ov (TupleFieldDef idx f valuedef)
 -- Example:
 --
 -- > unjsonThing :: ValueDef Thing
--- > unjsonThing = ObjectValueDef $ pure Thing
+-- > unjsonThing = objectOf $ pure Thing
 -- >    <*> fieldBy "credentials"
 -- >          thingCredentials
 -- >          "Credentials to use"
@@ -524,7 +543,7 @@ fieldBy key f docstring valuedef = liftAp (FieldReqDef key docstring f valuedef)
 -- Example:
 --
 -- > unjsonThing :: ValueDef Thing
--- > unjsonThing = ObjectValueDef $ pure Thing
+-- > unjsonThing = objectOf $ pure Thing
 -- >    <*> field "credentials"
 -- >          thingCredentials
 -- >          "Credentials to use"
@@ -539,7 +558,7 @@ field key f docstring = fieldBy key f docstring valueDef
 -- Example:
 --
 -- > unjsonThing :: ValueDef Thing
--- > unjsonThing = ObjectValueDef $ pure Thing
+-- > unjsonThing = objectOf $ pure Thing
 -- >    <*> field' "port"
 -- >          thingPort
 -- >          "Port to listen on"
@@ -553,7 +572,7 @@ field' key f docstring = fieldBy key f docstring liftAesonFromJSON
 -- Example:
 --
 -- > unjsonThing :: ValueDef Thing
--- > unjsonThing = ObjectValueDef $ pure Thing
+-- > unjsonThing = objectOf $ pure Thing
 -- >    <*> fieldOptBy "credentials"
 -- >          thingCredentials
 -- >          "Optional credentials to use"
@@ -569,7 +588,7 @@ fieldOptBy key f docstring valuedef = liftAp (FieldOptDef key docstring f valued
 -- Example:
 --
 -- > unjsonThing :: ValueDef Thing
--- > unjsonThing = ObjectValueDef $ pure Thing
+-- > unjsonThing = objectOf $ pure Thing
 -- >    <*> fieldOpt "credentials"
 -- >          thingCredentials
 -- >          "Optional credentials to use"
@@ -584,7 +603,7 @@ fieldOpt key f docstring = fieldOptBy key f docstring valueDef
 -- Example:
 --
 -- > unjsonThing :: ValueDef Thing
--- > unjsonThing = ObjectValueDef $ pure Thing
+-- > unjsonThing = objectOf $ pure Thing
 -- >    <*> fieldDef' "port"
 -- >          thingPort
 -- >          "Optional port to listen on"
@@ -598,7 +617,7 @@ fieldOpt' key f docstring = fieldOptBy key f docstring liftAesonFromJSON
 -- Example:
 --
 -- > unjsonThing :: ValueDef Thing
--- > unjsonThing = ObjectValueDef $ pure Thing
+-- > unjsonThing = objectOf $ pure Thing
 -- >    <*> fieldDefBy "credentials" defaultCredentials
 -- >          thingCredentials
 -- >          "Credentials to use, defaults to defaultCredentials"
@@ -614,7 +633,7 @@ fieldDefBy key def f docstring valuedef = liftAp (FieldDefDef key docstring def 
 -- Example:
 --
 -- > unjsonThing :: ValueDef Thing
--- > unjsonThing = ObjectValueDef $ pure Thing
+-- > unjsonThing = objectOf $ pure Thing
 -- >    <*> fieldDef "credentials" defaultCredentials
 -- >          thingCredentials
 -- >          "Credentials to use, defaults to defaultCredentials"
@@ -629,7 +648,7 @@ fieldDef key def f docstring = fieldDefBy key def f docstring valueDef
 -- Example:
 --
 -- > unjsonThing :: ValueDef Thing
--- > unjsonThing = ObjectValueDef $ pure Thing
+-- > unjsonThing = objectOf $ pure Thing
 -- >    <*> fieldDef' "port" 80
 -- >          thingPort
 -- >          "Port to listen on, defaults to 80"
@@ -637,6 +656,20 @@ fieldDef key def f docstring = fieldDefBy key def f docstring valueDef
 -- > data Thing = Thing { thingPort :: Int, ... }
 fieldDef' :: (Aeson.FromJSON a,Aeson.ToJSON a) => Text.Text -> a -> (s -> a) -> Text.Text -> Ap (FieldDef s) a
 fieldDef' key def f docstring = fieldDefBy key def f docstring liftAesonFromJSON
+
+-- | Declare an object as bidirectional mapping from JSON object to Haskell record and back.
+--
+-- Example:
+--
+-- > unjsonThing :: ValueDef Thing
+-- > unjsonThing = objectOf $ pure Thing
+-- >    ...field definitions go here
+--
+-- Use field functions to specify fields of an object: 'field',
+-- 'field'', 'fieldBy', 'fieldOpt', 'fieldOpt'', 'fieldOptBy',
+-- 'fieldDef', 'fieldDef'' or 'fieldDefBy'.
+objectOf :: Ap (FieldDef a) a -> ValueDef a
+objectOf fields = ObjectValueDef fields
 
 -- | Declare array of values where each of them is described by valuedef.
 --
