@@ -459,46 +459,158 @@ lookupByTupleFieldDef (Anchored path v) ov (TupleFieldDef idx f valuedef)
       Nothing -> resultWithThrow (Anchored (path ++ [PathElemIndex idx]) "missing key")
 
 -- | Declare a required field with definition given inline by valuedef.
+--
+-- Example:
+--
+-- > unjsonThing :: ValueDef Thing
+-- > unjsonThing = ObjectValueDef . pure Thing
+-- >    <*> fieldBy "credentials"
+-- >          thingCredentials
+-- >          "Credentials to use"
+-- >          unjsonCredentials
+-- >
+-- > data Thing = Thing { thingCredentials :: Credentials, ... }
+-- > unjsonCredentials :: ValueDef Credentials
 fieldBy :: Text.Text -> (s -> a) -> Text.Text -> ValueDef a -> Ap (FieldDef s) a
 fieldBy key f docstring valuedef = liftAp (FieldReqDef key docstring f valuedef)
 
 -- | Declare a required field with definition from 'Unjson' typeclass.
+--
+-- Example:
+--
+-- > unjsonThing :: ValueDef Thing
+-- > unjsonThing = ObjectValueDef . pure Thing
+-- >    <*> field "credentials"
+-- >          thingCredentials
+-- >          "Credentials to use"
+-- >
+-- > data Thing = Thing { thingCredentials :: Credentials, ... }
+-- > instance Unjson Credentials where ...
 field :: (Unjson a) => Text.Text -> (s -> a) -> Text.Text -> Ap (FieldDef s) a
 field key f docstring = fieldBy key f docstring valueDef
 
 -- | Declare a required field of a primitive type.
+--
+-- Example:
+--
+-- > unjsonThing :: ValueDef Thing
+-- > unjsonThing = ObjectValueDef . pure Thing
+-- >    <*> field' "port"
+-- >          thingPort
+-- >          "Port to listen on"
+-- >
+-- > data Thing = Thing { thingPort :: Int, ... }
 field' :: (Aeson.FromJSON a,Aeson.ToJSON a) => Text.Text -> (s -> a) -> Text.Text -> Ap (FieldDef s) a
 field' key f docstring = fieldBy key f docstring liftAesonFromJSON
 
 -- | Declare an optional field and definition by valuedef.
+--
+-- Example:
+--
+-- > unjsonThing :: ValueDef Thing
+-- > unjsonThing = ObjectValueDef . pure Thing
+-- >    <*> fieldOptBy "credentials"
+-- >          thingCredentials
+-- >          "Optional credentials to use"
+-- >          unjsonCredentials
+-- >
+-- > data Thing = Thing { thingCredentials :: Credentials, ... }
+-- > unjsonCredentials :: ValueDef Credentials
 fieldOptBy :: Text.Text -> (s -> Maybe a) -> Text.Text -> ValueDef a -> Ap (FieldDef s) (Maybe a)
 fieldOptBy key f docstring valuedef = liftAp (FieldOptDef key docstring f valuedef)
 
 -- | Declare an optional field and definition by 'Unjson' typeclass.
+--
+-- Example:
+--
+-- > unjsonThing :: ValueDef Thing
+-- > unjsonThing = ObjectValueDef . pure Thing
+-- >    <*> fieldOpt "credentials"
+-- >          thingCredentials
+-- >          "Optional credentials to use"
+-- >
+-- > data Thing = Thing { thingCredentials :: Credentials, ... }
+-- > instance Unjson Credentials where ...
 fieldOpt :: (Unjson a) => Text.Text -> (s -> Maybe a) -> Text.Text -> Ap (FieldDef s) (Maybe a)
 fieldOpt key f docstring = fieldOptBy key f docstring valueDef
 
 -- | Declare an optional field of primitive type.
+--
+-- Example:
+--
+-- > unjsonThing :: ValueDef Thing
+-- > unjsonThing = ObjectValueDef . pure Thing
+-- >    <*> fieldDef' "port"
+-- >          thingPort
+-- >          "Optional port to listen on"
+-- >
+-- > data Thing = Thing { thingPort :: Int, ... }
 fieldOpt' :: (Aeson.FromJSON a,Aeson.ToJSON a) => Text.Text -> (s -> Maybe a) -> Text.Text -> Ap (FieldDef s) (Maybe a)
 fieldOpt' key f docstring = fieldOptBy key f docstring liftAesonFromJSON
 
 -- | Declare a field with default value and definition by valuedef.
+--
+-- Example:
+--
+-- > unjsonThing :: ValueDef Thing
+-- > unjsonThing = ObjectValueDef . pure Thing
+-- >    <*> fieldDefBy "credentials" defaultCredentials
+-- >          thingCredentials
+-- >          "Credentials to use, defaults to defaultCredentials"
+-- >          unjsonCredentials
+-- >
+-- > data Thing = Thing { thingCredentials :: Credentials, ... }
+-- > unjsonCredentials :: ValueDef Credentials
 fieldDefBy :: Text.Text -> a -> (s -> a) -> Text.Text -> ValueDef a -> Ap (FieldDef s) a
 fieldDefBy key def f docstring valuedef = liftAp (FieldDefDef key docstring def f valuedef)
 
 -- | Declare a field with default value and definition by 'Unjson' typeclass.
+--
+-- Example:
+--
+-- > unjsonThing :: ValueDef Thing
+-- > unjsonThing = ObjectValueDef . pure Thing
+-- >    <*> fieldDef "credentials" defaultCredentials
+-- >          thingCredentials
+-- >          "Credentials to use, defaults to defaultCredentials"
+-- >
+-- > data Thing = Thing { thingCredentials :: Credentials, ... }
+-- > instance Unjson Credentials where ...
 fieldDef :: (Unjson a) => Text.Text -> a -> (s -> a) -> Text.Text -> Ap (FieldDef s) a
 fieldDef key def f docstring = fieldDefBy key def f docstring valueDef
 
 -- | Declate a field with primitive type lifted from Aeson and a default value.
+--
+-- Example:
+--
+-- > unjsonThing :: ValueDef Thing
+-- > unjsonThing = ObjectValueDef . pure Thing
+-- >    <*> fieldDef' "port" 80
+-- >          thingPort
+-- >          "Port to listen on, defaults to 80"
+-- >
+-- > data Thing = Thing { thingPort :: Int, ... }
 fieldDef' :: (Aeson.FromJSON a,Aeson.ToJSON a) => Text.Text -> a -> (s -> a) -> Text.Text -> Ap (FieldDef s) a
 fieldDef' key def f docstring = fieldDefBy key def f docstring liftAesonFromJSON
 
 -- | Declare array of values where each of them is described by valuedef.
+--
+-- Example:
+--
+-- > unjsonArrayOfThings :: ValueDef [Thing]
+-- > unjsonArrayOfThings = arrayOf unjsonThing
+-- >
+-- > unjsonThing :: ValueDef Thing
+-- > unjsonThing = ...
 arrayOf :: ValueDef a -> ValueDef [a]
 arrayOf valuedef = ArrayValueDef Nothing ArrayValueModeStrict valuedef
 
 -- | Declare array of primitive values lifed from 'Aeson'.
+--
+-- Example:
+--
+-- > unjsonArrayOfInt :: ValueDef [Int]
+-- > unjsonArrayOfInt = arrayOf'
 arrayOf' :: (Aeson.FromJSON a,Aeson.ToJSON a) => ValueDef [a]
 arrayOf' = arrayOf liftAesonFromJSON
 
@@ -507,6 +619,11 @@ arrayOf' = arrayOf liftAesonFromJSON
 -- primitives. Although it can be used to lift user defined instances,
 -- it is not advisable as there is too much information lost in the
 -- process and proper error infomation is not possible.
+--
+-- Example:
+--
+-- > instance Unjson MyType where
+-- >     valueDef = liftAesonFromJSON
 liftAesonFromJSON :: (Aeson.FromJSON a,Aeson.ToJSON a) => ValueDef a
 liftAesonFromJSON = SimpleValueDef (\(Anchored path value) ->
                                         case Aeson.fromJSON value of
