@@ -1,7 +1,20 @@
-
-
-
--- | Very nice module
+-- | Unjson: bidirectional JSON (de)serialization with strong error
+-- reporting capabilities and automatica documentation generation.
+--
+-- 'Unjson' offers:
+--
+-- * single definition for serialization and deserialization
+--
+-- * exact error reporting
+--
+-- * required, optional and fields with default values
+--
+-- * first class object, array and tuple support
+--
+-- * lifting of Aeson instances
+--
+-- * automatic documentation generation
+--
 
 module Data.Unjson
 ( Unjson(..)
@@ -32,13 +45,6 @@ module Data.Unjson
 , PrimaryKeyExtraction(..)
 )
 where
-
-
-{-
-
-* write more documentation
-
--}
 
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Types as Aeson
@@ -124,8 +130,40 @@ resultWithThrow msg = Result (throw msg) [msg]
 -- | 'Unjson' typeclass describes all types that can be parsed from
 -- JSON and JSON generated from their values.
 --
--- Class 'Unjson' has primitive types lifted from 'Aeson.FromJSON' and
--- 'Aeson.ToJSON'.
+-- Example declaration:
+--
+-- > instance Unjson Thing where
+-- >     valueDef = ObjectValueDef . pure Thing
+-- >         <*> field "key1"
+-- >               thingField1
+-- >               "Required field of type with Unjson instance"
+-- >         <*> fieldBy "key2"
+-- >               thingField2
+-- >               "Required field with parser given below"
+-- >               unjsonForKey2
+-- >         <*> field' "key3"
+-- >               thingField3
+-- >               "Required field of type with (ToJSON,FromjSON) instances"
+-- >         <*> fieldOpt "key4"
+-- >               thingField4
+-- >               "Optional field of type with Unjson instance"
+-- >         <*> fieldOptBy "key5"
+-- >               thingField5
+-- >               "Optional field with parser given below"
+-- >               unjsonForKey5
+-- >         <*> fieldOpt' "key6"
+-- >               thingField6
+-- >               "Optional field of type with (ToJSON,FromjSON) instances"
+-- >         <*> fieldDef "key7"
+-- >               thingField7
+-- >               "Optional field with default of type with Unjson instance"
+-- >         <*> fieldDefBy "key8"
+-- >               thingField8
+-- >               "Optional field with default with parser given below"
+-- >               unjsonForKey8
+-- >         <*> fieldDef' "key9"
+-- >               thingField9
+-- >               "Optional field with default of type with (ToJSON,FromjSON) instances"
 class Unjson a where
   -- | Definition of bidirectional parser for type 'a'.
   valueDef :: ValueDef a
@@ -635,6 +673,34 @@ liftAesonFromJSON = SimpleValueDef (\(Anchored path value) ->
 -- | Renders documentation for a parser into a multiline string. It is
 -- expected that this string is a human readable representation that
 -- can go directly to console.
+--
+-- Example rendering:
+--
+-- >    hostname (req):
+-- >        The hostname this service is visible as
+-- >    port (def):
+-- >        Port to listen on
+-- >    credentials (req):
+-- >        User admin credentials
+-- >            username (req):
+-- >                Name of the user
+-- >            password (req):
+-- >                Password for the user
+-- >            domain (opt):
+-- >                Domain for user credentials
+-- >    comment (opt):
+-- >        Optional comment, free text
+-- >    alternates (opt):
+-- >        Alternate names for this server
+-- >        tuple of size 2
+-- >            1:
+-- >                username (req):
+-- >                    Name of the user
+-- >                password (req):
+-- >                    Password for the user
+-- >                domain (opt):
+-- >                    Domain for user credentials
+-- >
 render :: ValueDef a -> String
 render = P.render . renderDoc
 
