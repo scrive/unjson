@@ -204,7 +204,7 @@ test_symmetry_of_serialization = "Key missing" ~: do
                , konfigAlternates = Nothing
                }
 
-  let json = serialize1 unjsonKonfig expect
+  let json = serialize unjsonKonfig expect
   let Result val iss = parse unjsonKonfig (Anchored [] json)
   assertEqual "Serialize-parse produces no problems" expect val
   assertEqual "Serialize-parse is identity" expect val
@@ -348,13 +348,13 @@ test_array_modes = "test_array_modes" ~: do
   let Result val1 iss1 = parse p1 (Anchored [] json)
   assertEqual "Serialize-parse produces no problems" [] iss1
   assertEqual "Serialize-parse is identity" ["www.example.com" :: Text.Text] val1
-  let sjson1 = serialize1 p1 val1
+  let sjson1 = serialize p1 val1
   assertEqual "Same json" json1 sjson1
 
   let Result val2 iss2 = parse p2 (Anchored [] json)
   assertEqual "Serialize-parse produces no problems" [] iss2
   assertEqual "Serialize-parse is identity" ["www.example.com" :: Text.Text] val2
-  let sjson2 = serialize1 p2 val2
+  let sjson2 = serialize p2 val2
   assertEqual "Same json" json sjson2
   return ()
 

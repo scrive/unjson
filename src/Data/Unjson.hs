@@ -5,6 +5,8 @@
 --
 -- * single definition for serialization and deserialization
 --
+-- * parse and update mode
+--
 -- * exact error reporting
 --
 -- * required, optional and fields with default values
@@ -15,7 +17,8 @@
 --
 -- * automatic documentation generation
 --
-
+-- For examples have a look at 'Unjson', 'parse', 'update' and
+-- 'render'.
 module Data.Unjson
 ( Unjson(..)
 , ValueDef
@@ -24,7 +27,7 @@ module Data.Unjson
 , Path
 , PathElem(..)
 , ArrayValueMode(..)
-, serialize1
+, serialize
 , objectOf
 , field
 , field'
@@ -169,7 +172,8 @@ resultWithThrow msg = Result (throw msg) [msg]
 -- >               thingField9
 -- >               "Optional field with default of type with (ToJSON,FromjSON) instances"
 class Unjson a where
-  -- | Definition of a bidirectional parser for a type 'a'.
+  -- | Definition of a bidirectional parser for a type 'a'. See
+  -- 'parse, 'update', 'render' to see how to use it.
   valueDef :: ValueDef a
 
 instance (Unjson a) => Unjson [a] where
@@ -387,28 +391,28 @@ data TupleFieldDef s a where
 
 tupleDefToArray :: s -> Ap (TupleFieldDef s) a -> [Aeson.Value]
 tupleDefToArray _ (Pure _) = []
-tupleDefToArray s (Ap (TupleFieldDef _ f d) r) =  (serialize1 d (f s)) : tupleDefToArray s r
+tupleDefToArray s (Ap (TupleFieldDef _ f d) r) =  (serialize d (f s)) : tupleDefToArray s r
 
 
 objectDefToArray :: s -> Ap (FieldDef s) a -> [(Text.Text,Aeson.Value)]
 objectDefToArray _ (Pure _) = []
-objectDefToArray s (Ap (FieldReqDef key _ f d) r) = (key,serialize1 d (f s)) : objectDefToArray s r
+objectDefToArray s (Ap (FieldReqDef key _ f d) r) = (key,serialize d (f s)) : objectDefToArray s r
 objectDefToArray s (Ap (FieldOptDef key _ f d) r) =
   case f s of
     Nothing -> objectDefToArray s r
-    Just g ->  (key,serialize1 d g) : objectDefToArray s r
-objectDefToArray s (Ap (FieldDefDef key _ _ f d) r) = (key,serialize1 d (f s)) : objectDefToArray s r
+    Just g ->  (key,serialize d g) : objectDefToArray s r
+objectDefToArray s (Ap (FieldDefDef key _ _ f d) r) = (key,serialize d (f s)) : objectDefToArray s r
 
 -- | Given a definition of a value and a value produce a JSON.
-serialize1 :: ValueDef a -> a -> Aeson.Value
-serialize1 (SimpleValueDef _ g) a = g a
-serialize1 (ArrayValueDef _ ArrayValueModeParseAndOutputSingle f) [a] =
-  serialize1 f a
-serialize1 (ArrayValueDef _ _m f) a =              -- here compiler should know that 'a' is a list
-  Aeson.toJSON (map (serialize1 f) a)
-serialize1 (ObjectValueDef f) a =
+serialize :: ValueDef a -> a -> Aeson.Value
+serialize (SimpleValueDef _ g) a = g a
+serialize (ArrayValueDef _ ArrayValueModeParseAndOutputSingle f) [a] =
+  serialize f a
+serialize (ArrayValueDef _ _m f) a =              -- here compiler should know that 'a' is a list
+  Aeson.toJSON (map (serialize f) a)
+serialize (ObjectValueDef f) a =
   Aeson.object (objectDefToArray a f)
-serialize1 (TupleValueDef f) a =
+serialize (TupleValueDef f) a =
   Aeson.toJSON (tupleDefToArray a f)
 
 -- | Count how many applications there are. Useful for error
@@ -475,6 +479,21 @@ parseUpdating (TupleValueDef f) ov (Anchored path v)
 -- > if null iss
 -- >   then putStrLn ("Parsed: " ++ show val)
 -- >   else putStrLn ("Not parsed, issues: " ++ show iss)
+--
+-- For parsing of fields the following rules apply:
+--
+-- - required fields generate an error if json key is missing
+--
+-- - for optional fields Nothing is returned if json key is missing,
+-- Just value otherwise
+--
+-- - for fields with default value, the default value is returned if
+-- key is missing, otherwise the parsed value is returned
+--
+-- Note that Unjson makes strong difference between missing keys and
+-- values that result in parse errors.
+--
+-- For discussion of update mode see 'update'.
 parse :: ValueDef a -> Anchored Aeson.Value -> Result a
 parse vd = parseUpdating vd Nothing
 
@@ -488,6 +507,23 @@ parse vd = parseUpdating vd Nothing
 -- > if null iss
 -- >   then putStrLn ("Updated: " ++ show val)
 -- >   else putStrLn ("Not updated, issues: " ++ show iss)
+--
+-- For updating of fields the following rules apply:
+--
+-- - required fields take the original value if json key is missing
+--
+-- - optional fields take the original value if json key is missing
+-- unless the value is @null@, then Nothing is returned (reset to
+-- Nothing)
+--
+-- - fields with default value take the original value if json key is
+-- missing unless the value is @null@, then the default value is
+-- returned (reset to default)
+--
+-- Note that Unjson makes strong difference between missing keys and
+-- values that result in parse errors.
+--
+-- For discussion of parse mode see 'parse'.
 update :: a -> ValueDef a -> Anchored Aeson.Value -> Result a
 update a vd = parseUpdating vd (Just a)
 
@@ -801,7 +837,8 @@ liftAesonFromJSON = SimpleValueDef (\(Anchored path value) ->
 render :: ValueDef a -> String
 render = P.render . renderDoc
 
--- | Renders documentation for a parser into a 'P.Doc'.
+-- | Renders documentation for a parser into a 'P.Doc'. See 'render'
+-- for example.
 renderDoc :: ValueDef a -> P.Doc
 renderDoc (SimpleValueDef _ _) = P.empty
 renderDoc (ArrayValueDef _ _m f) = P.text "array" P.$+$
