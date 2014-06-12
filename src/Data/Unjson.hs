@@ -202,7 +202,7 @@ instance Unjson Int where
   unjsonDef = liftAeson
 
 instance Unjson String where
-  unjsonDef = liftAeson
+  unjsonDef = liftAesonWithDoc "String"
 
 instance (Unjson a,Unjson b) => Unjson (a,b) where
   unjsonDef = TupleUnjsonDef
@@ -627,7 +627,7 @@ field key f docstring = fieldBy key f docstring unjsonDef
 -- >
 -- > data Thing = Thing { thingPort :: Int, ... }
 field' :: (Aeson.FromJSON a,Aeson.ToJSON a, Typeable a) => Text.Text -> (s -> a) -> Text.Text -> Ap (FieldDef s) a
-field' key f docstring = fieldBy key f docstring liftAeson
+field' key f docstring = fieldBy key f docstring liftAesonFixCharArrayToString
 
 -- | Declare an optional field and definition by valuedef.
 --
@@ -672,7 +672,7 @@ fieldOpt key f docstring = fieldOptBy key f docstring unjsonDef
 -- >
 -- > data Thing = Thing { thingPort :: Int, ... }
 fieldOpt' :: (Aeson.FromJSON a,Aeson.ToJSON a, Typeable a) => Text.Text -> (s -> Maybe a) -> Text.Text -> Ap (FieldDef s) (Maybe a)
-fieldOpt' key f docstring = fieldOptBy key f docstring liftAeson
+fieldOpt' key f docstring = fieldOptBy key f docstring liftAesonFixCharArrayToString
 
 -- | Declare a field with default value and definition by valuedef.
 --
@@ -717,7 +717,7 @@ fieldDef key def f docstring = fieldDefBy key def f docstring unjsonDef
 -- >
 -- > data Thing = Thing { thingPort :: Int, ... }
 fieldDef' :: (Aeson.FromJSON a,Aeson.ToJSON a, Typeable a) => Text.Text -> a -> (s -> a) -> Text.Text -> Ap (FieldDef s) a
-fieldDef' key def f docstring = fieldDefBy key def f docstring liftAeson
+fieldDef' key def f docstring = fieldDefBy key def f docstring liftAesonFixCharArrayToString
 
 -- | Declare an object as bidirectional mapping from JSON object to Haskell record and back.
 --
@@ -832,6 +832,15 @@ liftAesonWithDoc docstring = SimpleUnjsonDef docstring
                   Aeson.Error message -> resultWithThrow (Anchored path (Text.pack message)))
               Aeson.toJSON
 
+liftAesonFixCharArrayToString :: forall a . (Aeson.FromJSON a,Aeson.ToJSON a, Typeable a) => UnjsonDef a
+liftAesonFixCharArrayToString =
+  liftAesonWithDoc (Text.pack typeNameFixed)
+  where
+    typeName = show (typeOf (undefined :: a))
+    typeNameFixed = fixup typeName
+    fixup [] = []
+    fixup ('[':'C':'h':'a':'r':']':rest) = "String" ++ fixup rest
+    fixup (x:xs) = x : fixup xs
 
 -- | Renders documentation for a parser into a multiline string. It is
 -- expected that this string is a human readable representation that
