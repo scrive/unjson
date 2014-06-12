@@ -866,32 +866,36 @@ render = P.render . renderDoc
 -- | Renders documentation for a parser into a 'P.Doc'. See 'render'
 -- for example.
 renderDoc :: UnjsonDef a -> P.Doc
-renderDoc (SimpleUnjsonDef doc _ _) = P.text (Text.unpack doc)
-renderDoc (ArrayUnjsonDef _ _m f) = P.text "array" P.$+$
+renderDoc (SimpleUnjsonDef doc _ _) = P.text (ansiDimmed ++ Text.unpack doc ++ ansiReset)
+renderDoc (ArrayUnjsonDef _ _m f) = P.text (ansiDimmed ++ "array" ++ ansiReset) P.$+$
              P.nest 4 (renderDoc f)
---renderDoc (ObjectUnjsonDef f) = P.text "object" P.$+$
---             P.nest 4 (P.vcat (renderFields f))
 renderDoc (ObjectUnjsonDef f) =
              P.vcat (renderFields f)
-renderDoc (TupleUnjsonDef f) = P.text "tuple of size " P.<> P.int (countAp 0 f) P.$+$
-             P.nest 4 (P.vcat (renderTupleFields f))
+renderDoc (TupleUnjsonDef f) = P.text (ansiDimmed ++ "tuple of size " ++ show (countAp 0 f) ++ ansiReset) P.$+$
+             P.vcat (renderTupleFields f)
 
 renderFields :: Ap (FieldDef s) a -> [P.Doc]
 renderFields (Pure _) = []
 renderFields (Ap (FieldReqDef key docstring _f d) r) =
-  (P.text (Text.unpack key) P.<> P.text " (req): " P.$+$ P.nest 4 (P.text (Text.unpack docstring) P.$+$ renderDoc d))
+  (P.text (ansiBold ++ Text.unpack key ++ ansiReset) P.<> P.text " (req): " P.$+$ P.nest 4 (P.text (Text.unpack docstring) P.$+$ renderDoc d))
     : renderFields r
 renderFields (Ap (FieldOptDef key docstring _f d) r) =
-  (P.text (Text.unpack key) P.<> P.text " (opt): " P.$+$ P.nest 4 (P.text (Text.unpack docstring) P.$+$ renderDoc d))
+  (P.text (ansiBold ++ Text.unpack key ++ ansiReset) P.<> P.text " (opt): " P.$+$ P.nest 4 (P.text (Text.unpack docstring) P.$+$ renderDoc d))
     : renderFields r
 renderFields (Ap (FieldDefDef key docstring _f _ d) r) =
-  (P.text (Text.unpack key) P.<> P.text " (def): " P.$+$ P.nest 4 (P.text (Text.unpack docstring) P.$+$ renderDoc d))
+  (P.text (ansiBold ++ Text.unpack key ++ ansiReset) P.<> P.text " (def): " P.$+$ P.nest 4 (P.text (Text.unpack docstring) P.$+$ renderDoc d))
    : renderFields r
 
 renderTupleFields :: Ap (TupleFieldDef s) a -> [P.Doc]
 renderTupleFields (Pure _) = []
 renderTupleFields (Ap (TupleFieldDef index _f d) r) =
-  (P.int index P.<> P.text ": " P.$+$ P.nest 4 s)
+  (P.text (ansiBold ++ show index ++ ansiReset) P.<> P.text ": " P.$+$ P.nest 4 s)
     : renderTupleFields r
   where
     s = renderDoc d
+
+-- Add some colors to the mix
+
+ansiReset = "\ESC[0m"
+ansiBold = "\ESC[1m"
+ansiDimmed = "\ESC[2m"
