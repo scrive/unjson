@@ -47,6 +47,7 @@ module Data.Unjson
 , render
 , renderDoc
 , liftAeson
+, liftAesonWithDoc
 , Result(..)
 , Anchored(..)
 , parse
@@ -821,7 +822,10 @@ arrayWithPrimaryKeyOf pk1 pk2 valuedef =
 -- > instance Unjson MyType where
 -- >     unjsonDef = liftAeson
 liftAeson :: forall a . (Aeson.FromJSON a,Aeson.ToJSON a, Typeable a) => UnjsonDef a
-liftAeson = SimpleUnjsonDef (Text.pack (show (typeOf (undefined :: a))))
+liftAeson = liftAesonWithDoc (Text.pack (show (typeOf (undefined :: a))))
+
+liftAesonWithDoc :: (Aeson.FromJSON a,Aeson.ToJSON a) => Text.Text -> UnjsonDef a
+liftAesonWithDoc docstring = SimpleUnjsonDef docstring
               (\(Anchored path value) ->
                 case Aeson.fromJSON value of
                   Aeson.Success result -> Result result []
@@ -867,11 +871,11 @@ render = P.render . renderDoc
 -- for example.
 renderDoc :: UnjsonDef a -> P.Doc
 renderDoc (SimpleUnjsonDef doc _ _) = P.text (ansiDimmed ++ Text.unpack doc ++ ansiReset)
-renderDoc (ArrayUnjsonDef _ _m f) = P.text (ansiDimmed ++ "array" ++ ansiReset) P.$+$
+renderDoc (ArrayUnjsonDef _ _m f) = P.text (ansiDimmed ++ "array of" ++ ansiReset ++ ":") P.$+$
              P.nest 4 (renderDoc f)
 renderDoc (ObjectUnjsonDef f) =
              P.vcat (renderFields f)
-renderDoc (TupleUnjsonDef f) = P.text (ansiDimmed ++ "tuple of size " ++ show (countAp 0 f) ++ ansiReset) P.$+$
+renderDoc (TupleUnjsonDef f) = P.text (ansiDimmed ++ "tuple of size " ++ show (countAp 0 f) ++ " with elements:" ++ ansiReset) P.$+$
              P.vcat (renderTupleFields f)
 
 renderFields :: Ap (FieldDef s) a -> [P.Doc]

@@ -25,6 +25,7 @@ data Konfig =
             , konfigPort        :: Int
             , konfigCredentials :: Credentials
             , konfigComment     :: Maybe Text.Text
+            , konfigOptions     :: [Text.Text]
             , konfigAlternates  :: Maybe (Text.Text,Credentials)
             }
   deriving (Eq,Ord,Show,Typeable)
@@ -48,7 +49,7 @@ unjsonKonfig = objectOf $ pure Konfig
                  "The hostname this service is visible as"
            <*> fieldDef' "port" 80
                  konfigPort
-                 "Port to listen on"
+                 "Port to listen on, defaults to 80"
            <*> fieldBy "credentials"
                  konfigCredentials
                  "User admin credentials"
@@ -56,6 +57,9 @@ unjsonKonfig = objectOf $ pure Konfig
            <*> fieldOpt' "comment"
                  konfigComment
                  "Optional comment, free text"
+           <*> fieldDef "options" []
+                 konfigOptions
+                 "Additional options, defaults to empty"
            <*> fieldOpt "alternates"
                  konfigAlternates
                  "Alternate names for this server"
@@ -106,6 +110,7 @@ test_proper_parse = "Proper parsing of a complex structure" ~: do
                , konfigComment = Just "nice server"
                , konfigCredentials = Credentials "usr1" "pass1" Nothing
                , konfigAlternates = Nothing
+               , konfigOptions = []
                }
 
   let Result val iss = parse unjsonKonfig (Anchored [] json)
@@ -123,13 +128,6 @@ test_missing_key = "Key missing" ~: do
                    [ "username" .= ("usr1" :: Text.Text)
                    ]
                ]
-  let expect = Konfig
-               { konfigHostname = "www.example.com"
-               , konfigPort = 12345
-               , konfigComment = Just "nice server"
-               , konfigCredentials = Credentials "usr1" "pass1" Nothing
-               , konfigAlternates = Nothing
-               }
 
   let Result val iss = parse unjsonKonfig (Anchored [] json)
   assertEqual "There is one issue in parsing" [Anchored [ PathElemKey "credentials"
@@ -202,6 +200,7 @@ test_symmetry_of_serialization = "Key missing" ~: do
                , konfigComment = Just "nice server"
                , konfigCredentials = Credentials "usr1" "pass1" Nothing
                , konfigAlternates = Nothing
+               , konfigOptions = []
                }
 
   let json = serialize unjsonKonfig expect
@@ -261,6 +260,7 @@ test_update_from_serialization = "test_update_from_serialization" ~: do
                , konfigComment = Just "nice server"
                , konfigCredentials = Credentials "usr1" "pass1" Nothing
                , konfigAlternates = Nothing
+               , konfigOptions = []
                }
   let expect = Konfig
                { konfigHostname = "www.example.com"
@@ -268,6 +268,7 @@ test_update_from_serialization = "test_update_from_serialization" ~: do
                , konfigComment = Just "a better server"
                , konfigCredentials = Credentials "usr2" "pass1" (Just "domain")
                , konfigAlternates = Nothing
+               , konfigOptions = []
                }
 
   let json = Aeson.object
@@ -291,6 +292,7 @@ test_update_from_serialization_with_reset_to_default = "test_update_from_seriali
                , konfigComment = Just "nice server"
                , konfigCredentials = Credentials "usr1" "pass1" (Just "domain")
                , konfigAlternates = Nothing
+               , konfigOptions = []
                }
   let expect = Konfig
                { konfigHostname = "www.example.com"
@@ -298,6 +300,7 @@ test_update_from_serialization_with_reset_to_default = "test_update_from_seriali
                , konfigComment = Nothing
                , konfigCredentials = Credentials "usr1" "pass1" (Nothing)
                , konfigAlternates = Just ("abc", Credentials "usrx" "passx" Nothing)
+               , konfigOptions = []
                }
 
   let json = Aeson.object
