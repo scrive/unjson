@@ -413,6 +413,7 @@ test_array_update_by_primary_key = "test_array_update_by_primary_key" ~: do
   assertEqual "Serialize-parse is identity" [(17,"for 17"),(4,"for 4"),(12,"for 12 new value")] val1
   return ()
 
+tests :: Test
 tests = test [ test_proper_parse
              , test_missing_key
              , test_wrong_value_type
@@ -425,4 +426,5 @@ tests = test [ test_proper_parse
              , test_array_update_by_primary_key
              ]
 
+main :: IO Counts
 main = runTestTT tests
