@@ -383,7 +383,7 @@ data PrimaryKeyExtraction k = forall pk . (Ord pk) => PrimaryKeyExtraction (k ->
 
 -- | Opaque 'UnjsonDef' defines a bidirectional JSON parser.
 data UnjsonDef a where
-  SimpleUnjsonDef :: (Anchored Aeson.Value -> Result k) -> (k -> Aeson.Value) -> UnjsonDef k
+  SimpleUnjsonDef :: Text.Text -> (Anchored Aeson.Value -> Result k) -> (k -> Aeson.Value) -> UnjsonDef k
   ArrayUnjsonDef  :: Maybe (PrimaryKeyExtraction k) -> ArrayMode -> UnjsonDef k -> UnjsonDef [k]
   ObjectUnjsonDef :: Ap (FieldDef k) k -> UnjsonDef k
   TupleUnjsonDef  :: Ap (TupleFieldDef k) k -> UnjsonDef k
@@ -426,7 +426,7 @@ objectDefToArray s (Ap (FieldDefDef key _ _ f d) r) = (key,serialize d (f s)) : 
 -- > let json = serialize unjsonThing v
 --
 serialize :: UnjsonDef a -> a -> Aeson.Value
-serialize (SimpleUnjsonDef _ g) a = g a
+serialize (SimpleUnjsonDef _ _ g) a = g a
 serialize (ArrayUnjsonDef _ ArrayModeParseAndOutputSingle f) [a] =
   serialize f a
 serialize (ArrayUnjsonDef _ _m f) a =              -- here compiler should know that 'a' is a list
@@ -443,7 +443,7 @@ countAp !n (Pure _) = n
 countAp n (Ap _ r) = countAp (succ n) r
 
 parseUpdating :: UnjsonDef a -> Maybe a -> Anchored Aeson.Value -> Result a
-parseUpdating (SimpleUnjsonDef f _) _ov v = f v
+parseUpdating (SimpleUnjsonDef _ f _) _ov v = f v
 parseUpdating (ArrayUnjsonDef (Just (PrimaryKeyExtraction pk_from_object pk_from_json)) m f) (Just ov) (Anchored path v)
   = case Aeson.parseEither Aeson.parseJSON v of
       Right v ->
@@ -625,7 +625,7 @@ field key f docstring = fieldBy key f docstring unjsonDef
 -- >          "Port to listen on"
 -- >
 -- > data Thing = Thing { thingPort :: Int, ... }
-field' :: (Aeson.FromJSON a,Aeson.ToJSON a) => Text.Text -> (s -> a) -> Text.Text -> Ap (FieldDef s) a
+field' :: (Aeson.FromJSON a,Aeson.ToJSON a, Typeable a) => Text.Text -> (s -> a) -> Text.Text -> Ap (FieldDef s) a
 field' key f docstring = fieldBy key f docstring liftAeson
 
 -- | Declare an optional field and definition by valuedef.
@@ -670,7 +670,7 @@ fieldOpt key f docstring = fieldOptBy key f docstring unjsonDef
 -- >          "Optional port to listen on"
 -- >
 -- > data Thing = Thing { thingPort :: Int, ... }
-fieldOpt' :: (Aeson.FromJSON a,Aeson.ToJSON a) => Text.Text -> (s -> Maybe a) -> Text.Text -> Ap (FieldDef s) (Maybe a)
+fieldOpt' :: (Aeson.FromJSON a,Aeson.ToJSON a, Typeable a) => Text.Text -> (s -> Maybe a) -> Text.Text -> Ap (FieldDef s) (Maybe a)
 fieldOpt' key f docstring = fieldOptBy key f docstring liftAeson
 
 -- | Declare a field with default value and definition by valuedef.
@@ -715,7 +715,7 @@ fieldDef key def f docstring = fieldDefBy key def f docstring unjsonDef
 -- >          "Port to listen on, defaults to 80"
 -- >
 -- > data Thing = Thing { thingPort :: Int, ... }
-fieldDef' :: (Aeson.FromJSON a,Aeson.ToJSON a) => Text.Text -> a -> (s -> a) -> Text.Text -> Ap (FieldDef s) a
+fieldDef' :: (Aeson.FromJSON a,Aeson.ToJSON a, Typeable a) => Text.Text -> a -> (s -> a) -> Text.Text -> Ap (FieldDef s) a
 fieldDef' key def f docstring = fieldDefBy key def f docstring liftAeson
 
 -- | Declare an object as bidirectional mapping from JSON object to Haskell record and back.
@@ -763,7 +763,7 @@ arrayWithModeOf mode valuedef = ArrayUnjsonDef Nothing mode valuedef
 --
 -- > unjsonArrayOfInt :: UnjsonDef [Int]
 -- > unjsonArrayOfInt = arrayOf'
-arrayOf' :: (Aeson.FromJSON a,Aeson.ToJSON a) => UnjsonDef [a]
+arrayOf' :: (Aeson.FromJSON a,Aeson.ToJSON a, Typeable a) => UnjsonDef [a]
 arrayOf' = arrayOf liftAeson
 
 -- | Declare array of primitive values lifed from 'Aeson'. Accepts
@@ -773,7 +773,7 @@ arrayOf' = arrayOf liftAeson
 --
 -- > unjsonArrayOfIntOrSimpleInt :: UnjsonDef [Int]
 -- > unjsonArrayOfIntOrSimpleInt = arrayWithModeOf'
-arrayWithModeOf' :: (Aeson.FromJSON a,Aeson.ToJSON a)
+arrayWithModeOf' :: (Aeson.FromJSON a,Aeson.ToJSON a, Typeable a)
                  => ArrayMode
                  -> UnjsonDef [a]
 arrayWithModeOf' mode = arrayWithModeOf mode liftAeson
@@ -820,12 +820,13 @@ arrayWithPrimaryKeyOf pk1 pk2 valuedef =
 --
 -- > instance Unjson MyType where
 -- >     unjsonDef = liftAeson
-liftAeson :: (Aeson.FromJSON a,Aeson.ToJSON a) => UnjsonDef a
-liftAeson = SimpleUnjsonDef (\(Anchored path value) ->
-                                        case Aeson.fromJSON value of
-                                          Aeson.Success result -> Result result []
-                                          Aeson.Error message -> resultWithThrow (Anchored path (Text.pack message)))
-                                   Aeson.toJSON
+liftAeson :: forall a . (Aeson.FromJSON a,Aeson.ToJSON a, Typeable a) => UnjsonDef a
+liftAeson = SimpleUnjsonDef (Text.pack (show (typeOf (undefined :: a))))
+              (\(Anchored path value) ->
+                case Aeson.fromJSON value of
+                  Aeson.Success result -> Result result []
+                  Aeson.Error message -> resultWithThrow (Anchored path (Text.pack message)))
+              Aeson.toJSON
 
 
 -- | Renders documentation for a parser into a multiline string. It is
@@ -865,11 +866,13 @@ render = P.render . renderDoc
 -- | Renders documentation for a parser into a 'P.Doc'. See 'render'
 -- for example.
 renderDoc :: UnjsonDef a -> P.Doc
-renderDoc (SimpleUnjsonDef _ _) = P.empty
+renderDoc (SimpleUnjsonDef doc _ _) = P.text (Text.unpack doc)
 renderDoc (ArrayUnjsonDef _ _m f) = P.text "array" P.$+$
              P.nest 4 (renderDoc f)
-renderDoc (ObjectUnjsonDef f) = -- P.text "object" P.$+$
-             P.nest 4 (P.vcat (renderFields f))
+--renderDoc (ObjectUnjsonDef f) = P.text "object" P.$+$
+--             P.nest 4 (P.vcat (renderFields f))
+renderDoc (ObjectUnjsonDef f) =
+             P.vcat (renderFields f)
 renderDoc (TupleUnjsonDef f) = P.text "tuple of size " P.<> P.int (countAp 0 f) P.$+$
              P.nest 4 (P.vcat (renderTupleFields f))
 
@@ -888,9 +891,7 @@ renderFields (Ap (FieldDefDef key docstring _f _ d) r) =
 renderTupleFields :: Ap (TupleFieldDef s) a -> [P.Doc]
 renderTupleFields (Pure _) = []
 renderTupleFields (Ap (TupleFieldDef index _f d) r) =
-  (if P.isEmpty s
-     then P.empty
-     else (P.int index P.<> P.text ": " P.$+$ s))
+  (P.int index P.<> P.text ": " P.$+$ P.nest 4 s)
     : renderTupleFields r
   where
     s = renderDoc d
