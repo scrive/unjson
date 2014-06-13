@@ -45,7 +45,9 @@ module Data.Unjson
 , arrayWithPrimaryKeyOf
 , arrayWithModeAndPrimaryKeyOf
 , render
+, renderForPath
 , renderDoc
+, renderDocForPath
 , liftAeson
 , liftAesonWithDoc
 , Result(..)
@@ -874,6 +876,9 @@ liftAesonFixCharArrayToString =
 render :: UnjsonDef a -> String
 render = P.render . renderDoc
 
+renderForPath :: (Functor m, Monad m) => Path -> UnjsonDef a -> m String
+renderForPath path def = fmap P.render (renderDocForPath path def)
+
 -- | Renders documentation for a parser into a 'P.Doc'. See 'render'
 -- for example.
 renderDoc :: UnjsonDef a -> P.Doc
@@ -885,28 +890,65 @@ renderDoc (ObjectUnjsonDef f) =
 renderDoc (TupleUnjsonDef f) = P.text (ansiDimmed ++ "tuple of size " ++ show (countAp 0 f) ++ " with elements:" ++ ansiReset) P.$+$
              P.vcat (renderTupleFields f)
 
+renderDocForPath :: (Monad m) => Path -> UnjsonDef a -> m P.Doc
+renderDocForPath path def = findNestedUnjson path def
+
+renderField :: FieldDef s a -> P.Doc
+renderField (FieldReqDef key docstring _f d) =
+  P.text (ansiBold ++ Text.unpack key ++ ansiReset) P.<> P.text " (req): " P.$+$ P.nest 4 (P.text (Text.unpack docstring) P.$+$ renderDoc d)
+renderField (FieldOptDef key docstring _f d) =
+  P.text (ansiBold ++ Text.unpack key ++ ansiReset) P.<> P.text " (opt): " P.$+$ P.nest 4 (P.text (Text.unpack docstring) P.$+$ renderDoc d)
+renderField (FieldDefDef key docstring _f _ d) =
+  P.text (ansiBold ++ Text.unpack key ++ ansiReset) P.<> P.text " (def): " P.$+$ P.nest 4 (P.text (Text.unpack docstring) P.$+$ renderDoc d)
+
+
 renderFields :: Ap (FieldDef s) a -> [P.Doc]
 renderFields (Pure _) = []
-renderFields (Ap (FieldReqDef key docstring _f d) r) =
-  (P.text (ansiBold ++ Text.unpack key ++ ansiReset) P.<> P.text " (req): " P.$+$ P.nest 4 (P.text (Text.unpack docstring) P.$+$ renderDoc d))
-    : renderFields r
-renderFields (Ap (FieldOptDef key docstring _f d) r) =
-  (P.text (ansiBold ++ Text.unpack key ++ ansiReset) P.<> P.text " (opt): " P.$+$ P.nest 4 (P.text (Text.unpack docstring) P.$+$ renderDoc d))
-    : renderFields r
-renderFields (Ap (FieldDefDef key docstring _f _ d) r) =
-  (P.text (ansiBold ++ Text.unpack key ++ ansiReset) P.<> P.text " (def): " P.$+$ P.nest 4 (P.text (Text.unpack docstring) P.$+$ renderDoc d))
-   : renderFields r
+renderFields (Ap f r) =
+  renderField f : renderFields r
 
 renderTupleFields :: Ap (TupleFieldDef s) a -> [P.Doc]
 renderTupleFields (Pure _) = []
-renderTupleFields (Ap (TupleFieldDef index _f d) r) =
-  (P.text (ansiBold ++ show index ++ ansiReset) P.<> P.text ": " P.$+$ P.nest 4 s)
-    : renderTupleFields r
+renderTupleFields (Ap f r) =
+  renderTupleField f : renderTupleFields r
+
+renderTupleField :: TupleFieldDef s a -> P.Doc
+renderTupleField (TupleFieldDef index _f d) =
+  P.text (ansiBold ++ show index ++ ansiReset) P.<> P.text ": " P.$+$ P.nest 4 s
   where
     s = renderDoc d
 
+findNestedUnjson :: (Monad m) => Path -> UnjsonDef a -> m P.Doc
+findNestedUnjson [] u = return (renderDoc u)
+findNestedUnjson (PathElemIndex n : rest) (TupleUnjsonDef d) = findNestedTupleUnjson n rest d
+findNestedUnjson (PathElemIndex _ : rest) (ArrayUnjsonDef _ _ d) = findNestedUnjson rest d
+findNestedUnjson (PathElemKey k : rest) (ObjectUnjsonDef d) = findNestedFieldUnjson k rest d
+findNestedUnjson _ _ = fail "cannot find crap"
+
+findNestedTupleUnjson :: (Monad m) => Int -> Path -> Ap (TupleFieldDef s) a -> m P.Doc
+findNestedTupleUnjson n path (Ap (TupleFieldDef index _f d) _r) | n == index = findNestedUnjson path d
+findNestedTupleUnjson n path (Ap (TupleFieldDef _index _f _d) r) =
+  findNestedTupleUnjson n path r
+findNestedTupleUnjson _ _ _ = fail "findNestedTupleUnjson"
+
+findNestedFieldUnjson :: (Monad m) => Text.Text -> Path -> Ap (FieldDef s) a -> m P.Doc
+findNestedFieldUnjson key [] (Ap f@(FieldReqDef k _ _ _d) _r) | k==key = return (renderField f)
+findNestedFieldUnjson key [] (Ap f@(FieldOptDef k _ _ _d) _r) | k==key = return (renderField f)
+findNestedFieldUnjson key [] (Ap f@(FieldDefDef k _ _ _ _d) _r) | k==key = return (renderField f)
+findNestedFieldUnjson key path (Ap (FieldReqDef k _ _ d) _r) | k==key = findNestedUnjson path d
+findNestedFieldUnjson key path (Ap (FieldOptDef k _ _ d) _r) | k==key = findNestedUnjson path d
+findNestedFieldUnjson key path (Ap (FieldDefDef k _ _ _ d) _r) | k==key = findNestedUnjson path d
+findNestedFieldUnjson key path (Ap _ r) =
+  findNestedFieldUnjson key path r
+findNestedFieldUnjson _ _ _ = fail "findNestedFieldUnjson"
+
 -- Add some colors to the mix
 
+ansiReset :: String
 ansiReset = "\ESC[0m"
+
+ansiBold :: String
 ansiBold = "\ESC[1m"
+
+ansiDimmed :: String
 ansiDimmed = "\ESC[2m"
