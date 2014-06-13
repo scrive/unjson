@@ -54,6 +54,7 @@ module Data.Unjson
 , Anchored(..)
 , parse
 , update
+, showPath
 )
 where
 
