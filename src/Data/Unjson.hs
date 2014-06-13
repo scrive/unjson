@@ -24,7 +24,7 @@ module Data.Unjson
 , UnjsonDef
 , Problem
 , Problems
-, Path
+, Path(..)
 , PathElem(..)
 , ArrayMode(..)
 , serialize
@@ -54,7 +54,6 @@ module Data.Unjson
 , Anchored(..)
 , parse
 , update
-, showPath
 )
 where
 
@@ -84,9 +83,13 @@ data PathElem = PathElemKey Text.Text
 -- | 'Path's are rendered in a nice way. For example: @key.key2[34]@
 -- indexes into \"key\", then into \"key2\" then into index 34 of an
 -- array.
-type Path = [PathElem]
+newtype Path = Path [PathElem]
+  deriving (Eq, Ord, Typeable, Monoid)
 
-showPath :: Bool -> Path -> Text.Text
+instance Show Path where
+  show (Path p) = Text.unpack (showPath True p)
+
+showPath :: Bool -> [PathElem] -> Text.Text
 showPath _ [] = ""
 showPath True (PathElemKey key : rest) = key <> showPath False rest
 showPath False (PathElemKey key : rest) = "." <> key <> showPath False rest
@@ -97,7 +100,7 @@ data Anchored a = Anchored Path a
   deriving (Typeable, Functor, Eq, Ord)
 
 instance (Show a) => Show (Anchored a) where
-  show (Anchored path value) = Text.unpack (showPath True path) ++ ": " ++ show value
+  show (Anchored (Path path) value) = Text.unpack (showPath True path) ++ ": " ++ show value
 
 instance (Typeable a, Show a) => Exception (Anchored a)
 
@@ -449,17 +452,17 @@ parseUpdating (SimpleUnjsonDef _ f _) _ov v = f v
 parseUpdating (ArrayUnjsonDef (Just (PrimaryKeyExtraction pk_from_object pk_from_json)) m f) (Just ov) (Anchored path v)
   = case Aeson.parseEither Aeson.parseJSON v of
       Right v ->
-        sequenceA (zipWith (\v i -> (lookupObjectByJson (Anchored (path ++ [PathElemIndex i]) v)) >>= \ov ->
+        sequenceA (zipWith (\v i -> (lookupObjectByJson (Anchored (path <> Path [PathElemIndex i]) v)) >>= \ov ->
                                         parseUpdating f ov
-                                        (Anchored (path ++ [PathElemIndex i]) v))
+                                        (Anchored (path <> Path [PathElemIndex i]) v))
                                     (Vector.toList v) [0..])
       Left e -> case m of
           ArrayModeStrict ->
             resultWithThrow (Anchored path (Text.pack e))
           _ ->
-            sequenceA [(lookupObjectByJson (Anchored (path ++ [PathElemIndex 0]) v)) >>= \ov ->
+            sequenceA [(lookupObjectByJson (Anchored (path <> Path [PathElemIndex 0]) v)) >>= \ov ->
                                         parseUpdating f ov
-                                        (Anchored (path ++ [PathElemIndex 0]) v)]
+                                        (Anchored (path <> Path [PathElemIndex 0]) v)]
   where
     objectMap = Map.fromList (map (\o -> (pk_from_object o, o)) ov)
     lookupObjectByJson js = parseUpdating pk_from_json Nothing js >>= \val -> return (Map.lookup val objectMap)
@@ -467,12 +470,12 @@ parseUpdating (ArrayUnjsonDef (Just (PrimaryKeyExtraction pk_from_object pk_from
 parseUpdating (ArrayUnjsonDef _ m f) _ov (Anchored path v)
   = case Aeson.parseEither Aeson.parseJSON v of
       Right v ->
-        sequenceA (zipWith (\v i -> parseUpdating f Nothing (Anchored (path ++ [PathElemIndex i]) v)) (Vector.toList v) [0..])
+        sequenceA (zipWith (\v i -> parseUpdating f Nothing (Anchored (path <> Path [PathElemIndex i]) v)) (Vector.toList v) [0..])
       Left e -> case m of
           ArrayModeStrict ->
             resultWithThrow (Anchored path (Text.pack e))
           _ ->
-            sequenceA [parseUpdating f Nothing (Anchored (path ++ [PathElemIndex 0]) v)]
+            sequenceA [parseUpdating f Nothing (Anchored (path <> Path [PathElemIndex 0]) v)]
 
 parseUpdating (ObjectUnjsonDef f) ov (Anchored path v)
   = case Aeson.parseEither Aeson.parseJSON v of
@@ -488,8 +491,8 @@ parseUpdating (TupleUnjsonDef f) ov (Anchored path v)
             arrayLength = Vector.length v
         in if tupleSize == arrayLength
              then r
-             else Result g (h ++ [Anchored path ("cannot parse array of length " <> Text.pack (show arrayLength) <>
-                                                " into tuple of size " <> Text.pack (show tupleSize))])
+             else Result g (h <> [Anchored path ("cannot parse array of length " <> Text.pack (show arrayLength) <>
+                                                 " into tuple of size " <> Text.pack (show tupleSize))])
       Left e ->
         resultWithThrow (Anchored path (Text.pack e))
 
@@ -557,14 +560,14 @@ update a vd = parseUpdating vd (Just a)
 lookupByFieldDef :: Anchored Aeson.Object -> Maybe s -> FieldDef s a -> Result a
 lookupByFieldDef (Anchored path v) ov (FieldReqDef name docstring f valuedef)
   = case HashMap.lookup name v of
-      Just x  -> parseUpdating valuedef (fmap f ov) (Anchored (path ++ [PathElemKey name]) x)
+      Just x  -> parseUpdating valuedef (fmap f ov) (Anchored (path <> Path [PathElemKey name]) x)
       Nothing -> case ov of
                    Just xov -> Result (f xov) []
-                   Nothing -> resultWithThrow (Anchored (path ++ [PathElemKey name]) "missing key")
+                   Nothing -> resultWithThrow (Anchored (path <> Path [PathElemKey name]) "missing key")
 lookupByFieldDef (Anchored path v) ov (FieldDefDef name docstring def f valuedef)
   = case HashMap.lookup name v of
       Just Aeson.Null -> Result def []
-      Just x  -> parseUpdating valuedef (fmap f ov) (Anchored (path ++ [PathElemKey name]) x)
+      Just x  -> parseUpdating valuedef (fmap f ov) (Anchored (path <> Path [PathElemKey name]) x)
       Nothing -> case ov of
                    Just xov -> Result (f xov) []
                    Nothing -> Result def []
@@ -572,8 +575,8 @@ lookupByFieldDef (Anchored path v) ov (FieldOptDef name docstring f valuedef)
   = case HashMap.lookup name v of
       Just Aeson.Null -> Result Nothing []
       Just x  -> case ov of
-                   Just xov -> fmap Just (parseUpdating valuedef (f xov) (Anchored (path ++ [PathElemKey name]) x))
-                   Nothing -> fmap Just (parseUpdating valuedef Nothing (Anchored (path ++ [PathElemKey name]) x))
+                   Just xov -> fmap Just (parseUpdating valuedef (f xov) (Anchored (path <> Path [PathElemKey name]) x))
+                   Nothing -> fmap Just (parseUpdating valuedef Nothing (Anchored (path <> Path [PathElemKey name]) x))
       Nothing -> case ov of
                    Just xov -> Result (f xov) []
                    Nothing -> Result Nothing []
@@ -582,8 +585,8 @@ lookupByFieldDef (Anchored path v) ov (FieldOptDef name docstring f valuedef)
 lookupByTupleFieldDef :: Anchored Aeson.Array -> Maybe s -> TupleFieldDef s a -> Result a
 lookupByTupleFieldDef (Anchored path v) ov (TupleFieldDef idx f valuedef)
   = case v Vector.!? idx of
-      Just x  -> parseUpdating valuedef (fmap f ov) (Anchored (path ++ [PathElemIndex idx]) x)
-      Nothing -> resultWithThrow (Anchored (path ++ [PathElemIndex idx]) "missing key")
+      Just x  -> parseUpdating valuedef (fmap f ov) (Anchored (path <> Path [PathElemIndex idx]) x)
+      Nothing -> resultWithThrow (Anchored (path <> Path [PathElemIndex idx]) "missing key")
 
 -- | Declare a required field with definition given inline by valuedef.
 --
@@ -920,10 +923,10 @@ renderTupleField (TupleFieldDef index _f d) =
     s = renderDoc d
 
 findNestedUnjson :: (Monad m) => Path -> UnjsonDef a -> m P.Doc
-findNestedUnjson [] u = return (renderDoc u)
-findNestedUnjson (PathElemIndex n : rest) (TupleUnjsonDef d) = findNestedTupleUnjson n rest d
-findNestedUnjson (PathElemIndex _ : rest) (ArrayUnjsonDef _ _ d) = findNestedUnjson rest d
-findNestedUnjson (PathElemKey k : rest) (ObjectUnjsonDef d) = findNestedFieldUnjson k rest d
+findNestedUnjson (Path []) u = return (renderDoc u)
+findNestedUnjson (Path (PathElemIndex n : rest)) (TupleUnjsonDef d) = findNestedTupleUnjson n (Path rest) d
+findNestedUnjson (Path (PathElemIndex _ : rest)) (ArrayUnjsonDef _ _ d) = findNestedUnjson (Path rest) d
+findNestedUnjson (Path (PathElemKey k : rest)) (ObjectUnjsonDef d) = findNestedFieldUnjson k (Path rest) d
 findNestedUnjson _ _ = fail "cannot find crap"
 
 findNestedTupleUnjson :: (Monad m) => Int -> Path -> Ap (TupleFieldDef s) a -> m P.Doc
@@ -933,9 +936,9 @@ findNestedTupleUnjson n path (Ap (TupleFieldDef _index _f _d) r) =
 findNestedTupleUnjson _ _ _ = fail "findNestedTupleUnjson"
 
 findNestedFieldUnjson :: (Monad m) => Text.Text -> Path -> Ap (FieldDef s) a -> m P.Doc
-findNestedFieldUnjson key [] (Ap f@(FieldReqDef k _ _ _d) _r) | k==key = return (renderField f)
-findNestedFieldUnjson key [] (Ap f@(FieldOptDef k _ _ _d) _r) | k==key = return (renderField f)
-findNestedFieldUnjson key [] (Ap f@(FieldDefDef k _ _ _ _d) _r) | k==key = return (renderField f)
+findNestedFieldUnjson key (Path []) (Ap f@(FieldReqDef k _ _ _d) _r) | k==key = return (renderField f)
+findNestedFieldUnjson key (Path []) (Ap f@(FieldOptDef k _ _ _d) _r) | k==key = return (renderField f)
+findNestedFieldUnjson key (Path []) (Ap f@(FieldDefDef k _ _ _ _d) _r) | k==key = return (renderField f)
 findNestedFieldUnjson key path (Ap (FieldReqDef k _ _ d) _r) | k==key = findNestedUnjson path d
 findNestedFieldUnjson key path (Ap (FieldOptDef k _ _ d) _r) | k==key = findNestedUnjson path d
 findNestedFieldUnjson key path (Ap (FieldDefDef k _ _ _ d) _r) | k==key = findNestedUnjson path d
