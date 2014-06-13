@@ -64,8 +64,6 @@ import Data.Typeable
 import Data.Monoid
 import Control.Applicative
 import Control.Applicative.Free
-import Data.Scientific
-import Data.Attoparsec.Number
 import qualified Data.HashMap.Strict as HashMap
 import Control.Exception
 import Data.Traversable

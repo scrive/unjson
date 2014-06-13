@@ -1,18 +1,11 @@
 module Test where
 
-import System.Exit (exitFailure)
-
 import qualified Data.Text as Text
 import Data.Typeable
 import Data.Unjson
 import Control.Applicative
 import qualified Data.Aeson as Aeson
 import Data.Aeson ((.=))
-import Data.Scientific
-import Data.Attoparsec.Number
-import Data.Monoid
-import System.IO
-import Control.Applicative.Free
 import Control.Exception
 import Test.HUnit
 
