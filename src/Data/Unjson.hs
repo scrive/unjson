@@ -54,6 +54,8 @@ module Data.Unjson
 , Anchored(..)
 , parse
 , update
+
+, unjsonIPv4AsWord32
 )
 where
 
@@ -69,6 +71,13 @@ import Control.Applicative.Free
 import qualified Data.HashMap.Strict as HashMap
 import Control.Exception
 import Data.Traversable
+
+import Data.Bits
+import Data.Word
+import Data.List
+import qualified Text.ParserCombinators.ReadP as ReadP
+import Data.Char
+import Control.Monad
 
 import qualified Text.PrettyPrint.HughesPJ as P
 
@@ -956,3 +965,36 @@ ansiBold = "\ESC[1m"
 
 ansiDimmed :: String
 ansiDimmed = "\ESC[2m"
+
+parseIPv4 :: ReadP.ReadP Word32
+parseIPv4 = do
+  d1 <- ReadP.munch1 isDigit
+  _ <- ReadP.char '.'
+  d2 <- ReadP.munch1 isDigit
+  _ <- ReadP.char '.'
+  d3 <- ReadP.munch1 isDigit
+  _ <- ReadP.char '.'
+  d4 <- ReadP.munch1 isDigit
+  ReadP.eof
+  let r = map read [d1,d2,d3,d4]
+  when (any (>255) r) ReadP.pfail
+  return (sum (zipWith shiftL r [24,16,8,0]))
+
+unjsonIPv4AsWord32 :: UnjsonDef Word32
+unjsonIPv4AsWord32 = SimpleUnjsonDef "IPv4 in decimal dot notation A.B.C.D"
+              (\(Anchored path value) ->
+                case Aeson.fromJSON value of
+                  Aeson.Success result ->
+                    -- a number, treat it as is, for example 0x7f000001 = 2130706433 = 127.0.0.1
+                    Result result []
+                  Aeson.Error _ ->
+                    case Aeson.fromJSON value of
+                      Aeson.Success result -> case ReadP.readP_to_S parseIPv4 result of
+                        [(r,"")] -> Result r []
+                        _ -> resultWithThrow (Anchored path (Text.pack "cannot parse as decimal dot IPv4"))
+                      Aeson.Error _ ->
+                        resultWithThrow (Anchored path (Text.pack "expected IPv4 as decimal dot string or a single integer")))
+              (Aeson.toJSON . showAsIPv4)
+  where
+    showAsIPv4 :: Word32 -> String
+    showAsIPv4 v = intercalate "." [show (shiftR v b .&. 255) | b <- [24,16,8,0]]
