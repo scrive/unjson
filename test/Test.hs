@@ -1,4 +1,4 @@
-module Test where
+module Main where
 
 import qualified Data.Text as Text
 import Data.Typeable
