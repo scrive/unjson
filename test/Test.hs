@@ -91,11 +91,11 @@ instance Unjson Credentials where
 test_proper_parse :: Test
 test_proper_parse = "Proper parsing of a complex structure" ~: do
   let json = Aeson.object
-               [ "hostname" .= ("www.example.com" :: Text.Text)
-               , "comment" .= ("nice server" :: Text.Text)
+               [ "hostname" .= "www.example.com"
+               , "comment" .= "nice server"
                , "credentials" .= Aeson.object
-                   [ "username" .= ("usr1" :: Text.Text)
-                   , "password" .= ("pass1" :: Text.Text)
+                   [ "username" .= "usr1"
+                   , "password" .= "pass1"
                    ]
                ]
   let expect = Konfig
@@ -115,11 +115,11 @@ test_proper_parse = "Proper parsing of a complex structure" ~: do
 test_missing_key :: Test
 test_missing_key = "Key missing" ~: do
   let json = Aeson.object
-               [ "hostname" .= ("www.example.com" :: Text.Text)
+               [ "hostname" .= "www.example.com"
                , "port" .= (12345 :: Int)
-               , "comment" .= ("nice server" :: Text.Text)
+               , "comment" .= "nice server"
                , "credentials" .= Aeson.object
-                   [ "username" .= ("usr1" :: Text.Text)
+                   [ "username" .= "usr1"
                    ]
                ]
 
@@ -136,9 +136,9 @@ test_wrong_value_type = "Value at key is wrong type" ~: do
   let json = Aeson.object
                [ "hostname" .= (12345 :: Int)
                , "port" .= Aeson.object
-                   [ "username" .= ("usr1" :: Text.Text)
+                   [ "username" .= "usr1"
                    ]
-               , "credentials" .= ("www.example.com" :: Text.Text)
+               , "credentials" .= "www.example.com"
                ]
 
   let Result val iss = parse unjsonKonfig (Anchored mempty json)
@@ -214,7 +214,7 @@ test_parse_either_field = "test_parse_either_field" ~: do
     assertEqual "Serialize-parse produces no problems" (Left 12345) (extendedTestEither val)
   do
     let json = Aeson.object
-                 [ "text_value" .= ("asfsdfaf" :: Text.Text)
+                 [ "text_value" .= "asfsdfaf"
                  ]
     let Result val iss = parse unjsonExtendedTest (Anchored mempty json)
     assertEqual "Serialize-parse produces no problems" [] iss
@@ -229,7 +229,7 @@ test_parse_either_field = "test_parse_either_field" ~: do
     assertEqual "Serialize-parse produces no problems" (Left 12345) (extendedTestEither val)
   do
     let json = Aeson.object
-                 [ "text_value" .= ("asfsdfaf" :: Text.Text)
+                 [ "text_value" .= "asfsdfaf"
                  , "numerical_value" .= (12345 :: Int)
                  ]
     let Result val iss = parse unjsonExtendedTest (Anchored mempty json)
@@ -266,12 +266,12 @@ test_update_from_serialization = "test_update_from_serialization" ~: do
                }
 
   let json = Aeson.object
-               [ "hostname" .= ("www.example.com" :: Text.Text)     -- mandatory field
+               [ "hostname" .= "www.example.com"     -- mandatory field
                , "port" .= (999 :: Int)                             -- optional with default
-               , "comment" .= ("a better server" :: Text.Text)      -- optional field
+               , "comment" .= "a better server"     -- optional field
                , "credentials" .= Aeson.object
-                               [ "domain" .= ("domain" :: Text.Text)
-                               , "username" .= ("usr2" :: Text.Text) ]
+                               [ "domain" .= "domain"
+                               , "username" .= "usr2" ]
                ]
   let Result val iss = update initial unjsonKonfig (Anchored mempty json)
   assertEqual "Serialize-parse produces no problems" [] iss
@@ -303,10 +303,10 @@ test_update_from_serialization_with_reset_to_default = "test_update_from_seriali
                , "comment" .= Aeson.Null      -- optional field
                , "credentials" .= Aeson.object
                                [ "domain" .= Aeson.Null ]
-               , "alternates" .= [ Aeson.toJSON ("abc" :: Text.Text)
+               , "alternates" .= [ Aeson.toJSON "abc"
                                  , Aeson.object
-                                   [ "username" .= ("usrx" :: Text.Text)
-                                   , "password" .= ("passx" :: Text.Text)
+                                   [ "username" .= "usrx"
+                                   , "password" .= "passx"
                                    ]
                                  ]
                ]
@@ -344,13 +344,13 @@ test_array_modes = "test_array_modes" ~: do
   assertEqual "Serialize-parse produces no problems" [Anchored (Path [PathElemKey "hostname"]) "when expecting a Vector a, encountered String instead"] iss0
   let Result val1 iss1 = parse p1 (Anchored mempty json)
   assertEqual "Serialize-parse produces no problems" [] iss1
-  assertEqual "Serialize-parse is identity" ["www.example.com" :: Text.Text] val1
+  assertEqual "Serialize-parse is identity" ["www.example.com"] val1
   let sjson1 = serialize p1 val1
   assertEqual "Same json" json1 sjson1
 
   let Result val2 iss2 = parse p2 (Anchored mempty json)
   assertEqual "Serialize-parse produces no problems" [] iss2
-  assertEqual "Serialize-parse is identity" ["www.example.com" :: Text.Text] val2
+  assertEqual "Serialize-parse is identity" ["www.example.com"] val2
   let sjson2 = serialize p2 val2
   assertEqual "Same json" json sjson2
   return ()
