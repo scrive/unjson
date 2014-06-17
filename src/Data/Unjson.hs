@@ -201,7 +201,7 @@ resultWithThrow msg = Result (throw msg) [msg]
 -- >               "Optional field with default of type with (ToJSON,FromjSON) instances"
 class Unjson a where
   -- | Definition of a bidirectional parser for a type 'a'. See
-  -- 'parse, 'update', 'serialize' and 'render' to see how to use
+  -- 'parse', 'update', 'serialize' and 'render' to see how to use
   -- 'UnjsonDef'.
   unjsonDef :: UnjsonDef a
 
@@ -828,7 +828,8 @@ arrayWithPrimaryKeyOf pk1 pk2 valuedef =
 -- 'UnjsonDef'. This function is useful when lifted type is one of the
 -- primitives. Although it can be used to lift user defined instances,
 -- it is not advisable as there is too much information lost in the
--- process and proper error infomation is not possible.
+-- process and proper error infomation is not possible. Use full
+-- 'UnjsonDef' instance whenever possible.
 --
 -- Example:
 --
@@ -837,6 +838,8 @@ arrayWithPrimaryKeyOf pk1 pk2 valuedef =
 liftAeson :: forall a . (Aeson.FromJSON a,Aeson.ToJSON a, Typeable a) => UnjsonDef a
 liftAeson = liftAesonWithDoc (Text.pack (show (typeOf (undefined :: a))))
 
+-- | Like 'liftAeson' but accepts docstring as additional parameter
+-- that should identify type.
 liftAesonWithDoc :: (Aeson.FromJSON a,Aeson.ToJSON a) => Text.Text -> UnjsonDef a
 liftAesonWithDoc docstring = SimpleUnjsonDef docstring
               (\(Anchored path value) ->
@@ -845,6 +848,7 @@ liftAesonWithDoc docstring = SimpleUnjsonDef docstring
                   Aeson.Error message -> resultWithThrow (Anchored path (Text.pack message)))
               Aeson.toJSON
 
+-- | Rename @[Char]@ to @String@ everywhere.
 liftAesonFixCharArrayToString :: forall a . (Aeson.FromJSON a,Aeson.ToJSON a, Typeable a) => UnjsonDef a
 liftAesonFixCharArrayToString =
   liftAesonWithDoc (Text.pack typeNameFixed)
@@ -903,6 +907,8 @@ liftAesonFixCharArrayToString =
 render :: UnjsonDef a -> String
 render = P.render . renderDoc
 
+-- | Render only selected part of structure documentation. Path should
+-- point to a subtree, if it does not then Nothing is returned.
 renderForPath :: (Functor m, Monad m) => Path -> UnjsonDef a -> m String
 renderForPath path def = fmap P.render (renderDocForPath path def)
 
@@ -917,8 +923,12 @@ renderDoc (ObjectUnjsonDef f) =
 renderDoc (TupleUnjsonDef f) = P.text (ansiDimmed ++ "tuple of size " ++ show (countAp 0 f) ++ " with elements:" ++ ansiReset) P.$+$
              P.vcat (renderTupleFields f)
 
+-- | Render only selected part of structure documentation as
+-- 'P.Doc'. Path should point to a subtree, if it does not then
+-- Nothing is returned.
 renderDocForPath :: (Monad m) => Path -> UnjsonDef a -> m P.Doc
 renderDocForPath path def = findNestedUnjson path def
+
 
 renderField :: FieldDef s a -> P.Doc
 renderField (FieldReqDef key docstring _f d) =
@@ -994,6 +1004,10 @@ parseIPv4 = do
   when (any (>255) r) ReadP.pfail
   return (sum (zipWith shiftL r [24,16,8,0]))
 
+
+-- | Parse and serialize dotted decimal notation for IPv4 addresses
+-- and uses 'Word32' as representation type. Note that network byte
+-- order applies, so 127.0.0.1 is 0x7F000001.
 unjsonIPv4AsWord32 :: UnjsonDef Word32
 unjsonIPv4AsWord32 = SimpleUnjsonDef "IPv4 in decimal dot notation A.B.C.D"
               (\(Anchored path value) ->
