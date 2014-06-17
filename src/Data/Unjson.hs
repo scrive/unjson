@@ -861,31 +861,45 @@ liftAesonFixCharArrayToString =
 --
 -- Example rendering:
 --
--- >    hostname (req):
--- >        The hostname this service is visible as
--- >    port (def):
--- >        Port to listen on
--- >    credentials (req):
--- >        User admin credentials
--- >            username (req):
--- >                Name of the user
--- >            password (req):
--- >                Password for the user
--- >            domain (opt):
--- >                Domain for user credentials
--- >    comment (opt):
--- >        Optional comment, free text
--- >    alternates (opt):
--- >        Alternate names for this server
--- >        tuple of size 2
--- >            1:
--- >                username (req):
--- >                    Name of the user
--- >                password (req):
--- >                    Password for the user
--- >                domain (opt):
--- >                    Domain for user credentials
--- >
+-- > hostname (req):
+-- >     The hostname this service is visible as
+-- >     Text
+-- > port (def):
+-- >     Port to listen on, defaults to 80
+-- >     Int
+-- > credentials (req):
+-- >     User admin credentials
+-- >     username (req):
+-- >         Name of the user
+-- >         Text
+-- >     password (req):
+-- >         Password for the user
+-- >         Text
+-- >     domain (opt):
+-- >         Domain for user credentials
+-- >         Text
+-- > comment (opt):
+-- >     Optional comment, free text
+-- >     Text
+-- > options (def):
+-- >     Additional options, defaults to empty
+-- >     array of:
+-- >         Text
+-- > alternates (opt):
+-- >     Alternate names for this server
+-- >     tuple of size 2 with elements:
+-- >     0:
+-- >         Text
+-- >     1:
+-- >         username (req):
+-- >             Name of the user
+-- >             Text
+-- >         password (req):
+-- >             Password for the user
+-- >             Text
+-- >         domain (opt):
+-- >             Domain for user credentials
+-- >             Text
 render :: UnjsonDef a -> String
 render = P.render . renderDoc
 
