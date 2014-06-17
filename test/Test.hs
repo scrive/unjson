@@ -9,6 +9,7 @@ import Data.Aeson ((.=))
 import Control.Exception
 import Test.HUnit
 import Data.Monoid
+import Data.List
 
 default (Text.Text, String, Int, Double)
 
@@ -426,3 +427,26 @@ tests = test [ test_proper_parse
 
 main :: IO Counts
 main = runTestTT tests
+
+updateExampleRendering :: IO ()
+updateExampleRendering = do
+  contents <- readFile "src/Data/Unjson.hs"
+  let (before,exampleAndRest) = break (=="-- Example rendering:") (lines contents)
+      (example,after) = break ("render ::" `isPrefixOf`) exampleAndRest
+  _ <- return $! length after
+  writeFile "src/Data/Unjson.hs"
+     (unlines (before ++ ["-- Example rendering:", "--"] ++
+               (map ((++)"-- > ") $ lines $ filterOutAnsi $ render unjsonKonfig) ++
+               after))
+
+filterOutAnsi :: String -> String
+filterOutAnsi "" = ""
+filterOutAnsi ('\ESC' : '[' : rest) = filterOutAnsiTillEndOfMulticharSequence rest
+filterOutAnsi ('\ESC' : _ : rest) = filterOutAnsi rest
+filterOutAnsi (c : rest)  = c : filterOutAnsi rest
+
+filterOutAnsiTillEndOfMulticharSequence :: String -> String
+filterOutAnsiTillEndOfMulticharSequence (c : rest) | c >= '@' = filterOutAnsi rest
+filterOutAnsiTillEndOfMulticharSequence (c : rest) =
+  filterOutAnsiTillEndOfMulticharSequence rest
+filterOutAnsiTillEndOfMulticharSequence [] = []
