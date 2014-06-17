@@ -10,7 +10,7 @@ import Control.Exception
 import Test.HUnit
 import Data.Monoid
 
-default (Text.Text)
+default (Text.Text, String, Int, Double)
 
 -- As an example we will use a hypothetical configuration data.
 -- There are some mandatory fields and some optional fields.
