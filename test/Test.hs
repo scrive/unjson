@@ -210,31 +210,31 @@ test_parse_either_field = "test_parse_either_field" ~: do
                  [ "numerical_value" .= 12345
                  ]
     let Result val iss = parse unjsonExtendedTest (Anchored mempty json)
-    assertEqual "Serialize-parse produces no problems" [] iss
-    assertEqual "Serialize-parse produces no problems" (Left 12345) (extendedTestEither val)
+    assertEqual "No problems" [] iss
+    assertEqual "Just numerical_value present" (Left 12345) (extendedTestEither val)
   do
     let json = Aeson.object
                  [ "text_value" .= "asfsdfaf"
                  ]
     let Result val iss = parse unjsonExtendedTest (Anchored mempty json)
-    assertEqual "Serialize-parse produces no problems" [] iss
-    assertEqual "Serialize-parse produces no problems" (Right "asfsdfaf") (extendedTestEither val)
+    assertEqual "No problems" [] iss
+    assertEqual "Just text_value present" (Right "asfsdfaf") (extendedTestEither val)
   do
     let json = Aeson.object
                  [ "text_value" .= False
                  , "numerical_value" .= 12345
                  ]
     let Result val iss = parse unjsonExtendedTest (Anchored mempty json)
-    assertEqual "Serialize-parse produces no problems" [Anchored (Path [PathElemKey "text_value"]) "when expecting a Text, encountered Boolean instead"] iss
-    assertEqual "Serialize-parse produces no problems" (Left 12345) (extendedTestEither val)
+    assertEqual "Problem when text_value is not text" [Anchored (Path [PathElemKey "text_value"]) "when expecting a Text, encountered Boolean instead"] iss
+    assertEqual "Returns numerical_value" (Left 12345) (extendedTestEither val)
   do
     let json = Aeson.object
                  [ "text_value" .= "asfsdfaf"
                  , "numerical_value" .= 12345
                  ]
     let Result val iss = parse unjsonExtendedTest (Anchored mempty json)
-    assertEqual "Serialize-parse produces no problems" [] iss
-    assertEqual "Serialize-parse produces no problems" (Left 12345) (extendedTestEither val)
+    assertEqual "No problems" [] iss
+    assertEqual "Returns numerical_value" (Left 12345) (extendedTestEither val)
   {-
     This is not yet working as disjoint unions need special support that is not avialable yet
   do
@@ -274,8 +274,8 @@ test_update_from_serialization = "test_update_from_serialization" ~: do
                                , "username" .= "usr2" ]
                ]
   let Result val iss = update initial unjsonKonfig (Anchored mempty json)
-  assertEqual "Serialize-parse produces no problems" [] iss
-  assertEqual "Serialize-parse is identity" expect val
+  assertEqual "No problems" [] iss
+  assertEqual "Object updated with json" expect val
   return ()
 
 test_update_from_serialization_with_reset_to_default :: Test
@@ -311,9 +311,10 @@ test_update_from_serialization_with_reset_to_default = "test_update_from_seriali
                                  ]
                ]
   let Result val iss = update initial unjsonKonfig (Anchored mempty json)
-  assertEqual "Serialize-parse produces no problems"
+  assertEqual "Cannot reset mangatory field without default"
                 [Anchored (Path [PathElemKey "hostname"]) "when expecting a Text, encountered Null instead"] iss
-  assertEqual "Serialize-parse is identity" expect (val {konfigHostname = "www.example.com"})
+  assertEqual "Can reset value with default" (konfigPort expect) (konfigPort val)
+  assertEqual "Can reset optional value" (konfigComment expect) (konfigComment val)
   return ()
 
 test_array_modes :: Test
@@ -341,16 +342,16 @@ test_array_modes = "test_array_modes" ~: do
                  "Single value or array"
                  (arrayWithModeOf' ArrayModeParseAndOutputSingle)
   let Result val0 iss0 = parse p0 (Anchored mempty json)
-  assertEqual "Serialize-parse produces no problems" [Anchored (Path [PathElemKey "hostname"]) "when expecting a Vector a, encountered String instead"] iss0
+  assertEqual "Does not parse value in strict array mode" [Anchored (Path [PathElemKey "hostname"]) "when expecting a Vector a, encountered String instead"] iss0
   let Result val1 iss1 = parse p1 (Anchored mempty json)
-  assertEqual "Serialize-parse produces no problems" [] iss1
-  assertEqual "Serialize-parse is identity" ["www.example.com"] val1
+  assertEqual "No problems" [] iss1
+  assertEqual "Accepts singel value in ArrayModeParseSingle" ["www.example.com"] val1
   let sjson1 = serialize p1 val1
   assertEqual "Same json" json1 sjson1
 
   let Result val2 iss2 = parse p2 (Anchored mempty json)
-  assertEqual "Serialize-parse produces no problems" [] iss2
-  assertEqual "Serialize-parse is identity" ["www.example.com"] val2
+  assertEqual "No problems" [] iss2
+  assertEqual "Array fetch produced result" ["www.example.com"] val2
   let sjson2 = serialize p2 val2
   assertEqual "Same json" json sjson2
   return ()
@@ -403,11 +404,11 @@ test_array_update_by_primary_key = "test_array_update_by_primary_key" ~: do
                  "Array updated by primary key"
                  (arrayWithPrimaryKeyOf pk1 pk2 unjsonPair)
   let Result val0 iss0 = parse p0 (Anchored mempty json)
-  assertEqual "Serialize-parse produces no problems" [] iss0
-  assertEqual "Serialize-parse is identity" [(12,"for 12"),(17,"for 17"),(3,"for 3")] val0
+  assertEqual "No problems" [] iss0
+  assertEqual "Parsing keeps proper order" [(12,"for 12"),(17,"for 17"),(3,"for 3")] val0
   let Result val1 iss1 = update val0 p0 (Anchored mempty json1)
-  assertEqual "Serialize-parse produces no problems" [] iss1
-  assertEqual "Serialize-parse is identity" [(17,"for 17"),(4,"for 4"),(12,"for 12 new value")] val1
+  assertEqual "No problems" [] iss1
+  assertEqual "Update keeps proper order" [(17,"for 17"),(4,"for 4"),(12,"for 12 new value")] val1
   return ()
 
 tests :: Test
