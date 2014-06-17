@@ -922,11 +922,11 @@ renderDocForPath path def = findNestedUnjson path def
 
 renderField :: FieldDef s a -> P.Doc
 renderField (FieldReqDef key docstring _f d) =
-  P.text (ansiBold ++ Text.unpack key ++ ansiReset) P.<> P.text " (req): " P.$+$ P.nest 4 (P.text (Text.unpack docstring) P.$+$ renderDoc d)
+  P.text (ansiBold ++ Text.unpack key ++ ansiReset) P.<> P.text " (req):" P.$+$ P.nest 4 (P.text (Text.unpack docstring) P.$+$ renderDoc d)
 renderField (FieldOptDef key docstring _f d) =
-  P.text (ansiBold ++ Text.unpack key ++ ansiReset) P.<> P.text " (opt): " P.$+$ P.nest 4 (P.text (Text.unpack docstring) P.$+$ renderDoc d)
+  P.text (ansiBold ++ Text.unpack key ++ ansiReset) P.<> P.text " (opt):" P.$+$ P.nest 4 (P.text (Text.unpack docstring) P.$+$ renderDoc d)
 renderField (FieldDefDef key docstring _f _ d) =
-  P.text (ansiBold ++ Text.unpack key ++ ansiReset) P.<> P.text " (def): " P.$+$ P.nest 4 (P.text (Text.unpack docstring) P.$+$ renderDoc d)
+  P.text (ansiBold ++ Text.unpack key ++ ansiReset) P.<> P.text " (def):" P.$+$ P.nest 4 (P.text (Text.unpack docstring) P.$+$ renderDoc d)
 
 
 renderFields :: Ap (FieldDef s) a -> [P.Doc]
@@ -941,7 +941,7 @@ renderTupleFields (Ap f r) =
 
 renderTupleField :: TupleFieldDef s a -> P.Doc
 renderTupleField (TupleFieldDef index _f d) =
-  P.text (ansiBold ++ show index ++ ansiReset) P.<> P.text ": " P.$+$ P.nest 4 s
+  P.text (ansiBold ++ show index ++ ansiReset) P.<> P.text ":" P.$+$ P.nest 4 s
   where
     s = renderDoc d
 
