@@ -116,7 +116,7 @@ test_missing_key :: Test
 test_missing_key = "Key missing" ~: do
   let json = Aeson.object
                [ "hostname" .= "www.example.com"
-               , "port" .= (12345 :: Int)
+               , "port" .= 12345
                , "comment" .= "nice server"
                , "credentials" .= Aeson.object
                    [ "username" .= "usr1"
@@ -134,7 +134,7 @@ test_missing_key = "Key missing" ~: do
 test_wrong_value_type :: Test
 test_wrong_value_type = "Value at key is wrong type" ~: do
   let json = Aeson.object
-               [ "hostname" .= (12345 :: Int)
+               [ "hostname" .= 12345
                , "port" .= Aeson.object
                    [ "username" .= "usr1"
                    ]
@@ -159,7 +159,7 @@ test_tuple_parsing = "Tuple parsing" ~: do
   let json = Aeson.toJSON
                [ ("hostname" :: Aeson.Value)
                , ("port" :: Aeson.Value)
-               , (Aeson.toJSON (123 :: Int))
+               , (Aeson.toJSON 123)
                ]
 
   let Result (val1 :: String, val2 :: Text.Text, val3 ::Int) iss = parse unjsonDef (Anchored mempty json)
@@ -207,7 +207,7 @@ test_parse_either_field :: Test
 test_parse_either_field = "test_parse_either_field" ~: do
   do
     let json = Aeson.object
-                 [ "numerical_value" .= (12345 :: Int)
+                 [ "numerical_value" .= 12345
                  ]
     let Result val iss = parse unjsonExtendedTest (Anchored mempty json)
     assertEqual "Serialize-parse produces no problems" [] iss
@@ -221,8 +221,8 @@ test_parse_either_field = "test_parse_either_field" ~: do
     assertEqual "Serialize-parse produces no problems" (Right "asfsdfaf") (extendedTestEither val)
   do
     let json = Aeson.object
-                 [ "text_value" .= (False)
-                 , "numerical_value" .= (12345 :: Int)
+                 [ "text_value" .= False
+                 , "numerical_value" .= 12345
                  ]
     let Result val iss = parse unjsonExtendedTest (Anchored mempty json)
     assertEqual "Serialize-parse produces no problems" [Anchored (Path [PathElemKey "text_value"]) "when expecting a Text, encountered Boolean instead"] iss
@@ -230,7 +230,7 @@ test_parse_either_field = "test_parse_either_field" ~: do
   do
     let json = Aeson.object
                  [ "text_value" .= "asfsdfaf"
-                 , "numerical_value" .= (12345 :: Int)
+                 , "numerical_value" .= 12345
                  ]
     let Result val iss = parse unjsonExtendedTest (Anchored mempty json)
     assertEqual "Serialize-parse produces no problems" [] iss
@@ -267,8 +267,8 @@ test_update_from_serialization = "test_update_from_serialization" ~: do
 
   let json = Aeson.object
                [ "hostname" .= "www.example.com"     -- mandatory field
-               , "port" .= (999 :: Int)                             -- optional with default
-               , "comment" .= "a better server"     -- optional field
+               , "port" .= 999                       -- optional with default
+               , "comment" .= "a better server"      -- optional field
                , "credentials" .= Aeson.object
                                [ "domain" .= "domain"
                                , "username" .= "usr2" ]
