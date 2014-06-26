@@ -473,7 +473,9 @@ parseUpdating (ArrayUnjsonDef (Just (PrimaryKeyExtraction pk_from_object pk_from
                                         parseUpdating f ov
                                         (Anchored (path <> Path [PathElemIndex 0]) v)]
   where
-    objectMap = Map.fromList (map (\o -> (pk_from_object o, o)) ov)
+    -- Note: Map.fromList is right-biased, so that Map.fromList [(1,1),(1,2)] is [(1,2)]
+    -- we need it to be left-biased, so we use Map.fromListWith (flip const)
+    objectMap = Map.fromListWith (flip const) (map (\o -> (pk_from_object o, o)) ov)
     lookupObjectByJson js = parseUpdating pk_from_json Nothing js >>= \val -> return (Map.lookup val objectMap)
 
 parseUpdating (ArrayUnjsonDef _ m f) _ov (Anchored path v)

@@ -362,30 +362,34 @@ test_array_update_by_primary_key = "test_array_update_by_primary_key" ~: do
 
   let json = Aeson.object
                [ "array" .= [ Aeson.object
-                              [ "id" .= (12::Int)
-                              , "value" .= ("for 12" ::Text.Text)
+                              [ "id" .= 12
+                              , "value" .= "for 12"
                               ]
                             , Aeson.object
-                              [ "id" .= (17::Int)
-                              , "value" .= ("for 17" ::Text.Text)
+                              [ "id" .= 17
+                              , "value" .= "for 17"
                               ]
                             , Aeson.object
-                              [ "id" .= (3::Int)
-                              , "value" .= ("for 3" ::Text.Text)
+                              [ "id" .= 3
+                              , "value" .= "for 3"
+                              ]
+                            , Aeson.object
+                              [ "id" .= 17
+                              , "value" .= "wrong value for 17"
                               ]
                             ]
                ]
   let json1 = Aeson.object
                [ "array" .= [ Aeson.object  -- 17 is first now, value left intact
-                              [ "id" .= (17::Int)
+                              [ "id" .= 17
                               ]
                             , Aeson.object       -- 3 is not there, but 4 is new
-                              [ "id" .= (4::Int)
-                              , "value" .= ("for 4" ::Text.Text)
+                              [ "id" .= 4
+                              , "value" .= "for 4"
                               ]
                             , Aeson.object
-                              [ "id" .= (12::Int) -- 12 got new value
-                              , "value" .= ("for 12 new value" ::Text.Text)
+                              [ "id" .= 12 -- 12 got new value
+                              , "value" .= "for 12 new value"
                               ]
                             ]
                ]
@@ -406,7 +410,7 @@ test_array_update_by_primary_key = "test_array_update_by_primary_key" ~: do
                  (arrayWithPrimaryKeyOf pk1 pk2 unjsonPair)
   let Result val0 iss0 = parse p0 (Anchored mempty json)
   assertEqual "No problems" [] iss0
-  assertEqual "Parsing keeps proper order" [(12,"for 12"),(17,"for 17"),(3,"for 3")] val0
+  assertEqual "Parsing keeps proper order" [(12,"for 12"),(17,"for 17"),(3,"for 3"),(17,"wrong value for 17")] val0
   let Result val1 iss1 = update val0 p0 (Anchored mempty json1)
   assertEqual "No problems" [] iss1
   assertEqual "Update keeps proper order" [(17,"for 17"),(4,"for 4"),(12,"for 12 new value")] val1
