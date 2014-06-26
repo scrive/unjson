@@ -319,25 +319,52 @@ instance Unjson Aeson.DotNetTime where unjsonDef = liftAeson
 instance Unjson Aeson.Value      where unjsonDef = liftAeson
 instance Unjson (Ratio Integer)  where unjsonDef = liftAeson
 instance (HasResolution a, Typeable a, Aeson.FromJSON a, Aeson.ToJSON a) => Unjson (Fixed a) where unjsonDef = liftAeson
+instance Unjson a => Unjson (Dual a)  where unjsonDef = dibimapUnjsonDef Dual getDual unjsonDef
 {-
-instance Unjson a => Unjson (Dual a)  where unjsonDef = liftAeson
-instance Unjson a => Unjson (First a)  where unjsonDef = liftAeson
+
+-- these work only when 'Maybe a' and 'a' instances are conflated. we do not want this really, do we?
+-- First and Last are Monoids here, not sure if/how Unjson should be a monoid or something
+instance Unjson a => Unjson (First a)  where unjsonDef = dibimapUnjsonDef First getFirst unjsonDef
 instance Unjson a => Unjson (Last a)  where unjsonDef = liftAeson
+
+-- what is this tree instance thing?
 instance Unjson v => Unjson (Tree v)  where unjsonDef = liftAeson
-instance Unjson a => Unjson (IntMap.IntMap a)  where unjsonDef = liftAeson
-instance (Ord a, Unjson a) => Unjson (Set.Set a)  where unjsonDef = liftAeson
-instance (Eq a, Hashable a, Unjson a) => Unjson (HashSet.HashSet a)  where unjsonDef = liftAeson
-instance Unjson a => Unjson (Vector.Vector a)  where unjsonDef = liftAeson
-instance (Data.Vector.Generic.Vector Data.Vector.Unboxed.Vector a, Unjson a) => Unjson (Data.Vector.Unboxed.Vector a)  where unjsonDef = liftAeson
-instance (Storable a, Unjson a) => Unjson (Data.Vector.Storable.Vector a)  where unjsonDef = liftAeson
-instance (Prim a, Unjson a) => Unjson (Data.Vector.Primitive.Vector a)  where unjsonDef = liftAeson
+
+-- disjoint unions require special setup
 instance (Unjson a, Unjson b) => Unjson (Either a b)  where unjsonDef = liftAeson
-instance Unjson v => Unjson (Map.Map String v)  where unjsonDef = liftAeson
-instance Unjson v => Unjson (Map.Map Text.Text v)  where unjsonDef = liftAeson
-instance Unjson v => Unjson (Map.Map LazyText.Text v)  where unjsonDef = liftAeson
-instance Unjson v => Unjson (HashMap.HashMap String v)  where unjsonDef = liftAeson
-instance Unjson v => Unjson (HashMap.HashMap Text.Text v)  where unjsonDef = liftAeson
-instance Unjson v => Unjson (HashMap.HashMap LazyText.Text v) where unjsonDef = liftAeson
+-}
+
+instance Unjson a => Unjson (IntMap.IntMap a)
+  where unjsonDef = dibimapUnjsonDef IntMap.fromList IntMap.toList unjsonDef
+instance (Ord a, Unjson a) => Unjson (Set.Set a)
+  where unjsonDef = dibimapUnjsonDef Set.fromList Set.toList unjsonDef
+instance (Eq a, Hashable a, Unjson a) => Unjson (HashSet.HashSet a)
+  where unjsonDef = dibimapUnjsonDef HashSet.fromList HashSet.toList unjsonDef
+instance Unjson a => Unjson (Vector.Vector a)
+  where unjsonDef = dibimapUnjsonDef Vector.fromList Vector.toList unjsonDef
+instance (Data.Vector.Generic.Vector Data.Vector.Unboxed.Vector a, Unjson a, Data.Vector.Unboxed.Unbox a) => Unjson (Data.Vector.Unboxed.Vector a)
+  where unjsonDef = dibimapUnjsonDef Data.Vector.Unboxed.fromList Data.Vector.Unboxed.toList unjsonDef
+instance (Storable a, Unjson a) => Unjson (Data.Vector.Storable.Vector a)
+  where unjsonDef = dibimapUnjsonDef Data.Vector.Storable.fromList Data.Vector.Storable.toList unjsonDef
+instance (Prim a, Unjson a) => Unjson (Data.Vector.Primitive.Vector a)
+  where unjsonDef = dibimapUnjsonDef Data.Vector.Primitive.fromList Data.Vector.Primitive.toList unjsonDef
+
+{-
+
+-- these are no good, seems like map behavior needs special construct
+
+instance Unjson v => Unjson (Map.Map String v)
+  where unjsonDef = dibimapUnjsonDef Map.fromList Map.toList unjsonDef
+instance Unjson v => Unjson (Map.Map Text.Text v)
+  where unjsonDef = dibimapUnjsonDef Map.fromList Map.toList unjsonDef
+instance Unjson v => Unjson (Map.Map LazyText.Text v)
+  where unjsonDef = dibimapUnjsonDef Map.fromList Map.toList unjsonDef
+instance Unjson v => Unjson (HashMap.HashMap String v)
+  where unjsonDef = dibimapUnjsonDef HashMap.fromList HashMap.toList unjsonDef
+instance Unjson v => Unjson (HashMap.HashMap Text.Text v)
+  where unjsonDef = dibimapUnjsonDef HashMap.fromList HashMap.toList unjsonDef
+instance Unjson v => Unjson (HashMap.HashMap LazyText.Text v)
+  where unjsonDef = dibimapUnjsonDef HashMap.fromList HashMap.toList unjsonDef
 -}
 
 instance (Unjson a,Unjson b) => Unjson (a,b) where
@@ -524,10 +551,25 @@ data PrimaryKeyExtraction k = forall pk . (Ord pk) => PrimaryKeyExtraction (k ->
 -- | Opaque 'UnjsonDef' defines a bidirectional JSON parser.
 data UnjsonDef a where
   SimpleUnjsonDef :: Text.Text -> (Anchored Aeson.Value -> Result k) -> (k -> Aeson.Value) -> UnjsonDef k
-  ArrayUnjsonDef  :: Maybe (PrimaryKeyExtraction k) -> ArrayMode -> UnjsonDef k -> UnjsonDef [k]
+  ArrayUnjsonDef  :: Maybe (PrimaryKeyExtraction k) -> ArrayMode -> ([k] -> v) -> (v -> [k]) -> UnjsonDef k -> UnjsonDef v
   ObjectUnjsonDef :: Ap (FieldDef k) k -> UnjsonDef k
   TupleUnjsonDef  :: Ap (TupleFieldDef k) k -> UnjsonDef k
   -- DisjointUnjsonDef :: Ap (FieldDef k) k -> UnjsonDef k
+
+-- This is Profunctor, but I really do not want to depend on lens here, sorry.
+dibimapUnjsonDef :: (a -> b) -> (b -> a) -> UnjsonDef a -> UnjsonDef b
+dibimapUnjsonDef f g (SimpleUnjsonDef name p s) = SimpleUnjsonDef name (fmap f . p) (s . g)
+dibimapUnjsonDef f g (ArrayUnjsonDef mpk am n k d) = ArrayUnjsonDef mpk am (f . n) (k . g) d
+dibimapUnjsonDef f g (ObjectUnjsonDef fd) = ObjectUnjsonDef (fmap f (hoistAp (dibimapFieldDef g) fd))
+dibimapUnjsonDef f g (TupleUnjsonDef td) = TupleUnjsonDef (fmap f (hoistAp (dibimapTupleFieldDef g) td))
+
+dibimapFieldDef :: (b -> a) -> FieldDef a x -> FieldDef b x
+dibimapFieldDef f (FieldReqDef name doc ext d) = FieldReqDef name doc (ext . f) d
+dibimapFieldDef f (FieldOptDef name doc ext d) = FieldOptDef name doc (ext . f) d
+dibimapFieldDef f (FieldDefDef name doc def ext d) = FieldDefDef name doc def (ext . f) d
+
+dibimapTupleFieldDef :: (b -> a) -> TupleFieldDef a x -> TupleFieldDef b x
+dibimapTupleFieldDef f (TupleFieldDef i e d) = TupleFieldDef i (e . f) d
 
 -- | Define a relation between a field of an object in JSON and a
 -- field in a Haskell record structure.  'FieldDef' holds information
@@ -567,10 +609,10 @@ objectDefToArray s (Ap (FieldDefDef key _ _ f d) r) = (key,serialize d (f s)) : 
 --
 serialize :: UnjsonDef a -> a -> Aeson.Value
 serialize (SimpleUnjsonDef _ _ g) a = g a
-serialize (ArrayUnjsonDef _ ArrayModeParseAndOutputSingle f) [a] =
-  serialize f a
-serialize (ArrayUnjsonDef _ _m f) a =              -- here compiler should know that 'a' is a list
-  Aeson.toJSON (map (serialize f) a)
+serialize (ArrayUnjsonDef _ m g k f) a =
+  case (m, k a) of
+    (ArrayModeParseAndOutputSingle,[b]) -> serialize f b
+    (_,c) -> Aeson.toJSON (map (serialize f) c)
 serialize (ObjectUnjsonDef f) a =
   Aeson.object (objectDefToArray a f)
 serialize (TupleUnjsonDef f) a =
@@ -584,9 +626,9 @@ countAp n (Ap _ r) = countAp (succ n) r
 
 parseUpdating :: UnjsonDef a -> Maybe a -> Anchored Aeson.Value -> Result a
 parseUpdating (SimpleUnjsonDef _ f _) _ov v = f v
-parseUpdating (ArrayUnjsonDef (Just (PrimaryKeyExtraction pk_from_object pk_from_json)) m f) (Just ov) (Anchored path v)
+parseUpdating (ArrayUnjsonDef (Just (PrimaryKeyExtraction pk_from_object pk_from_json)) m g k f) (Just ov) (Anchored path v)
   = case Aeson.parseEither Aeson.parseJSON v of
-      Right v ->
+      Right v -> fmap g $
         sequenceA (zipWith (\v i -> (lookupObjectByJson (Anchored (path <> Path [PathElemIndex i]) v)) >>= \ov ->
                                         parseUpdating f ov
                                         (Anchored (path <> Path [PathElemIndex i]) v))
@@ -594,24 +636,24 @@ parseUpdating (ArrayUnjsonDef (Just (PrimaryKeyExtraction pk_from_object pk_from
       Left e -> case m of
           ArrayModeStrict ->
             resultWithThrow (Anchored path (Text.pack e))
-          _ ->
+          _ -> fmap g $
             sequenceA [(lookupObjectByJson (Anchored (path <> Path [PathElemIndex 0]) v)) >>= \ov ->
                                         parseUpdating f ov
                                         (Anchored (path <> Path [PathElemIndex 0]) v)]
   where
     -- Note: Map.fromList is right-biased, so that Map.fromList [(1,1),(1,2)] is [(1,2)]
     -- we need it to be left-biased, so we use Map.fromListWith (flip const)
-    objectMap = Map.fromListWith (flip const) (map (\o -> (pk_from_object o, o)) ov)
+    objectMap = Map.fromListWith (flip const) (map (\o -> (pk_from_object o, o)) (k ov))
     lookupObjectByJson js = parseUpdating pk_from_json Nothing js >>= \val -> return (Map.lookup val objectMap)
 
-parseUpdating (ArrayUnjsonDef _ m f) _ov (Anchored path v)
+parseUpdating (ArrayUnjsonDef _ m g k f) _ov (Anchored path v)
   = case Aeson.parseEither Aeson.parseJSON v of
-      Right v ->
+      Right v -> fmap g $
         sequenceA (zipWith (\v i -> parseUpdating f Nothing (Anchored (path <> Path [PathElemIndex i]) v)) (Vector.toList v) [0..])
       Left e -> case m of
           ArrayModeStrict ->
             resultWithThrow (Anchored path (Text.pack e))
-          _ ->
+          _ -> fmap g $
             sequenceA [parseUpdating f Nothing (Anchored (path <> Path [PathElemIndex 0]) v)]
 
 parseUpdating (ObjectUnjsonDef f) ov (Anchored path v)
@@ -897,7 +939,7 @@ arrayOf = arrayWithModeOf ArrayModeStrict
 -- > unjsonThing :: UnjsonDef Thing
 -- > unjsonThing = ...
 arrayWithModeOf :: ArrayMode -> UnjsonDef a -> UnjsonDef [a]
-arrayWithModeOf mode valuedef = ArrayUnjsonDef Nothing mode valuedef
+arrayWithModeOf mode valuedef = ArrayUnjsonDef Nothing mode id id valuedef
 
 -- | Declare array of primitive values lifed from 'Aeson'.
 --
@@ -944,7 +986,7 @@ arrayWithModeAndPrimaryKeyOf :: (Ord pk)
                              -> UnjsonDef a
                              -> UnjsonDef [a]
 arrayWithModeAndPrimaryKeyOf mode pk1 pk2 valuedef =
-  ArrayUnjsonDef (Just (PrimaryKeyExtraction pk1 pk2)) mode valuedef
+  ArrayUnjsonDef (Just (PrimaryKeyExtraction pk1 pk2)) mode id id valuedef
 
 -- | Declare array of objects with given parsers that should be
 -- matched by a primary key. Uses 'ArrayModeStrict'.
@@ -1080,7 +1122,7 @@ renderForPath path def = fmap P.render (renderDocForPath path def)
 -- for example.
 renderDoc :: UnjsonDef a -> P.Doc
 renderDoc (SimpleUnjsonDef doc _ _) = P.text (ansiDimmed ++ Text.unpack doc ++ ansiReset)
-renderDoc (ArrayUnjsonDef _ _m f) = P.text (ansiDimmed ++ "array of" ++ ansiReset ++ ":") P.$+$
+renderDoc (ArrayUnjsonDef _ _m g k f) = P.text (ansiDimmed ++ "array of" ++ ansiReset ++ ":") P.$+$
              P.nest 4 (renderDoc f)
 renderDoc (ObjectUnjsonDef f) =
              P.vcat (renderFields f)
@@ -1122,7 +1164,7 @@ renderTupleField (TupleFieldDef index _f d) =
 findNestedUnjson :: (Monad m) => Path -> UnjsonDef a -> m P.Doc
 findNestedUnjson (Path []) u = return (renderDoc u)
 findNestedUnjson (Path (PathElemIndex n : rest)) (TupleUnjsonDef d) = findNestedTupleUnjson n (Path rest) d
-findNestedUnjson (Path (PathElemIndex _ : rest)) (ArrayUnjsonDef _ _ d) = findNestedUnjson (Path rest) d
+findNestedUnjson (Path (PathElemIndex _ : rest)) (ArrayUnjsonDef _ _ _ _ d) = findNestedUnjson (Path rest) d
 findNestedUnjson (Path (PathElemKey k : rest)) (ObjectUnjsonDef d) = findNestedFieldUnjson k (Path rest) d
 findNestedUnjson _ _ = fail "cannot find crap"
 
