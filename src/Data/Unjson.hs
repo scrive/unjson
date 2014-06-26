@@ -122,18 +122,39 @@ where
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Types as Aeson
 import qualified Data.Text as Text
+import qualified Data.Text.Lazy as LazyText
 import qualified Data.Vector as Vector
+import qualified Data.Vector.Storable
+import qualified Data.Vector.Unboxed
+import qualified Data.Vector.Primitive
+import qualified Data.Vector.Generic
 import qualified Data.Map as Map
+import qualified Data.Set as Set
+import qualified Data.IntMap as IntMap
+import qualified Data.IntSet as IntSet
+import qualified Data.HashSet as HashSet
 import Data.Typeable
 import Data.Monoid
+import Data.Primitive.Types
+import Data.Hashable
+import Data.Scientific
+import Data.Attoparsec.Number
+import Data.Time.LocalTime
+import Data.Time.Clock
+import Data.Fixed
+import Data.Tree
+import Foreign.Storable
 import Control.Applicative
 import Control.Applicative.Free
 import qualified Data.HashMap.Strict as HashMap
+import qualified Data.HashMap.Lazy as LazyHashMap
 import Control.Exception
 import Data.Traversable
 
 import Data.Bits
 import Data.Word
+import Data.Int
+import Data.Ratio
 import Data.List
 import qualified Text.ParserCombinators.ReadP as ReadP
 import Data.Char
@@ -268,14 +289,56 @@ class Unjson a where
 instance (Unjson a) => Unjson [a] where
   unjsonDef = arrayOf unjsonDef
 
-instance Unjson Text.Text where
-  unjsonDef = liftAeson
-
-instance Unjson Int where
-  unjsonDef = liftAeson
-
 instance Unjson String where
   unjsonDef = liftAesonWithDoc "String"
+
+instance Unjson Bool             where unjsonDef = liftAeson
+instance Unjson Char             where unjsonDef = liftAeson
+instance Unjson Double           where unjsonDef = liftAeson
+instance Unjson Float            where unjsonDef = liftAeson
+instance Unjson Int              where unjsonDef = liftAeson
+instance Unjson Int8             where unjsonDef = liftAeson
+instance Unjson Int16            where unjsonDef = liftAeson
+instance Unjson Int32            where unjsonDef = liftAeson
+instance Unjson Int64            where unjsonDef = liftAeson
+instance Unjson Integer          where unjsonDef = liftAeson
+instance Unjson Word             where unjsonDef = liftAeson
+instance Unjson Word8            where unjsonDef = liftAeson
+instance Unjson Word16           where unjsonDef = liftAeson
+instance Unjson Word32           where unjsonDef = liftAeson
+instance Unjson Word64           where unjsonDef = liftAeson
+instance Unjson ()               where unjsonDef = liftAeson
+instance Unjson Text.Text        where unjsonDef = liftAeson
+instance Unjson Number           where unjsonDef = liftAeson
+instance Unjson IntSet.IntSet    where unjsonDef = liftAeson
+instance Unjson Scientific       where unjsonDef = liftAeson
+instance Unjson LazyText.Text    where unjsonDef = liftAeson
+instance Unjson ZonedTime        where unjsonDef = liftAeson
+instance Unjson UTCTime          where unjsonDef = liftAeson
+instance Unjson Aeson.DotNetTime where unjsonDef = liftAeson
+instance Unjson Aeson.Value      where unjsonDef = liftAeson
+instance Unjson (Ratio Integer)  where unjsonDef = liftAeson
+instance (HasResolution a, Typeable a, Aeson.FromJSON a, Aeson.ToJSON a) => Unjson (Fixed a) where unjsonDef = liftAeson
+{-
+instance Unjson a => Unjson (Dual a)  where unjsonDef = liftAeson
+instance Unjson a => Unjson (First a)  where unjsonDef = liftAeson
+instance Unjson a => Unjson (Last a)  where unjsonDef = liftAeson
+instance Unjson v => Unjson (Tree v)  where unjsonDef = liftAeson
+instance Unjson a => Unjson (IntMap.IntMap a)  where unjsonDef = liftAeson
+instance (Ord a, Unjson a) => Unjson (Set.Set a)  where unjsonDef = liftAeson
+instance (Eq a, Hashable a, Unjson a) => Unjson (HashSet.HashSet a)  where unjsonDef = liftAeson
+instance Unjson a => Unjson (Vector.Vector a)  where unjsonDef = liftAeson
+instance (Data.Vector.Generic.Vector Data.Vector.Unboxed.Vector a, Unjson a) => Unjson (Data.Vector.Unboxed.Vector a)  where unjsonDef = liftAeson
+instance (Storable a, Unjson a) => Unjson (Data.Vector.Storable.Vector a)  where unjsonDef = liftAeson
+instance (Prim a, Unjson a) => Unjson (Data.Vector.Primitive.Vector a)  where unjsonDef = liftAeson
+instance (Unjson a, Unjson b) => Unjson (Either a b)  where unjsonDef = liftAeson
+instance Unjson v => Unjson (Map.Map String v)  where unjsonDef = liftAeson
+instance Unjson v => Unjson (Map.Map Text.Text v)  where unjsonDef = liftAeson
+instance Unjson v => Unjson (Map.Map LazyText.Text v)  where unjsonDef = liftAeson
+instance Unjson v => Unjson (HashMap.HashMap String v)  where unjsonDef = liftAeson
+instance Unjson v => Unjson (HashMap.HashMap Text.Text v)  where unjsonDef = liftAeson
+instance Unjson v => Unjson (HashMap.HashMap LazyText.Text v) where unjsonDef = liftAeson
+-}
 
 instance (Unjson a,Unjson b) => Unjson (a,b) where
   unjsonDef = TupleUnjsonDef
@@ -900,8 +963,8 @@ arrayWithModeAndPrimaryKeyOf mode pk1 pk2 valuedef =
 -- 2. for each object in json array primary key is extracted and is
 --   looked up in old elements mapping
 --
--- 3. if mapping is found then element is 'update' d, if mapping is not
---   found then element is 'parse' d
+-- 3. if mapping is found then element is 'update'd, if mapping is not
+--   found then element is 'parse'd
 --
 -- 4. in all cases the order of elements in the *new* array is respected
 --
