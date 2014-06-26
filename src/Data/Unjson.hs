@@ -372,6 +372,9 @@ instance (Unjson a,Unjson b,Unjson c,Unjson d
 -- | Specify how arrays should be handled. Default is
 -- 'ArrayModeStrict' that does not do anything special with
 -- arrays.
+--
+-- 'ArrayMode' is used in 'arrayWithModeAndPrimaryKeyOf' and
+-- 'arrayWithModeOf'.
 data ArrayMode
   -- | Require JSON array. On output always output array.
   = ArrayModeStrict
@@ -804,10 +807,13 @@ arrayWithModeOf' mode = arrayWithModeOf mode liftAeson
 -- Example:
 --
 -- > unjsonArrayOfIntToInt :: UnjsonDef [(Int,Int)]
--- > unjsonArrayOfIntToInt = arrayWithModeAndPrimaryKeyOf ArrayModeStrict
--- >                             (map fst)
--- >                             (objectOf $ pure id <*> field' "key" id)
--- >                             (objectOf $ pure (,) <*> field' "key" fst <*> field' "value" fst)
+-- > unjsonArrayOfIntToInt = arrayWithPrimaryKeyOf ArrayModeParseSingle
+-- >                              (fst)
+-- >                              (objectOf $ pure id
+-- >                                 <*> field' "key" id "Key in mapping")
+-- >                              (objectOf $ pure (,)
+-- >                                 <*> field' "key" fst "Key in mapping"
+-- >                                 <*> field' "value" fst "Value in mapping")
 arrayWithModeAndPrimaryKeyOf :: (Ord pk)
                              => ArrayMode
                              -> (a -> pk)
@@ -843,9 +849,12 @@ arrayWithModeAndPrimaryKeyOf mode pk1 pk2 valuedef =
 --
 -- > unjsonArrayOfIntToInt :: UnjsonDef [(Int,Int)]
 -- > unjsonArrayOfIntToInt = arrayWithPrimaryKeyOf
--- >                             (map fst)
--- >                             (objectOf $ pure id <*> field' "key" id)
--- >                             (objectOf $ pure (,) <*> field' "key" fst <*> field' "value" fst)
+-- >                              (fst)
+-- >                              (objectOf $ pure id
+-- >                                 <*> field' "key" id "Key in mapping")
+-- >                              (objectOf $ pure (,)
+-- >                                 <*> field' "key" fst "Key in mapping"
+-- >                                 <*> field' "value" fst "Value in mapping")
 arrayWithPrimaryKeyOf :: (Ord pk)
                       => (a -> pk)
                       -> UnjsonDef pk
@@ -863,6 +872,8 @@ arrayWithPrimaryKeyOf pk1 pk2 valuedef =
 --
 -- Example:
 --
+-- > instance FromJSON MyType where ...
+-- > instance ToJSON MyType where ...
 -- > instance Unjson MyType where
 -- >     unjsonDef = liftAeson
 liftAeson :: forall a . (Aeson.FromJSON a,Aeson.ToJSON a, Typeable a) => UnjsonDef a
