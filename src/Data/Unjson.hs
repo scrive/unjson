@@ -795,13 +795,19 @@ arrayWithModeOf' :: (Aeson.FromJSON a,Aeson.ToJSON a, Typeable a)
 arrayWithModeOf' mode = arrayWithModeOf mode liftAeson
 
 
--- | Declare array pf objects with given parsers that should be
--- matched by a primary key. Accepts mode specifier.
+-- | Declare array of objects with given parsers that should be
+-- matched by a primary key and accepts mode specifier.
+--
+-- For discussion of primary key see 'arrayWithPrimaryKeyOf'. For
+-- discussion of array modes see 'ArrayMode'.
 --
 -- Example:
 --
--- > unjsonArrayOfIntOrSimpleInt :: UnjsonDef [Int]
--- > unjsonArrayOfIntOrSimpleInt = arrayWithModeOf'
+-- > unjsonArrayOfIntToInt :: UnjsonDef [(Int,Int)]
+-- > unjsonArrayOfIntToInt = arrayWithModeAndPrimaryKeyOf ArrayModeStrict
+-- >                             (map fst)
+-- >                             (objectOf $ pure id <*> field' "key" id)
+-- >                             (objectOf $ pure (,) <*> field' "key" fst <*> field' "value" fst)
 arrayWithModeAndPrimaryKeyOf :: (Ord pk)
                              => ArrayMode
                              -> (a -> pk)
@@ -811,13 +817,35 @@ arrayWithModeAndPrimaryKeyOf :: (Ord pk)
 arrayWithModeAndPrimaryKeyOf mode pk1 pk2 valuedef =
   ArrayUnjsonDef (Just (PrimaryKeyExtraction pk1 pk2)) mode valuedef
 
--- | Declare array pf objects with given parsers that should be
--- matched by a primary key. Accepts mode specifier.
+-- | Declare array of objects with given parsers that should be
+-- matched by a primary key. Uses 'ArrayModeStrict'.
+--
+-- Primary key:
+--
+-- Primary keys are used to match objects in 'update' mode. When a
+-- request to update array is issued and array has primary key
+-- specification then the following steps are used:
+--
+-- 1. primary keys from old array elements are extracted and a mapping
+--   from primary key to element is created. Mapping is left biased
+--   meaning that first element with specific primary key in array is
+--   used
+--
+-- 2. for each object in json array primary key is extracted and is
+--   looked up in old elements mapping
+--
+-- 3. if mapping is found then element is 'update' d, if mapping is not
+--   found then element is 'parse' d
+--
+-- 4. in all cases the order of elements in the *new* array is respected
 --
 -- Example:
 --
--- > unjsonArrayOfIntOrSimpleInt :: UnjsonDef [Int]
--- > unjsonArrayOfIntOrSimpleInt = arrayWithModeOf'
+-- > unjsonArrayOfIntToInt :: UnjsonDef [(Int,Int)]
+-- > unjsonArrayOfIntToInt = arrayWithPrimaryKeyOf
+-- >                             (map fst)
+-- >                             (objectOf $ pure id <*> field' "key" id)
+-- >                             (objectOf $ pure (,) <*> field' "key" fst <*> field' "value" fst)
 arrayWithPrimaryKeyOf :: (Ord pk)
                       => (a -> pk)
                       -> UnjsonDef pk
