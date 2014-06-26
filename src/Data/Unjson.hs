@@ -1,5 +1,5 @@
 -- | @Unjson@: bidirectional JSON (de)serialization with strong error
--- reporting capabilities and automatica documentation generation.
+-- reporting capabilities and automatic documentation generation.
 --
 -- @Data.Unjson@ offers:
 --
@@ -17,7 +17,67 @@
 --
 -- * automatic documentation generation
 --
--- For examples have a look at 'Unjson', 'parse', 'update',
+-- Example:
+--
+-- > data Example = Example
+-- >    { exampleName     :: Text.Text,
+-- >      exampleArray    :: [Int],
+-- >      exampleOptional :: Maybe Bool }
+-- >
+-- > unjsonExample :: UnjsonDef Example
+-- > unjsonExample = objectOf $ pure Example
+-- >   <*> field' "name"
+-- >           exampleName
+-- >           "Name used for example"
+-- >   <*> fieldDefBy "array_of_ints" []
+-- >           exampleArray
+-- >           "Array of integers, optional, defaults to empty list"
+-- >           arrayOf'
+-- >   <*> fieldOpt' "optional_bool"
+-- >           exampleOptional
+-- >           "Optional boolean"
+--
+-- Rendered documentation:
+--
+-- > name (req):
+-- >     Name used for example
+-- >     Text
+-- > array_of_ints (def):
+-- >     Array of integers, optional, defaults to empty list
+-- >     array of:
+-- >         Int
+-- > optional_bool (opt):
+-- >     Optional boolean
+-- >     Bool
+--
+-- Documentation has some colors that could not be reproduced in
+-- haddock.
+--
+-- Parsing:
+--
+-- > let Result val iss = parse unjsonExample (Anchored mempty $
+-- >                                 object [ "name" .= 123,
+-- >                                          "array_of_ints" .= [toJSON 123, toJSON "abc"],
+-- >                                          "optional_bool" .= True ])
+--
+-- Error reporting:
+--
+-- > name: "when expecting a Text, encountered Number instead"
+-- > array_of_ints[1]: "when expecting a Integral, encountered String instead"
+--
+-- Partial results:
+--
+-- > print (exampleOptional val)
+-- > > Just True
+--
+-- Bottom errors in partial results:
+--
+-- > print (exampleName val)
+-- > > "*** Exception: name: "when expecting a Text, encountered Number instead"
+--
+-- Note: if list of issues is empty then there are not bottoms, guaranteed.
+--
+-- For more examples have a look at 'Unjson', 'parse', 'update',
 -- 'serialize' and 'render'.
 module Data.Unjson
 ( Unjson(..)
