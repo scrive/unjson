@@ -1,3 +1,5 @@
+{-# LANGUAGE CPP #-}
+
 -- | @Unjson@: bidirectional JSON (de)serialization with strong error
 -- reporting capabilities and automatic documentation generation.
 --
@@ -312,7 +314,9 @@ instance Unjson ()               where unjsonDef = liftAeson
 instance Unjson Text.Text        where unjsonDef = liftAeson
 instance Unjson Number           where unjsonDef = liftAeson
 instance Unjson IntSet.IntSet    where unjsonDef = liftAeson
+#if MIN_VERSION_aeson(0,7,0)
 instance Unjson Scientific       where unjsonDef = liftAeson
+#endif
 instance Unjson LazyText.Text    where unjsonDef = liftAeson
 instance Unjson ZonedTime        where unjsonDef = liftAeson
 instance Unjson UTCTime          where unjsonDef = liftAeson
