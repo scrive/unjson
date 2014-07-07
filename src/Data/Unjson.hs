@@ -62,8 +62,9 @@
 --
 -- Error reporting:
 --
--- > name: "when expecting a Text, encountered Number instead"
--- > array_of_ints[1]: "when expecting a Integral, encountered String instead"
+-- > mapM_ print iss
+-- > > name: "when expecting a Text, encountered Number instead"
+-- > > array_of_ints[1]: "when expecting a Integral, encountered String instead"
 --
 -- Partial results:
 --
