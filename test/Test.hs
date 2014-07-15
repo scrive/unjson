@@ -39,17 +39,17 @@ data ExtendedTest =
 
 unjsonKonfig :: UnjsonDef Konfig
 unjsonKonfig = objectOf $ pure Konfig
-           <*> field' "hostname"
+           <*> field "hostname"
                  konfigHostname
                  "The hostname this service is visible as"
-           <*> fieldDef' "port" 80
+           <*> fieldDef "port" 80
                  konfigPort
                  "Port to listen on, defaults to 80"
            <*> fieldBy "credentials"
                  konfigCredentials
                  "User admin credentials"
                  unjsonCredentials
-           <*> fieldOpt' "comment"
+           <*> fieldOpt "comment"
                  konfigComment
                  "Optional comment, free text"
            <*> fieldDef "options" []
@@ -61,13 +61,13 @@ unjsonKonfig = objectOf $ pure Konfig
 
 unjsonCredentials :: UnjsonDef Credentials
 unjsonCredentials = objectOf $ pure Credentials
-                    <*> field' "username"
+                    <*> field "username"
                           credentialsUsername
                           "Name of the user"
-                    <*> field' "password"
+                    <*> field "password"
                           credentialsPassword
                           "Password for the user"
-                    <*> fieldOpt' "domain"
+                    <*> fieldOpt "domain"
                           credentialsDomain
                           "Domain for user credentials"
 
@@ -75,10 +75,10 @@ unjsonCredentials = objectOf $ pure Credentials
 unjsonExtendedTest :: UnjsonDef ExtendedTest
 unjsonExtendedTest = objectOf $ pure ExtendedTest
                     <*> (pure maybeMaybeToEither
-                          <*> fieldOpt' "numerical_value"
+                          <*> fieldOpt "numerical_value"
                                 (either Just (const Nothing) . extendedTestEither)
                                 "Numerical value"
-                          <*> fieldOpt' "text_value"
+                          <*> fieldOpt "text_value"
                                 (either (const Nothing) Just . extendedTestEither)
                                 "Text value")
   where
@@ -331,7 +331,7 @@ test_array_modes = "test_array_modes" ~: do
       p0 = objectOf $ pure id
          <*> fieldBy "hostname" id
                  "Single value or array"
-                 (arrayOf')
+                 (arrayOf unjsonDef)
   let p1 :: UnjsonDef [Text.Text]
       p1 = objectOf $ pure id
          <*> fieldBy "hostname" id
@@ -341,7 +341,7 @@ test_array_modes = "test_array_modes" ~: do
       p2 = objectOf $ pure id
          <*> fieldBy "hostname" id
                  "Single value or array"
-                 (arrayWithModeOf' ArrayModeParseAndOutputSingle)
+                 (arrayWithModeOf ArrayModeParseAndOutputSingle unjsonDef)
   let Result val0 iss0 = parse p0 (Anchored mempty json)
   assertEqual "Does not parse value in strict array mode" [Anchored (Path [PathElemKey "hostname"]) "when expecting a Vector a, encountered String instead"] iss0
   let Result val1 iss1 = parse p1 (Anchored mempty json)
@@ -463,13 +463,13 @@ data Example = Example
 
 unjsonExample :: UnjsonDef Example
 unjsonExample = objectOf $ pure Example
-  <*> field' "name"
+  <*> field "name"
           exampleName
           "Name used for example"
   <*> fieldDefBy "array_of_ints" []
           exampleArray
           "Array of integers, optional, defaults to empty list"
-          arrayOf'
-  <*> fieldOpt' "optional_bool"
+          (arrayOf unjsonDef)
+  <*> fieldOpt "optional_bool"
           exampleOptional
           "Optional boolean"

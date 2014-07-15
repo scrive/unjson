@@ -28,14 +28,14 @@
 -- >
 -- > unjsonExample :: UnjsonDef Example
 -- > unjsonExample = objectOf $ pure Example
--- >   <*> field' "name"
+-- >   <*> field "name"
 -- >           exampleName
 -- >           "Name used for example"
 -- >   <*> fieldDefBy "array_of_ints" []
 -- >           exampleArray
 -- >           "Array of integers, optional, defaults to empty list"
 -- >           arrayOf'
--- >   <*> fieldOpt' "optional_bool"
+-- >   <*> fieldOpt "optional_bool"
 -- >           exampleOptional
 -- >           "Optional boolean"
 --
@@ -93,18 +93,13 @@ module Data.Unjson
 , serialize
 , objectOf
 , field
-, field'
 , fieldBy
 , fieldOpt
-, fieldOpt'
 , fieldOptBy
 , fieldDef
-, fieldDef'
 , fieldDefBy
 , arrayOf
 , arrayWithModeOf
-, arrayOf'
-, arrayWithModeOf'
 , arrayWithPrimaryKeyOf
 , arrayWithModeAndPrimaryKeyOf
 , render
@@ -260,9 +255,6 @@ resultWithThrow msg = Result (throw msg) [msg]
 -- >               thingField2
 -- >               "Required field with parser given below"
 -- >               unjsonForKey2
--- >         <*> field' "key3"
--- >               thingField3
--- >               "Required field of type with (ToJSON,FromjSON) instances"
 -- >         <*> fieldOpt "key4"
 -- >               thingField4
 -- >               "Optional field of type with Unjson instance"
@@ -270,9 +262,6 @@ resultWithThrow msg = Result (throw msg) [msg]
 -- >               thingField5
 -- >               "Optional field with parser given below"
 -- >               unjsonForKey5
--- >         <*> fieldOpt' "key6"
--- >               thingField6
--- >               "Optional field of type with (ToJSON,FromjSON) instances"
 -- >         <*> fieldDef "key7"
 -- >               thingField7
 -- >               "Optional field with default of type with Unjson instance"
@@ -280,9 +269,6 @@ resultWithThrow msg = Result (throw msg) [msg]
 -- >               thingField8
 -- >               "Optional field with default with parser given below"
 -- >               unjsonForKey8
--- >         <*> fieldDef' "key9"
--- >               thingField9
--- >               "Optional field with default of type with (ToJSON,FromjSON) instances"
 class Unjson a where
   -- | Definition of a bidirectional parser for a type 'a'. See
   -- 'parse', 'update', 'serialize' and 'render' to see how to use
@@ -803,20 +789,6 @@ fieldBy key f docstring valuedef = liftAp (FieldReqDef key docstring f valuedef)
 field :: (Unjson a) => Text.Text -> (s -> a) -> Text.Text -> Ap (FieldDef s) a
 field key f docstring = fieldBy key f docstring unjsonDef
 
--- | Declare a required field of a primitive type.
---
--- Example:
---
--- > unjsonThing :: UnjsonDef Thing
--- > unjsonThing = objectOf $ pure Thing
--- >    <*> field' "port"
--- >          thingPort
--- >          "Port to listen on"
--- >
--- > data Thing = Thing { thingPort :: Int, ... }
-field' :: (Aeson.FromJSON a,Aeson.ToJSON a, Typeable a) => Text.Text -> (s -> a) -> Text.Text -> Ap (FieldDef s) a
-field' key f docstring = fieldBy key f docstring liftAesonFixCharArrayToString
-
 -- | Declare an optional field and definition by valuedef.
 --
 -- Example:
@@ -848,20 +820,6 @@ fieldOptBy key f docstring valuedef = liftAp (FieldOptDef key docstring f valued
 fieldOpt :: (Unjson a) => Text.Text -> (s -> Maybe a) -> Text.Text -> Ap (FieldDef s) (Maybe a)
 fieldOpt key f docstring = fieldOptBy key f docstring unjsonDef
 
--- | Declare an optional field of primitive type.
---
--- Example:
---
--- > unjsonThing :: UnjsonDef Thing
--- > unjsonThing = objectOf $ pure Thing
--- >    <*> fieldDef' "port"
--- >          thingPort
--- >          "Optional port to listen on"
--- >
--- > data Thing = Thing { thingPort :: Int, ... }
-fieldOpt' :: (Aeson.FromJSON a,Aeson.ToJSON a, Typeable a) => Text.Text -> (s -> Maybe a) -> Text.Text -> Ap (FieldDef s) (Maybe a)
-fieldOpt' key f docstring = fieldOptBy key f docstring liftAesonFixCharArrayToString
-
 -- | Declare a field with default value and definition by valuedef.
 --
 -- Example:
@@ -884,28 +842,13 @@ fieldDefBy key def f docstring valuedef = liftAp (FieldDefDef key docstring def 
 --
 -- > unjsonThing :: UnjsonDef Thing
 -- > unjsonThing = objectOf $ pure Thing
--- >    <*> fieldDef "credentials" defaultCredentials
--- >          thingCredentials
--- >          "Credentials to use, defaults to defaultCredentials"
--- >
--- > data Thing = Thing { thingCredentials :: Credentials, ... }
--- > instance Unjson Credentials where ...
-fieldDef :: (Unjson a) => Text.Text -> a -> (s -> a) -> Text.Text -> Ap (FieldDef s) a
-fieldDef key def f docstring = fieldDefBy key def f docstring unjsonDef
-
--- | Declate a field with primitive type lifted from Aeson and a default value.
---
--- Example:
---
--- > unjsonThing :: UnjsonDef Thing
--- > unjsonThing = objectOf $ pure Thing
--- >    <*> fieldDef' "port" 80
+-- >    <*> fieldDef "port" 80
 -- >          thingPort
 -- >          "Port to listen on, defaults to 80"
 -- >
 -- > data Thing = Thing { thingPort :: Int, ... }
-fieldDef' :: (Aeson.FromJSON a,Aeson.ToJSON a, Typeable a) => Text.Text -> a -> (s -> a) -> Text.Text -> Ap (FieldDef s) a
-fieldDef' key def f docstring = fieldDefBy key def f docstring liftAesonFixCharArrayToString
+fieldDef :: (Unjson a) => Text.Text -> a -> (s -> a) -> Text.Text -> Ap (FieldDef s) a
+fieldDef key def f docstring = fieldDefBy key def f docstring unjsonDef
 
 -- | Declare an object as bidirectional mapping from JSON object to Haskell record and back.
 --
@@ -916,12 +859,12 @@ fieldDef' key def f docstring = fieldDefBy key def f docstring liftAesonFixCharA
 -- >    ...field definitions go here
 --
 -- Use field functions to specify fields of an object: 'field',
--- 'field'', 'fieldBy', 'fieldOpt', 'fieldOpt'', 'fieldOptBy',
--- 'fieldDef', 'fieldDef'' or 'fieldDefBy'.
+-- 'fieldBy', 'fieldOpt', 'fieldOptBy',
+-- 'fieldDef' or 'fieldDefBy'.
 objectOf :: Ap (FieldDef a) a -> UnjsonDef a
 objectOf fields = ObjectUnjsonDef fields
 
--- | Declare array of values where each of them is described by valuedef.
+-- | Declare array of values where each of them is described by valuedef. Use 'liftAeson' to parse
 --
 -- Example:
 --
@@ -980,10 +923,10 @@ arrayWithModeOf' mode = arrayWithModeOf mode liftAeson
 -- > unjsonArrayOfIntToInt = arrayWithPrimaryKeyOf ArrayModeParseSingle
 -- >                              (fst)
 -- >                              (objectOf $ pure id
--- >                                 <*> field' "key" id "Key in mapping")
+-- >                                 <*> field "key" id "Key in mapping")
 -- >                              (objectOf $ pure (,)
--- >                                 <*> field' "key" fst "Key in mapping"
--- >                                 <*> field' "value" fst "Value in mapping")
+-- >                                 <*> field "key" fst "Key in mapping"
+-- >                                 <*> field "value" fst "Value in mapping")
 arrayWithModeAndPrimaryKeyOf :: (Ord pk)
                              => ArrayMode
                              -> (a -> pk)
@@ -1021,10 +964,10 @@ arrayWithModeAndPrimaryKeyOf mode pk1 pk2 valuedef =
 -- > unjsonArrayOfIntToInt = arrayWithPrimaryKeyOf
 -- >                              (fst)
 -- >                              (objectOf $ pure id
--- >                                 <*> field' "key" id "Key in mapping")
+-- >                                 <*> field "key" id "Key in mapping")
 -- >                              (objectOf $ pure (,)
--- >                                 <*> field' "key" fst "Key in mapping"
--- >                                 <*> field' "value" fst "Value in mapping")
+-- >                                 <*> field "key" fst "Key in mapping"
+-- >                                 <*> field "value" fst "Value in mapping")
 arrayWithPrimaryKeyOf :: (Ord pk)
                       => (a -> pk)
                       -> UnjsonDef pk
