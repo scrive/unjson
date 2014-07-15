@@ -106,8 +106,8 @@ module Data.Unjson
 , renderForPath
 , renderDoc
 , renderDocForPath
-, liftAeson
-, liftAesonWithDoc
+, unjsonAeson
+, unjsonAesonWithDoc
 , Result(..)
 , Anchored(..)
 , parse
@@ -279,50 +279,50 @@ instance (Unjson a) => Unjson [a] where
   unjsonDef = arrayOf unjsonDef
 
 instance Unjson String where
-  unjsonDef = liftAesonWithDoc "String"
+  unjsonDef = unjsonAesonWithDoc "String"
 
-instance Unjson Bool             where unjsonDef = liftAeson
-instance Unjson Char             where unjsonDef = liftAeson
-instance Unjson Double           where unjsonDef = liftAeson
-instance Unjson Float            where unjsonDef = liftAeson
-instance Unjson Int              where unjsonDef = liftAeson
-instance Unjson Int8             where unjsonDef = liftAeson
-instance Unjson Int16            where unjsonDef = liftAeson
-instance Unjson Int32            where unjsonDef = liftAeson
-instance Unjson Int64            where unjsonDef = liftAeson
-instance Unjson Integer          where unjsonDef = liftAeson
-instance Unjson Word             where unjsonDef = liftAeson
-instance Unjson Word8            where unjsonDef = liftAeson
-instance Unjson Word16           where unjsonDef = liftAeson
-instance Unjson Word32           where unjsonDef = liftAeson
-instance Unjson Word64           where unjsonDef = liftAeson
-instance Unjson ()               where unjsonDef = liftAeson
-instance Unjson Text.Text        where unjsonDef = liftAeson
-instance Unjson Number           where unjsonDef = liftAeson
-instance Unjson IntSet.IntSet    where unjsonDef = liftAeson
+instance Unjson Bool             where unjsonDef = unjsonAeson
+instance Unjson Char             where unjsonDef = unjsonAeson
+instance Unjson Double           where unjsonDef = unjsonAeson
+instance Unjson Float            where unjsonDef = unjsonAeson
+instance Unjson Int              where unjsonDef = unjsonAeson
+instance Unjson Int8             where unjsonDef = unjsonAeson
+instance Unjson Int16            where unjsonDef = unjsonAeson
+instance Unjson Int32            where unjsonDef = unjsonAeson
+instance Unjson Int64            where unjsonDef = unjsonAeson
+instance Unjson Integer          where unjsonDef = unjsonAeson
+instance Unjson Word             where unjsonDef = unjsonAeson
+instance Unjson Word8            where unjsonDef = unjsonAeson
+instance Unjson Word16           where unjsonDef = unjsonAeson
+instance Unjson Word32           where unjsonDef = unjsonAeson
+instance Unjson Word64           where unjsonDef = unjsonAeson
+instance Unjson ()               where unjsonDef = unjsonAeson
+instance Unjson Text.Text        where unjsonDef = unjsonAeson
+instance Unjson Number           where unjsonDef = unjsonAeson
+instance Unjson IntSet.IntSet    where unjsonDef = unjsonAeson
 #if MIN_VERSION_aeson(0,7,0)
-instance Unjson Scientific       where unjsonDef = liftAeson
+instance Unjson Scientific       where unjsonDef = unjsonAeson
 #endif
-instance Unjson LazyText.Text    where unjsonDef = liftAeson
-instance Unjson ZonedTime        where unjsonDef = liftAeson
-instance Unjson UTCTime          where unjsonDef = liftAeson
-instance Unjson Aeson.DotNetTime where unjsonDef = liftAeson
-instance Unjson Aeson.Value      where unjsonDef = liftAeson
-instance Unjson (Ratio Integer)  where unjsonDef = liftAeson
-instance (HasResolution a, Typeable a, Aeson.FromJSON a, Aeson.ToJSON a) => Unjson (Fixed a) where unjsonDef = liftAeson
+instance Unjson LazyText.Text    where unjsonDef = unjsonAeson
+instance Unjson ZonedTime        where unjsonDef = unjsonAeson
+instance Unjson UTCTime          where unjsonDef = unjsonAeson
+instance Unjson Aeson.DotNetTime where unjsonDef = unjsonAeson
+instance Unjson Aeson.Value      where unjsonDef = unjsonAeson
+instance Unjson (Ratio Integer)  where unjsonDef = unjsonAeson
+instance (HasResolution a, Typeable a, Aeson.FromJSON a, Aeson.ToJSON a) => Unjson (Fixed a) where unjsonDef = unjsonAeson
 instance Unjson a => Unjson (Dual a)  where unjsonDef = dibimapUnjsonDef Dual getDual unjsonDef
 {-
 
 -- these work only when 'Maybe a' and 'a' instances are conflated. we do not want this really, do we?
 -- First and Last are Monoids here, not sure if/how Unjson should be a monoid or something
 instance Unjson a => Unjson (First a)  where unjsonDef = dibimapUnjsonDef First getFirst unjsonDef
-instance Unjson a => Unjson (Last a)  where unjsonDef = liftAeson
+instance Unjson a => Unjson (Last a)  where unjsonDef = unjsonAeson
 
 -- what is this tree instance thing?
-instance Unjson v => Unjson (Tree v)  where unjsonDef = liftAeson
+instance Unjson v => Unjson (Tree v)  where unjsonDef = unjsonAeson
 
 -- disjoint unions require special setup
-instance (Unjson a, Unjson b) => Unjson (Either a b)  where unjsonDef = liftAeson
+instance (Unjson a, Unjson b) => Unjson (Either a b)  where unjsonDef = unjsonAeson
 -}
 
 instance Unjson a => Unjson (IntMap.IntMap a)
@@ -864,7 +864,7 @@ fieldDef key def f docstring = fieldDefBy key def f docstring unjsonDef
 objectOf :: Ap (FieldDef a) a -> UnjsonDef a
 objectOf fields = ObjectUnjsonDef fields
 
--- | Declare array of values where each of them is described by valuedef. Use 'liftAeson' to parse
+-- | Declare array of values where each of them is described by valuedef. Use 'unjsonAeson' to parse
 --
 -- Example:
 --
@@ -896,7 +896,7 @@ arrayWithModeOf mode valuedef = ArrayUnjsonDef Nothing mode id id valuedef
 -- > unjsonArrayOfInt :: UnjsonDef [Int]
 -- > unjsonArrayOfInt = arrayOf'
 arrayOf' :: (Aeson.FromJSON a,Aeson.ToJSON a, Typeable a) => UnjsonDef [a]
-arrayOf' = arrayOf liftAeson
+arrayOf' = arrayOf unjsonAeson
 
 -- | Declare array of primitive values lifed from 'Aeson'. Accepts
 -- mode specifier.
@@ -908,7 +908,7 @@ arrayOf' = arrayOf liftAeson
 arrayWithModeOf' :: (Aeson.FromJSON a,Aeson.ToJSON a, Typeable a)
                  => ArrayMode
                  -> UnjsonDef [a]
-arrayWithModeOf' mode = arrayWithModeOf mode liftAeson
+arrayWithModeOf' mode = arrayWithModeOf mode unjsonAeson
 
 
 -- | Declare array of objects with given parsers that should be
@@ -988,14 +988,14 @@ arrayWithPrimaryKeyOf pk1 pk2 valuedef =
 -- > instance FromJSON MyType where ...
 -- > instance ToJSON MyType where ...
 -- > instance Unjson MyType where
--- >     unjsonDef = liftAeson
-liftAeson :: forall a . (Aeson.FromJSON a,Aeson.ToJSON a, Typeable a) => UnjsonDef a
-liftAeson = liftAesonWithDoc (Text.pack (show (typeOf (undefined :: a))))
+-- >     unjsonDef = unjsonAeson
+unjsonAeson :: forall a . (Aeson.FromJSON a,Aeson.ToJSON a, Typeable a) => UnjsonDef a
+unjsonAeson = unjsonAesonWithDoc (Text.pack (show (typeOf (undefined :: a))))
 
--- | Like 'liftAeson' but accepts docstring as additional parameter
+-- | Like 'unjsonAeson' but accepts docstring as additional parameter
 -- that should identify type.
-liftAesonWithDoc :: (Aeson.FromJSON a,Aeson.ToJSON a) => Text.Text -> UnjsonDef a
-liftAesonWithDoc docstring = SimpleUnjsonDef docstring
+unjsonAesonWithDoc :: (Aeson.FromJSON a,Aeson.ToJSON a) => Text.Text -> UnjsonDef a
+unjsonAesonWithDoc docstring = SimpleUnjsonDef docstring
               (\(Anchored path value) ->
                 case Aeson.fromJSON value of
                   Aeson.Success result -> Result result []
@@ -1003,9 +1003,9 @@ liftAesonWithDoc docstring = SimpleUnjsonDef docstring
               Aeson.toJSON
 
 -- | Rename @[Char]@ to @String@ everywhere.
-liftAesonFixCharArrayToString :: forall a . (Aeson.FromJSON a,Aeson.ToJSON a, Typeable a) => UnjsonDef a
-liftAesonFixCharArrayToString =
-  liftAesonWithDoc (Text.pack typeNameFixed)
+unjsonAesonFixCharArrayToString :: forall a . (Aeson.FromJSON a,Aeson.ToJSON a, Typeable a) => UnjsonDef a
+unjsonAesonFixCharArrayToString =
+  unjsonAesonWithDoc (Text.pack typeNameFixed)
   where
     typeName = show (typeOf (undefined :: a))
     typeNameFixed = fixup typeName
