@@ -34,7 +34,7 @@
 -- >   <*> fieldDefBy "array_of_ints" []
 -- >           exampleArray
 -- >           "Array of integers, optional, defaults to empty list"
--- >           arrayOf'
+-- >           arrayOf
 -- >   <*> fieldOpt "optional_bool"
 -- >           exampleOptional
 -- >           "Optional boolean"
@@ -888,15 +888,6 @@ arrayOf = arrayWithModeOf ArrayModeStrict
 -- > unjsonThing = ...
 arrayWithModeOf :: ArrayMode -> UnjsonDef a -> UnjsonDef [a]
 arrayWithModeOf mode valuedef = ArrayUnjsonDef Nothing mode id id valuedef
-
--- | Declare array of primitive values lifed from 'Aeson'.
---
--- Example:
---
--- > unjsonArrayOfInt :: UnjsonDef [Int]
--- > unjsonArrayOfInt = arrayOf'
-arrayOf' :: (Aeson.FromJSON a,Aeson.ToJSON a, Typeable a) => UnjsonDef [a]
-arrayOf' = arrayOf unjsonAeson
 
 -- | Declare array of primitive values lifed from 'Aeson'. Accepts
 -- mode specifier.
