@@ -84,12 +84,13 @@
 -- 'serialize' and 'render'.
 module Data.Unjson
 ( Unjson(..)
-, UnjsonDef
+, UnjsonDef(..)
 , Problem
 , Problems
 , Path(..)
 , PathElem(..)
 , ArrayMode(..)
+, FieldDef(..)
 , serialize
 , objectOf
 , field
