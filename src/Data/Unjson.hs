@@ -114,6 +114,7 @@ module Data.Unjson
 , parse
 , update
 
+, unjsonIsConstrByName
 , unjsonIPv4AsWord32
 )
 where
@@ -133,10 +134,15 @@ import qualified Data.IntMap as IntMap
 import qualified Data.IntSet as IntSet
 import qualified Data.HashSet as HashSet
 import Data.Typeable
+import Data.Data
 import Data.Monoid
 import Data.Primitive.Types
 import Data.Hashable
+#ifdef MIN_VERSION_aeson
+#if MIN_VERSION_aeson(0,7,0)
 import Data.Scientific
+#endif
+#endif
 import Data.Attoparsec.Number
 import Data.Time.LocalTime
 import Data.Time.Clock
@@ -301,8 +307,10 @@ instance Unjson ()               where unjsonDef = unjsonAeson
 instance Unjson Text.Text        where unjsonDef = unjsonAeson
 instance Unjson Number           where unjsonDef = unjsonAeson
 instance Unjson IntSet.IntSet    where unjsonDef = unjsonAeson
+#ifdef MIN_VERSION_aeson
 #if MIN_VERSION_aeson(0,7,0)
 instance Unjson Scientific       where unjsonDef = unjsonAeson
+#endif
 #endif
 instance Unjson LazyText.Text    where unjsonDef = unjsonAeson
 instance Unjson ZonedTime        where unjsonDef = unjsonAeson
@@ -319,7 +327,7 @@ instance Unjson a => Unjson (Dual a)  where unjsonDef = dibimapUnjsonDef Dual ge
 instance Unjson a => Unjson (First a)  where unjsonDef = dibimapUnjsonDef First getFirst unjsonDef
 instance Unjson a => Unjson (Last a)  where unjsonDef = unjsonAeson
 
--- what is this tree instance thing?
+-- Tree instance creates array of the form ["rootname", [trees]]. We could parse this nicely.
 instance Unjson v => Unjson (Tree v)  where unjsonDef = unjsonAeson
 
 -- disjoint unions require special setup
@@ -341,23 +349,31 @@ instance (Storable a, Unjson a) => Unjson (Data.Vector.Storable.Vector a)
 instance (Prim a, Unjson a) => Unjson (Data.Vector.Primitive.Vector a)
   where unjsonDef = dibimapUnjsonDef Data.Vector.Primitive.fromList Data.Vector.Primitive.toList unjsonDef
 
-{-
 
--- these are no good, seems like map behavior needs special construct
+mapFst f (a,b) = (f a, b)
 
 instance Unjson v => Unjson (Map.Map String v)
-  where unjsonDef = dibimapUnjsonDef Map.fromList Map.toList unjsonDef
+  where unjsonDef = dibimapUnjsonDef (Map.fromList . map (mapFst Text.unpack) . HashMap.toList)
+                                     (HashMap.fromList . map (mapFst Text.pack) . Map.toList)
+                                     unjsonDef
 instance Unjson v => Unjson (Map.Map Text.Text v)
-  where unjsonDef = dibimapUnjsonDef Map.fromList Map.toList unjsonDef
+  where unjsonDef = dibimapUnjsonDef (Map.fromList . HashMap.toList)
+                                     (HashMap.fromList . Map.toList)
+                                     unjsonDef
 instance Unjson v => Unjson (Map.Map LazyText.Text v)
-  where unjsonDef = dibimapUnjsonDef Map.fromList Map.toList unjsonDef
+  where unjsonDef = dibimapUnjsonDef (Map.fromList . map (mapFst LazyText.fromStrict) . HashMap.toList)
+                                     (HashMap.fromList . map (mapFst LazyText.toStrict) . Map.toList)
+                                     unjsonDef
 instance Unjson v => Unjson (HashMap.HashMap String v)
-  where unjsonDef = dibimapUnjsonDef HashMap.fromList HashMap.toList unjsonDef
+  where unjsonDef = dibimapUnjsonDef (HashMap.fromList . map (mapFst Text.unpack) . HashMap.toList)
+                                     (HashMap.fromList . map (mapFst Text.pack) . HashMap.toList)
+                                     unjsonDef
 instance Unjson v => Unjson (HashMap.HashMap Text.Text v)
-  where unjsonDef = dibimapUnjsonDef HashMap.fromList HashMap.toList unjsonDef
+  where unjsonDef = MapUnjsonDef unjsonDef id id
 instance Unjson v => Unjson (HashMap.HashMap LazyText.Text v)
-  where unjsonDef = dibimapUnjsonDef HashMap.fromList HashMap.toList unjsonDef
--}
+  where unjsonDef = dibimapUnjsonDef (HashMap.fromList . map (mapFst LazyText.fromStrict) . HashMap.toList)
+                                     (HashMap.fromList . map (mapFst LazyText.toStrict) . HashMap.toList)
+                                     unjsonDef
 
 instance (Unjson a,Unjson b) => Unjson (a,b) where
   unjsonDef = TupleUnjsonDef
@@ -542,16 +558,18 @@ data PrimaryKeyExtraction k = forall pk . (Ord pk) => PrimaryKeyExtraction (k ->
 
 -- | Opaque 'UnjsonDef' defines a bidirectional JSON parser.
 data UnjsonDef a where
-  SimpleUnjsonDef :: Text.Text -> (Anchored Aeson.Value -> Result k) -> (k -> Aeson.Value) -> UnjsonDef k
-  ArrayUnjsonDef  :: Maybe (PrimaryKeyExtraction k) -> ArrayMode -> ([k] -> v) -> (v -> [k]) -> UnjsonDef k -> UnjsonDef v
-  ObjectUnjsonDef :: Ap (FieldDef k) k -> UnjsonDef k
-  TupleUnjsonDef  :: Ap (TupleFieldDef k) k -> UnjsonDef k
-  DisjointUnjsonDef :: Text.Text -> [(Text.Text,UnjsonDef k)] -> UnjsonDef k
+  SimpleUnjsonDef   :: Text.Text -> (Anchored Aeson.Value -> Result k) -> (k -> Aeson.Value) -> UnjsonDef k
+  ArrayUnjsonDef    :: Maybe (PrimaryKeyExtraction k) -> ArrayMode -> ([k] -> v) -> (v -> [k]) -> UnjsonDef k -> UnjsonDef v
+  ObjectUnjsonDef   :: Ap (FieldDef k) k -> UnjsonDef k
+  TupleUnjsonDef    :: Ap (TupleFieldDef k) k -> UnjsonDef k
+  DisjointUnjsonDef :: Text.Text -> [(Text.Text, k -> Bool, Ap (FieldDef k) k)] -> UnjsonDef k
+  MapUnjsonDef      :: UnjsonDef k -> (HashMap.HashMap Text.Text k -> v) -> (v -> HashMap.HashMap Text.Text k) -> UnjsonDef v
 
 -- This is Profunctor, but I really do not want to depend on lens here, sorry.
 dibimapUnjsonDef :: (a -> b) -> (b -> a) -> UnjsonDef a -> UnjsonDef b
 dibimapUnjsonDef f g (SimpleUnjsonDef name p s) = SimpleUnjsonDef name (fmap f . p) (s . g)
 dibimapUnjsonDef f g (ArrayUnjsonDef mpk am n k d) = ArrayUnjsonDef mpk am (f . n) (k . g) d
+dibimapUnjsonDef f g (MapUnjsonDef d n k) = MapUnjsonDef d (f . n) (k . g)
 dibimapUnjsonDef f g (ObjectUnjsonDef fd) = ObjectUnjsonDef (fmap f (hoistAp (dibimapFieldDef g) fd))
 dibimapUnjsonDef f g (TupleUnjsonDef td) = TupleUnjsonDef (fmap f (hoistAp (dibimapTupleFieldDef g) td))
 
@@ -609,6 +627,12 @@ serialize (ObjectUnjsonDef f) a =
   Aeson.object (objectDefToArray a f)
 serialize (TupleUnjsonDef f) a =
   Aeson.toJSON (tupleDefToArray a f)
+serialize (DisjointUnjsonDef k l) a =
+  Aeson.object ((k,Aeson.toJSON nm) : objectDefToArray a f)
+  where
+    [(nm,_,f)] = filter (\(_,is,_) -> is a) l
+serialize (MapUnjsonDef f _ g) a =
+  Aeson.Object $ fmap (serialize f) (g a)
 
 -- | Count how many applications there are. Useful for error
 -- reporting.
@@ -670,15 +694,22 @@ parseUpdating (DisjointUnjsonDef k l) ov a@(Anchored path v)
   = case Aeson.parseEither Aeson.parseJSON v of
       Right v -> case HashMap.lookup k v of
         Just x -> case Aeson.parseEither Aeson.parseJSON x of
-          Right xx -> case Prelude.lookup xx l of
-            Just z -> parseUpdating z ov a
-            Nothing ->
+          Right xx -> case filter (\(nm,_,_) -> nm==xx) l of
+            [(_,_,f)] -> runAp (lookupByFieldDef (Anchored path v) ov) f
+            _ ->
               resultWithThrow (Anchored (path <> Path [PathElemKey k]) "value is not one of the allowed for enumeration")
           Left e ->
             resultWithThrow (Anchored (path <> Path [PathElemKey k]) (Text.pack e))
         Nothing -> case ov of
           Just xov -> Result xov []
           Nothing -> resultWithThrow (Anchored (path <> Path [PathElemKey k]) "missing key")
+      Left e ->
+        resultWithThrow (Anchored path (Text.pack e))
+parseUpdating (MapUnjsonDef f g h) ov a@(Anchored path v)
+  = case Aeson.parseEither Aeson.parseJSON v of
+      Right v ->
+        let hov = fmap h ov in
+        fmap g $ HashMap.traverseWithKey (\k1 v1 -> parseUpdating f (join (fmap (HashMap.lookup k1) hov)) (Anchored (path <> Path [PathElemKey k1]) v1)) v
       Left e ->
         resultWithThrow (Anchored path (Text.pack e))
 
@@ -1022,6 +1053,9 @@ unjsonAesonFixCharArrayToString =
     fixup ('[':'C':'h':'a':'r':']':rest) = "String" ++ fixup rest
     fixup (x:xs) = x : fixup xs
 
+unjsonIsConstrByName :: (Data a) => String -> a -> Bool
+unjsonIsConstrByName nm v = nm == show (toConstr v)
+
 -- | Renders documentation for a parser into a multiline string. It is
 -- expected that this string is a human readable representation that
 -- can go directly to console.
@@ -1081,10 +1115,14 @@ renderDoc :: UnjsonDef a -> P.Doc
 renderDoc (SimpleUnjsonDef doc _ _) = P.text (ansiDimmed ++ Text.unpack doc ++ ansiReset)
 renderDoc (ArrayUnjsonDef _ _m g k f) = P.text (ansiDimmed ++ "array of" ++ ansiReset ++ ":") P.$+$
              P.nest 4 (renderDoc f)
+renderDoc (MapUnjsonDef f _ _) = P.text (ansiDimmed ++ "map of" ++ ansiReset ++ ":") P.$+$
+             P.nest 4 (renderDoc f)
 renderDoc (ObjectUnjsonDef f) =
              P.vcat (renderFields f)
 renderDoc (TupleUnjsonDef f) = P.text (ansiDimmed ++ "tuple of size " ++ show (countAp 0 f) ++ " with elements:" ++ ansiReset) P.$+$
              P.vcat (renderTupleFields f)
+renderDoc (DisjointUnjsonDef k z) = P.text (ansiDimmed ++ "disjoint union based on key:" ++ ansiReset) P.$+$
+  P.vcat [P.text (ansiBold ++ Text.unpack k ++ ": " ++ Text.unpack l ++ ansiReset) P.$+$ P.nest 4 (P.vcat (renderFields f)) | (l,_,f) <- z]
 
 -- | Render only selected part of structure documentation as
 -- 'P.Doc'. Path should point to a subtree, if it does not then
