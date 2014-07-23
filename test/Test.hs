@@ -32,10 +32,6 @@ data Credentials =
                  }
   deriving (Eq,Ord,Show,Typeable)
 
-data ExtendedTest =
-     ExtendedTest { extendedTestEither    :: Either Int Text.Text
-                  }
-  deriving (Eq,Ord,Show,Typeable)
 
 unjsonKonfig :: UnjsonDef Konfig
 unjsonKonfig = objectOf $ pure Konfig
@@ -72,19 +68,6 @@ unjsonCredentials = objectOf $ pure Credentials
                           "Domain for user credentials"
 
 
-unjsonExtendedTest :: UnjsonDef ExtendedTest
-unjsonExtendedTest = objectOf $ pure ExtendedTest
-                    <*> (pure maybeMaybeToEither
-                          <*> fieldOpt "numerical_value"
-                                (either Just (const Nothing) . extendedTestEither)
-                                "Numerical value"
-                          <*> fieldOpt "text_value"
-                                (either (const Nothing) Just . extendedTestEither)
-                                "Text value")
-  where
-    maybeMaybeToEither (Just x) _ = Left x
-    maybeMaybeToEither _ (Just x) = Right x
-    maybeMaybeToEither _ _ = error "Disjoint unions need special support that is not available yet"
 
 instance Unjson Credentials where
   unjsonDef = unjsonCredentials
@@ -204,18 +187,36 @@ test_symmetry_of_serialization = "Key missing" ~: do
   assertEqual "Serialize-parse is identity" expect val
   return ()
 
+data ExtendedTest =
+     ExtendedTest { extendedTestEither :: Either Int Text.Text
+                  }
+  deriving (Eq,Ord,Show,Typeable)
+
+unjsonExtendedTest :: UnjsonDef ExtendedTest
+unjsonExtendedTest = DisjointUnjsonDef "mode"
+                     [("number", objectOf $ pure (ExtendedTest . Left)
+                                 <*> field "numerical_value"
+                                 undefined
+                                 "Numerical value")
+                     , ("text", objectOf $ pure (ExtendedTest . Right)
+                                <*> field "text_value"
+                                undefined
+                                "Text value")]
+
 test_parse_either_field :: Test
 test_parse_either_field = "test_parse_either_field" ~: do
   do
     let json = Aeson.object
-                 [ "numerical_value" .= 12345
+                 [ "mode" .= "number"
+                 , "numerical_value" .= 12345
                  ]
     let Result val iss = parse unjsonExtendedTest (Anchored mempty json)
     assertEqual "No problems" [] iss
     assertEqual "Just numerical_value present" (Left 12345) (extendedTestEither val)
   do
     let json = Aeson.object
-                 [ "text_value" .= "asfsdfaf"
+                 [ "mode" .= "text"
+                 , "text_value" .= "asfsdfaf"
                  ]
     let Result val iss = parse unjsonExtendedTest (Anchored mempty json)
     assertEqual "No problems" [] iss
@@ -226,24 +227,13 @@ test_parse_either_field = "test_parse_either_field" ~: do
                  , "numerical_value" .= 12345
                  ]
     let Result val iss = parse unjsonExtendedTest (Anchored mempty json)
-    assertEqual "Problem when text_value is not text" [Anchored (Path [PathElemKey "text_value"]) "when expecting a Text, encountered Boolean instead"] iss
-    assertEqual "Returns numerical_value" (Left 12345) (extendedTestEither val)
+    assertEqual "Problem when mode is missing" [Anchored (Path [PathElemKey "mode"]) "missing key"] iss
   do
     let json = Aeson.object
-                 [ "text_value" .= "asfsdfaf"
-                 , "numerical_value" .= 12345
+                 [ "mode" .= "something else"
                  ]
     let Result val iss = parse unjsonExtendedTest (Anchored mempty json)
-    assertEqual "No problems" [] iss
-    assertEqual "Returns numerical_value" (Left 12345) (extendedTestEither val)
-  {-
-    This is not yet working as disjoint unions need special support that is not avialable yet
-  do
-    let json = Aeson.object []
-    let Result val iss = parse unjsonExtendedTest (Anchored mempty json)
-    assertEqual "Serialize-parse produces no problems" [] iss
-    assertEqual "Serialize-parse produces no problems" (Left 12345) (extendedTestEither val)
-  -}
+    assertEqual "Problem when mode is missing" [Anchored (Path [PathElemKey "mode"]) "value is not one of the allowed for enumeration"] iss
   return ()
 
 
