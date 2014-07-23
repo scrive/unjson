@@ -10,6 +10,7 @@ import Control.Exception
 import Test.HUnit
 import Data.Monoid
 import Data.List
+import Data.Data
 
 default (Text.Text, String, Int, Double)
 
@@ -187,21 +188,20 @@ test_symmetry_of_serialization = "Key missing" ~: do
   assertEqual "Serialize-parse is identity" expect val
   return ()
 
-data ExtendedTest =
-     ExtendedTest { extendedTestEither :: Either Int Text.Text
-                  }
-  deriving (Eq,Ord,Show,Typeable)
-
-unjsonExtendedTest :: UnjsonDef ExtendedTest
-unjsonExtendedTest = DisjointUnjsonDef "mode"
-                     [("number", objectOf $ pure (ExtendedTest . Left)
+unjsonEitherIntText :: UnjsonDef (Either Int Text.Text)
+unjsonEitherIntText = DisjointUnjsonDef "mode"
+                     [("number", unjsonIsConstrByName "Left",
+                       pure Left
                                  <*> field "numerical_value"
-                                 undefined
+                                 fromLeft
                                  "Numerical value")
-                     , ("text", objectOf $ pure (ExtendedTest . Right)
+                     , ("text", unjsonIsConstrByName "Right",
+                        pure Right
                                 <*> field "text_value"
-                                undefined
+                                fromRight
                                 "Text value")]
+  where fromLeft (Left x) = x
+        fromRight (Right x) = x
 
 test_parse_either_field :: Test
 test_parse_either_field = "test_parse_either_field" ~: do
@@ -210,30 +210,41 @@ test_parse_either_field = "test_parse_either_field" ~: do
                  [ "mode" .= "number"
                  , "numerical_value" .= 12345
                  ]
-    let Result val iss = parse unjsonExtendedTest (Anchored mempty json)
+    let Result val iss = parse unjsonEitherIntText (Anchored mempty json)
     assertEqual "No problems" [] iss
-    assertEqual "Just numerical_value present" (Left 12345) (extendedTestEither val)
+    assertEqual "Just numerical_value present" (Left 12345) val
   do
     let json = Aeson.object
                  [ "mode" .= "text"
                  , "text_value" .= "asfsdfaf"
                  ]
-    let Result val iss = parse unjsonExtendedTest (Anchored mempty json)
+    let Result val iss = parse unjsonEitherIntText (Anchored mempty json)
     assertEqual "No problems" [] iss
-    assertEqual "Just text_value present" (Right "asfsdfaf") (extendedTestEither val)
+    assertEqual "Just text_value present" (Right "asfsdfaf") val
   do
     let json = Aeson.object
                  [ "text_value" .= False
                  , "numerical_value" .= 12345
                  ]
-    let Result val iss = parse unjsonExtendedTest (Anchored mempty json)
+    let Result val iss = parse unjsonEitherIntText (Anchored mempty json)
     assertEqual "Problem when mode is missing" [Anchored (Path [PathElemKey "mode"]) "missing key"] iss
   do
     let json = Aeson.object
                  [ "mode" .= "something else"
                  ]
-    let Result val iss = parse unjsonExtendedTest (Anchored mempty json)
+    let Result val iss = parse unjsonEitherIntText (Anchored mempty json)
     assertEqual "Problem when mode is missing" [Anchored (Path [PathElemKey "mode"]) "value is not one of the allowed for enumeration"] iss
+  do
+    let json = Aeson.object
+                 [ "mode" .= "number"
+                 , "numerical_value" .= 123
+                 ]
+    let ex = Left 123
+    let js = serialize unjsonEitherIntText ex
+    assertEqual "Serialized makes what expected" json js
+  do
+    let docstr = render unjsonEitherIntText
+    assertBool "Documentation generates" (length docstr > 0)
   return ()
 
 
