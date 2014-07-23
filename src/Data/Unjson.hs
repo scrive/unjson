@@ -865,7 +865,8 @@ fieldDef key def f docstring = fieldDefBy key def f docstring unjsonDef
 objectOf :: Ap (FieldDef a) a -> UnjsonDef a
 objectOf fields = ObjectUnjsonDef fields
 
--- | Declare array of values where each of them is described by valuedef. Use 'unjsonAeson' to parse
+-- | Declare array of values where each of them is described by
+-- valuedef. Use 'unjsonAeson' to parse.
 --
 -- Example:
 --
