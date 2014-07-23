@@ -666,6 +666,22 @@ parseUpdating (TupleUnjsonDef f) ov (Anchored path v)
                                                  " into tuple of size " <> Text.pack (show tupleSize))])
       Left e ->
         resultWithThrow (Anchored path (Text.pack e))
+parseUpdating (DisjointUnjsonDef k l) ov a@(Anchored path v)
+  = case Aeson.parseEither Aeson.parseJSON v of
+      Right v -> case HashMap.lookup k v of
+        Just x -> case Aeson.parseEither Aeson.parseJSON x of
+          Right xx -> case Prelude.lookup xx l of
+            Just z -> parseUpdating z ov a
+            Nothing ->
+              resultWithThrow (Anchored (path <> Path [PathElemKey k]) "value is not one of the allowed for enumeration")
+          Left e ->
+            resultWithThrow (Anchored (path <> Path [PathElemKey k]) (Text.pack e))
+        Nothing -> case ov of
+          Just xov -> Result xov []
+          Nothing -> resultWithThrow (Anchored (path <> Path [PathElemKey k]) "missing key")
+      Left e ->
+        resultWithThrow (Anchored path (Text.pack e))
+
 
 -- | Parse JSON according to unjson definition.
 --
