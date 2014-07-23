@@ -546,7 +546,7 @@ data UnjsonDef a where
   ArrayUnjsonDef  :: Maybe (PrimaryKeyExtraction k) -> ArrayMode -> ([k] -> v) -> (v -> [k]) -> UnjsonDef k -> UnjsonDef v
   ObjectUnjsonDef :: Ap (FieldDef k) k -> UnjsonDef k
   TupleUnjsonDef  :: Ap (TupleFieldDef k) k -> UnjsonDef k
-  -- DisjointUnjsonDef :: Ap (FieldDef k) k -> UnjsonDef k
+  DisjointUnjsonDef :: Text.Text -> [(Text.Text,UnjsonDef k)] -> UnjsonDef k
 
 -- This is Profunctor, but I really do not want to depend on lens here, sorry.
 dibimapUnjsonDef :: (a -> b) -> (b -> a) -> UnjsonDef a -> UnjsonDef b
