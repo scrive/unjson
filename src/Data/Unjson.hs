@@ -1054,7 +1054,13 @@ unjsonAesonFixCharArrayToString =
     fixup ('[':'C':'h':'a':'r':']':rest) = "String" ++ fixup rest
     fixup (x:xs) = x : fixup xs
 
-
+-- | Useful in 'DisjointUnjsonDef' as second element in tuples list to
+-- check out if constructor is matching.
+--
+-- Example:
+--
+-- > data X = A | B | C
+-- > unjsonIsConstrByName "B" B => True
 unjsonIsConstrByName :: (Data a) => String -> a -> Bool
 unjsonIsConstrByName nm v = nm == show (toConstr v)
 
