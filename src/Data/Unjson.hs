@@ -936,6 +936,33 @@ objectOf fields = ObjectUnjsonDef fields
 mapOf :: UnjsonDef x -> UnjsonDef (LazyHashMap.HashMap Text.Text x)
 mapOf def = MapUnjsonDef def id id
 
+-- | Provide sum type support. Bidirectional case matching in Haskell
+-- is not good, so some obvious information needs to be given
+-- manually.
+--
+-- Example:
+--
+-- > data X = A { aString :: String } | B { bInt :: Int }
+-- >             deriving (Data,Typeable)
+-- >
+-- > unjsonX = disjoinUnionOf "type"
+-- >             [("a_thing", unjsonIsConstrByName "A",
+-- >               pure A <*> field "string" "A string value"),
+-- >              ("b_thing", unjsonIsConstrByName "B",
+-- >               pure B <*> field "string" "An int value")]
+--
+-- Note that each case in list must be able to discriminate between
+-- constructors in a data type and ti has to be able to this both
+-- ways: to find out based on json contents which constructor applies
+-- and also based on data contructor which of serialization cases to
+-- use.
+--
+-- 'unjsonIsConstrByName' is of help, but you may use other method if
+-- you do not like 'Data.Data.Data' typeclass.
+disjoinUnionOf :: Text.Text -> [(Text.Text, k -> Bool, Ap (FieldDef k) k)] -> UnjsonDef k
+disjoinUnionOf key alternates =
+  DisjointUnjsonDef key alternates
+
 -- | Declare array of values where each of them is described by
 -- valuedef. Use 'unjsonAeson' to parse.
 --
