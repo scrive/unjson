@@ -913,6 +913,29 @@ fieldDef key def f docstring = fieldDefBy key def f docstring unjsonDef
 objectOf :: Ap (FieldDef a) a -> UnjsonDef a
 objectOf fields = ObjectUnjsonDef fields
 
+
+-- | Gather all keys with respective values in a map.
+--
+-- Example:
+--
+-- > data X = X { xMap :: LazyHashMap.HashMap Text.Text x }
+-- >
+-- > objectOf $ pure X
+-- >   <*> fieldBy "xmap" xMap
+-- >       "Map string to Y value"
+-- >       (mapOf unjsonY)
+--
+-- Note that overloading allows for automatice conversion to more map
+-- types, for example:
+--
+-- > data X = X { xMap :: Map.Map String x }
+-- >
+-- > objectOf $ pure X
+-- >   <*> field "xmap" xMap
+-- >       "Map string to Y value"
+mapOf :: UnjsonDef x -> UnjsonDef (LazyHashMap.HashMap Text.Text x)
+mapOf def = MapUnjsonDef def id id
+
 -- | Declare array of values where each of them is described by
 -- valuedef. Use 'unjsonAeson' to parse.
 --
