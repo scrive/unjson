@@ -350,6 +350,7 @@ instance (Prim a, Unjson a) => Unjson (Data.Vector.Primitive.Vector a)
   where unjsonDef = dibimapUnjsonDef Data.Vector.Primitive.fromList Data.Vector.Primitive.toList unjsonDef
 
 
+mapFst :: (a -> c) -> (a,b) -> (c,b)
 mapFst f (a,b) = (f a, b)
 
 instance Unjson v => Unjson (Map.Map String v)
