@@ -151,6 +151,7 @@ import Data.Tree
 import Foreign.Storable
 import Control.Applicative
 import Control.Applicative.Free
+import Data.Functor.Invariant
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.HashMap.Lazy as LazyHashMap
 import Control.Exception
@@ -319,12 +320,12 @@ instance Unjson Aeson.DotNetTime where unjsonDef = unjsonAeson
 instance Unjson Aeson.Value      where unjsonDef = unjsonAeson
 instance Unjson (Ratio Integer)  where unjsonDef = unjsonAeson
 instance (HasResolution a, Typeable a, Aeson.FromJSON a, Aeson.ToJSON a) => Unjson (Fixed a) where unjsonDef = unjsonAeson
-instance Unjson a => Unjson (Dual a)  where unjsonDef = dibimapUnjsonDef Dual getDual unjsonDef
+instance Unjson a => Unjson (Dual a)  where unjsonDef = invmap Dual getDual unjsonDef
 {-
 
 -- these work only when 'Maybe a' and 'a' instances are conflated. we do not want this really, do we?
 -- First and Last are Monoids here, not sure if/how Unjson should be a monoid or something
-instance Unjson a => Unjson (First a)  where unjsonDef = dibimapUnjsonDef First getFirst unjsonDef
+instance Unjson a => Unjson (First a)  where unjsonDef = invmap First getFirst unjsonDef
 instance Unjson a => Unjson (Last a)  where unjsonDef = unjsonAeson
 
 -- Tree instance creates array of the form ["rootname", [trees]]. We could parse this nicely.
@@ -335,44 +336,44 @@ instance (Unjson a, Unjson b) => Unjson (Either a b)  where unjsonDef = unjsonAe
 -}
 
 instance Unjson a => Unjson (IntMap.IntMap a)
-  where unjsonDef = dibimapUnjsonDef IntMap.fromList IntMap.toList unjsonDef
+  where unjsonDef = invmap IntMap.fromList IntMap.toList unjsonDef
 instance (Ord a, Unjson a) => Unjson (Set.Set a)
-  where unjsonDef = dibimapUnjsonDef Set.fromList Set.toList unjsonDef
+  where unjsonDef = invmap Set.fromList Set.toList unjsonDef
 instance (Eq a, Hashable a, Unjson a) => Unjson (HashSet.HashSet a)
-  where unjsonDef = dibimapUnjsonDef HashSet.fromList HashSet.toList unjsonDef
+  where unjsonDef = invmap HashSet.fromList HashSet.toList unjsonDef
 instance Unjson a => Unjson (Vector.Vector a)
-  where unjsonDef = dibimapUnjsonDef Vector.fromList Vector.toList unjsonDef
+  where unjsonDef = invmap Vector.fromList Vector.toList unjsonDef
 instance (Data.Vector.Generic.Vector Data.Vector.Unboxed.Vector a, Unjson a, Data.Vector.Unboxed.Unbox a) => Unjson (Data.Vector.Unboxed.Vector a)
-  where unjsonDef = dibimapUnjsonDef Data.Vector.Unboxed.fromList Data.Vector.Unboxed.toList unjsonDef
+  where unjsonDef = invmap Data.Vector.Unboxed.fromList Data.Vector.Unboxed.toList unjsonDef
 instance (Storable a, Unjson a) => Unjson (Data.Vector.Storable.Vector a)
-  where unjsonDef = dibimapUnjsonDef Data.Vector.Storable.fromList Data.Vector.Storable.toList unjsonDef
+  where unjsonDef = invmap Data.Vector.Storable.fromList Data.Vector.Storable.toList unjsonDef
 instance (Prim a, Unjson a) => Unjson (Data.Vector.Primitive.Vector a)
-  where unjsonDef = dibimapUnjsonDef Data.Vector.Primitive.fromList Data.Vector.Primitive.toList unjsonDef
+  where unjsonDef = invmap Data.Vector.Primitive.fromList Data.Vector.Primitive.toList unjsonDef
 
 
 mapFst :: (a -> c) -> (a,b) -> (c,b)
 mapFst f (a,b) = (f a, b)
 
 instance Unjson v => Unjson (Map.Map String v)
-  where unjsonDef = dibimapUnjsonDef (Map.fromList . map (mapFst Text.unpack) . HashMap.toList)
+  where unjsonDef = invmap (Map.fromList . map (mapFst Text.unpack) . HashMap.toList)
                                      (HashMap.fromList . map (mapFst Text.pack) . Map.toList)
                                      unjsonDef
 instance Unjson v => Unjson (Map.Map Text.Text v)
-  where unjsonDef = dibimapUnjsonDef (Map.fromList . HashMap.toList)
+  where unjsonDef = invmap (Map.fromList . HashMap.toList)
                                      (HashMap.fromList . Map.toList)
                                      unjsonDef
 instance Unjson v => Unjson (Map.Map LazyText.Text v)
-  where unjsonDef = dibimapUnjsonDef (Map.fromList . map (mapFst LazyText.fromStrict) . HashMap.toList)
+  where unjsonDef = invmap (Map.fromList . map (mapFst LazyText.fromStrict) . HashMap.toList)
                                      (HashMap.fromList . map (mapFst LazyText.toStrict) . Map.toList)
                                      unjsonDef
 instance Unjson v => Unjson (HashMap.HashMap String v)
-  where unjsonDef = dibimapUnjsonDef (HashMap.fromList . map (mapFst Text.unpack) . HashMap.toList)
+  where unjsonDef = invmap (HashMap.fromList . map (mapFst Text.unpack) . HashMap.toList)
                                      (HashMap.fromList . map (mapFst Text.pack) . HashMap.toList)
                                      unjsonDef
 instance Unjson v => Unjson (HashMap.HashMap Text.Text v)
   where unjsonDef = MapUnjsonDef unjsonDef id id
 instance Unjson v => Unjson (HashMap.HashMap LazyText.Text v)
-  where unjsonDef = dibimapUnjsonDef (HashMap.fromList . map (mapFst LazyText.fromStrict) . HashMap.toList)
+  where unjsonDef = invmap (HashMap.fromList . map (mapFst LazyText.fromStrict) . HashMap.toList)
                                      (HashMap.fromList . map (mapFst LazyText.toStrict) . HashMap.toList)
                                      unjsonDef
 
@@ -566,21 +567,25 @@ data UnjsonDef a where
   DisjointUnjsonDef :: Text.Text -> [(Text.Text, k -> Bool, Ap (FieldDef k) k)] -> UnjsonDef k
   MapUnjsonDef      :: UnjsonDef k -> (HashMap.HashMap Text.Text k -> v) -> (v -> HashMap.HashMap Text.Text k) -> UnjsonDef v
 
--- This is Profunctor, but I really do not want to depend on lens here, sorry.
-dibimapUnjsonDef :: (a -> b) -> (b -> a) -> UnjsonDef a -> UnjsonDef b
-dibimapUnjsonDef f g (SimpleUnjsonDef name p s) = SimpleUnjsonDef name (fmap f . p) (s . g)
-dibimapUnjsonDef f g (ArrayUnjsonDef mpk am n k d) = ArrayUnjsonDef mpk am (f . n) (k . g) d
-dibimapUnjsonDef f g (MapUnjsonDef d n k) = MapUnjsonDef d (f . n) (k . g)
-dibimapUnjsonDef f g (ObjectUnjsonDef fd) = ObjectUnjsonDef (fmap f (hoistAp (dibimapFieldDef g) fd))
-dibimapUnjsonDef f g (TupleUnjsonDef td) = TupleUnjsonDef (fmap f (hoistAp (dibimapTupleFieldDef g) td))
+instance Invariant UnjsonDef where
+  invmap f g (SimpleUnjsonDef name p s) = SimpleUnjsonDef name (fmap f . p) (s . g)
+  invmap f g (ArrayUnjsonDef mpk am n k d) = ArrayUnjsonDef mpk am (f . n) (k . g) d
+  invmap f g (MapUnjsonDef d n k) = MapUnjsonDef d (f . n) (k . g)
+  invmap f g (ObjectUnjsonDef fd) = ObjectUnjsonDef (fmap f (hoistAp (contramapFieldDef g) fd))
+  invmap f g (TupleUnjsonDef td) = TupleUnjsonDef (fmap f (hoistAp (contramapTupleFieldDef g) td))
 
-dibimapFieldDef :: (b -> a) -> FieldDef a x -> FieldDef b x
-dibimapFieldDef f (FieldReqDef name doc ext d) = FieldReqDef name doc (ext . f) d
-dibimapFieldDef f (FieldOptDef name doc ext d) = FieldOptDef name doc (ext . f) d
-dibimapFieldDef f (FieldDefDef name doc def ext d) = FieldDefDef name doc def (ext . f) d
 
-dibimapTupleFieldDef :: (b -> a) -> TupleFieldDef a x -> TupleFieldDef b x
-dibimapTupleFieldDef f (TupleFieldDef i e d) = TupleFieldDef i (e . f) d
+-- Note: contramapFieldDef and contramapTupleFieldDef are basically
+-- Contravariant, but due to type parameters in wrong order we would
+-- need to do some type shuffling to get it right. Easier to just
+-- write it here as it is.
+contramapFieldDef :: (b -> a) -> FieldDef a x -> FieldDef b x
+contramapFieldDef f (FieldReqDef name doc ext d) = FieldReqDef name doc (ext . f) d
+contramapFieldDef f (FieldOptDef name doc ext d) = FieldOptDef name doc (ext . f) d
+contramapFieldDef f (FieldDefDef name doc def ext d) = FieldDefDef name doc def (ext . f) d
+
+contramapTupleFieldDef :: (b -> a) -> TupleFieldDef a x -> TupleFieldDef b x
+contramapTupleFieldDef f (TupleFieldDef i e d) = TupleFieldDef i (e . f) d
 
 -- | Define a relation between a field of an object in JSON and a
 -- field in a Haskell record structure.  'FieldDef' holds information
