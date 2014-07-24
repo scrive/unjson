@@ -1031,7 +1031,7 @@ arrayWithPrimaryKeyOf pk1 pk2 valuedef =
 -- > instance Unjson MyType where
 -- >     unjsonDef = unjsonAeson
 unjsonAeson :: forall a . (Aeson.FromJSON a,Aeson.ToJSON a, Typeable a) => UnjsonDef a
-unjsonAeson = unjsonAesonWithDoc (Text.pack (show (typeOf (undefined :: a))))
+unjsonAeson = unjsonAesonFixCharArrayToString
 
 -- | Like 'unjsonAeson' but accepts docstring as additional parameter
 -- that should identify type.
@@ -1053,6 +1053,7 @@ unjsonAesonFixCharArrayToString =
     fixup [] = []
     fixup ('[':'C':'h':'a':'r':']':rest) = "String" ++ fixup rest
     fixup (x:xs) = x : fixup xs
+
 
 unjsonIsConstrByName :: (Data a) => String -> a -> Bool
 unjsonIsConstrByName nm v = nm == show (toConstr v)
