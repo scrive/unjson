@@ -2,7 +2,7 @@
 -- documentation, see http://haskell.org/cabal/users-guide/
 
 name:                unjson
-version:             0.3
+version:             0.4
 synopsis:            JSON bidirectional parsing and generation with automatic documentation support.
 -- description:
 license:             BSD3
