@@ -92,6 +92,7 @@ module Data.Unjson
 , ArrayMode(..)
 , FieldDef(..)
 , serialize
+, serialize2
 , objectOf
 , field
 , fieldBy
@@ -121,6 +122,7 @@ where
 
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Types as Aeson
+import qualified Data.ByteString.Lazy as BSL
 import qualified Data.Text as Text
 import qualified Data.Text.Lazy as LazyText
 import qualified Data.Vector as Vector
@@ -602,19 +604,19 @@ data FieldDef s a where
 data TupleFieldDef s a where
   TupleFieldDef :: Int -> (s -> a) -> UnjsonDef a -> TupleFieldDef s a
 
-tupleDefToArray :: s -> Ap (TupleFieldDef s) a -> [Aeson.Value]
-tupleDefToArray _ (Pure _) = []
-tupleDefToArray s (Ap (TupleFieldDef _ f d) r) =  (serialize d (f s)) : tupleDefToArray s r
+tupleDefToArray :: (forall b . UnjsonDef b -> b -> v) -> s -> Ap (TupleFieldDef s) a -> [v]
+tupleDefToArray sx _ (Pure _) = []
+tupleDefToArray sx s (Ap (TupleFieldDef _ f d) r) =  (sx d (f s)) : tupleDefToArray sx s r
 
 
-objectDefToArray :: s -> Ap (FieldDef s) a -> [(Text.Text,Aeson.Value)]
-objectDefToArray _ (Pure _) = []
-objectDefToArray s (Ap (FieldReqDef key _ f d) r) = (key,serialize d (f s)) : objectDefToArray s r
-objectDefToArray s (Ap (FieldOptDef key _ f d) r) =
+objectDefToArray :: (forall b . UnjsonDef b -> b -> v) -> s -> Ap (FieldDef s) a -> [(Text.Text,v)]
+objectDefToArray sx _ (Pure _) = []
+objectDefToArray sx s (Ap (FieldReqDef key _ f d) r) = (key,sx d (f s)) : objectDefToArray sx s r
+objectDefToArray sx s (Ap (FieldOptDef key _ f d) r) =
   case f s of
-    Nothing -> objectDefToArray s r
-    Just g ->  (key,serialize d g) : objectDefToArray s r
-objectDefToArray s (Ap (FieldDefDef key _ _ f d) r) = (key,serialize d (f s)) : objectDefToArray s r
+    Nothing -> objectDefToArray sx s r
+    Just g ->  (key,sx d g) : objectDefToArray sx s r
+objectDefToArray sx s (Ap (FieldDefDef key _ _ f d) r) = (key,sx d (f s)) : objectDefToArray sx s r
 
 -- | Given a definition of a value and a value produce a JSON.
 --
@@ -630,15 +632,44 @@ serialize (ArrayUnjsonDef _ m g k f) a =
     (ArrayModeParseAndOutputSingle,[b]) -> serialize f b
     (_,c) -> Aeson.toJSON (map (serialize f) c)
 serialize (ObjectUnjsonDef f) a =
-  Aeson.object (objectDefToArray a f)
+  Aeson.object (objectDefToArray serialize a f)
 serialize (TupleUnjsonDef f) a =
-  Aeson.toJSON (tupleDefToArray a f)
+  Aeson.toJSON (tupleDefToArray serialize a f)
 serialize (DisjointUnjsonDef k l) a =
-  Aeson.object ((k,Aeson.toJSON nm) : objectDefToArray a f)
+  Aeson.object ((k,Aeson.toJSON nm) : objectDefToArray serialize a f)
   where
     [(nm,_,f)] = filter (\(_,is,_) -> is a) l
 serialize (MapUnjsonDef f _ g) a =
   Aeson.Object $ fmap (serialize f) (g a)
+
+serialize2 :: UnjsonDef a -> a -> BSL.ByteString
+serialize2 (SimpleUnjsonDef _ _ g) a = Aeson.encode (g a)
+serialize2 (ArrayUnjsonDef _ m g k f) a =
+  case (m, k a) of
+    (ArrayModeParseAndOutputSingle,[b]) -> serialize2 f b
+    (_,c) -> BSL.concat (["["] ++ intersperse "," (map (serialize2 f) c) ++ ["]"])
+serialize2 (ObjectUnjsonDef f) a =
+  BSL.concat (["{"] ++ intersperse "," (map serx obj) ++ ["}"])
+  where
+    obj :: [(Text.Text, BSL.ByteString)]
+    obj = objectDefToArray serialize2 a f
+    serx :: (Text.Text, BSL.ByteString) -> BSL.ByteString
+    serx (key,val) = Aeson.encode (Aeson.toJSON key) <> ":" <> val
+serialize2 (TupleUnjsonDef f) a =
+  BSL.concat (["["] ++ intersperse "," (tupleDefToArray serialize2 a f) ++ ["]"])
+serialize2 (DisjointUnjsonDef k l) a =
+  BSL.concat (["{"] ++ intersperse "," (map serx obj) ++ ["}"])
+  where
+    obj :: [(Text.Text, BSL.ByteString)]
+    obj = (k,Aeson.encode (Aeson.toJSON nm)) : objectDefToArray serialize2 a f
+    serx :: (Text.Text, BSL.ByteString) -> BSL.ByteString
+    serx (key,val) = Aeson.encode (Aeson.toJSON key) <> ":" <> val
+    [(nm,_,f)] = filter (\(_,is,_) -> is a) l
+serialize2 (MapUnjsonDef f _ g) a =
+  BSL.concat (["{"] ++ intersperse "," (map serx obj) ++ ["}"])
+  where
+    obj = LazyHashMap.toList (fmap (serialize2 f) (g a))
+    serx (key,val) = Aeson.encode (Aeson.toJSON key) <> ":" <> val
 
 -- | Count how many applications there are. Useful for error
 -- reporting.
