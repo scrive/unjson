@@ -94,7 +94,9 @@ module Data.Unjson
 , FieldDef(..)
 , unjsonToJSON
 , unjsonToByteStringLazy
+, unjsonToByteStringLazyPretty
 , unjsonToByteStringBuilder
+, unjsonToByteStringBuilderPretty
 , objectOf
 , field
 , fieldBy
@@ -623,7 +625,7 @@ objectDefToArray sx s (Ap (FieldOptDef key _ f d) r) =
     Just g ->  (key,sx d g) : objectDefToArray sx s r
 objectDefToArray sx s (Ap (FieldDefDef key _ _ f d) r) = (key,sx d (f s)) : objectDefToArray sx s r
 
--- | Given a definition of a value and a value produce a JSON.
+-- | Given a definition of a value and a value produce a 'Aeson.Value'.
 --
 -- Example:
 --
@@ -647,19 +649,36 @@ unjsonToJSON (DisjointUnjsonDef k l) a =
 unjsonToJSON (MapUnjsonDef f _ g) a =
   Aeson.Object $ fmap (unjsonToJSON f) (g a)
 
+-- | Given a definition of a value and a value produce a 'BSL.ByteString'.
+--
+-- Example:
+--
+-- > let v = Thing { ... }
+-- > let utf8bsrep = unjsonToByteStringLazy unjsonThing v
+--
 unjsonToByteStringLazy :: UnjsonDef a -> a -> BSL.ByteString
 unjsonToByteStringLazy ud a = Builder.toLazyByteString (unjsonToByteStringBuilder ud a)
 
+-- | Given a definition of a value and a value produce a pretty
+-- printed 'BSL.ByteString'. Each key in an object and each value in
+-- an array are on a separate line, indented according to nesting
+-- level. In addition to formating also order of keys in objects is
+-- kept in sync with definitions.
+--
+-- Example:
+--
+-- > let v = Thing { ... }
+-- > let utf8bsrep = unjsonToByteStringLazyPretty unjsonThing v
+--
+unjsonToByteStringLazyPretty :: UnjsonDef a -> a -> BSL.ByteString
+unjsonToByteStringLazyPretty ud a = Builder.toLazyByteString (unjsonToByteStringBuilderPretty 0 ud a)
+
+-- | Given a definition of a value and a value produce a
+-- 'Builder.Builder'. Functionally it is the same as
+-- 'unjsonToByteStringLazy' but useful if json serialization is a part
+-- of some bigger serialization function.
 unjsonToByteStringBuilder :: UnjsonDef a -> a -> Builder.Builder
-#ifdef MIN_VERSION_aeson
-#if MIN_VERSION_aeson(0,8,0)
-unjsonToByteStringBuilder (SimpleUnjsonDef _ _ g) a = Aeson.encodeToByteStringBuilder (Aeson.fromValue (g a))
-#else
 unjsonToByteStringBuilder (SimpleUnjsonDef _ _ g) a = Builder.lazyByteString (Aeson.encode (g a))
-#endif
-#else
-unjsonToByteStringBuilder (SimpleUnjsonDef _ _ g) a = Builder.lazyByteString (Aeson.encode (g a))
-#endif
 unjsonToByteStringBuilder (ArrayUnjsonDef _ m g k f) a =
   case (m, k a) of
     (ArrayModeParseAndOutputSingle,[b]) -> unjsonToByteStringBuilder f b
@@ -685,6 +704,48 @@ unjsonToByteStringBuilder (MapUnjsonDef f _ g) a =
   mconcat ([Builder.stringUtf8 "{"] ++ intersperse (Builder.stringUtf8 ",") (map serx obj) ++ [Builder.stringUtf8 "}"])
   where
     obj = LazyHashMap.toList (fmap (unjsonToByteStringBuilder f) (g a))
+    serx (key,val) = Builder.lazyByteString (Aeson.encode (Aeson.toJSON key)) <> Builder.stringUtf8 ":" <> val
+
+unjsonGroup :: Int -> Builder.Builder -> Builder.Builder -> (a -> Builder.Builder) -> [a] -> Builder.Builder
+unjsonGroup indent open close peritem items =
+  mconcat $ [open, Builder.char8 '\n'] ++ intersperse (Builder.stringUtf8 ",\n") (map ((idnt2 <>) . peritem) items) ++ [Builder.stringUtf8 "\n", idnt, close]
+  where
+    idnt :: Builder.Builder
+    idnt = mconcat (take indent (repeat (Builder.char8 ' ')))
+    idnt2 :: Builder.Builder
+    idnt2 = mconcat (take (indent+4) (repeat (Builder.char8 ' ')))
+
+-- | Given a definition of a value and a value produce a
+-- 'Builder.Builder'. Functionally it is the same as
+-- 'unjsonToByteStringLazyPretty' but useful if json serialization is a part
+-- of some bigger serialization function.
+unjsonToByteStringBuilderPretty :: Int -> UnjsonDef a -> a -> Builder.Builder
+unjsonToByteStringBuilderPretty indent (SimpleUnjsonDef _ _ g) a = Builder.lazyByteString (Aeson.encode (g a))
+unjsonToByteStringBuilderPretty indent (ArrayUnjsonDef _ m g k f) a =
+  case (m, k a) of
+    (ArrayModeParseAndOutputSingle,[b]) -> unjsonToByteStringBuilderPretty indent f b
+    (_,c) -> unjsonGroup indent (Builder.char8 '[') (Builder.char8 ']') (unjsonToByteStringBuilderPretty (indent+4) f) c
+unjsonToByteStringBuilderPretty indent (ObjectUnjsonDef f) a =
+  unjsonGroup indent (Builder.char8 '[') (Builder.char8 ']') serx obj
+  where
+    obj :: [(Text.Text, Builder.Builder)]
+    obj = objectDefToArray (unjsonToByteStringBuilderPretty (indent + 4)) a f
+    serx :: (Text.Text, Builder.Builder) -> Builder.Builder
+    serx (key,val) = Builder.lazyByteString (Aeson.encode (Aeson.toJSON key)) <> Builder.stringUtf8 ":" <> val
+unjsonToByteStringBuilderPretty indent (TupleUnjsonDef f) a =
+  unjsonGroup indent (Builder.char8 '[') (Builder.char8 ']') id (tupleDefToArray (unjsonToByteStringBuilderPretty (indent+4)) a f)
+unjsonToByteStringBuilderPretty indent (DisjointUnjsonDef k l) a =
+  unjsonGroup indent (Builder.char8 '{') (Builder.char8 '}') serx obj
+  where
+    obj :: [(Text.Text, Builder.Builder)]
+    obj = (k,Builder.lazyByteString (Aeson.encode (Aeson.toJSON nm))) : objectDefToArray (unjsonToByteStringBuilderPretty (indent+4)) a f
+    serx :: (Text.Text, Builder.Builder) -> Builder.Builder
+    serx (key,val) = Builder.lazyByteString (Aeson.encode (Aeson.toJSON key)) <> Builder.stringUtf8 ":" <> val
+    [(nm,_,f)] = filter (\(_,is,_) -> is a) l
+unjsonToByteStringBuilderPretty indent (MapUnjsonDef f _ g) a =
+  unjsonGroup indent (Builder.char8 '{') (Builder.char8 '}') serx obj
+  where
+    obj = LazyHashMap.toList (fmap (unjsonToByteStringBuilderPretty (indent+4) f) (g a))
     serx (key,val) = Builder.lazyByteString (Aeson.encode (Aeson.toJSON key)) <> Builder.stringUtf8 ":" <> val
 
 -- | Count how many applications there are. Useful for error
