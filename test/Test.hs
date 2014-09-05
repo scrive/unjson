@@ -182,7 +182,7 @@ test_symmetry_of_serialization = "Key missing" ~: do
                , konfigOptions = []
                }
 
-  let json = serialize unjsonKonfig expect
+  let json = unjsonToJSON unjsonKonfig expect
   let Result val iss = parse unjsonKonfig (Anchored mempty json)
   assertEqual "Serialize-parse produces no problems" expect val
   assertEqual "Serialize-parse is identity" expect val
@@ -240,7 +240,7 @@ test_parse_either_field = "test_parse_either_field" ~: do
                  , "numerical_value" .= 123
                  ]
     let ex = Left 123
-    let js = serialize unjsonEitherIntText ex
+    let js = unjsonToJSON unjsonEitherIntText ex
     assertEqual "Serialized makes what expected" json js
   do
     let docstr = render unjsonEitherIntText
@@ -348,13 +348,13 @@ test_array_modes = "test_array_modes" ~: do
   let Result val1 iss1 = parse p1 (Anchored mempty json)
   assertEqual "No problems" [] iss1
   assertEqual "Accepts singel value in ArrayModeParseSingle" ["www.example.com"] val1
-  let sjson1 = serialize p1 val1
+  let sjson1 = unjsonToJSON p1 val1
   assertEqual "Same json" json1 sjson1
 
   let Result val2 iss2 = parse p2 (Anchored mempty json)
   assertEqual "No problems" [] iss2
   assertEqual "Array fetch produced result" ["www.example.com"] val2
-  let sjson2 = serialize p2 val2
+  let sjson2 = unjsonToJSON p2 val2
   assertEqual "Same json" json sjson2
   return ()
 

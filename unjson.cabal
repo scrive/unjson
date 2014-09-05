@@ -28,6 +28,7 @@ library
   build-depends:       unordered-containers
   build-depends:       vector
   build-depends:       pretty
+  build-depends:       bytestring
   build-depends:       containers
   build-depends:       hashable
   build-depends:       primitive

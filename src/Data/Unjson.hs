@@ -81,7 +81,8 @@
 -- Note: if list of issues is empty then there are not bottoms, guaranteed.
 --
 -- For more examples have a look at 'Unjson', 'parse', 'update',
--- 'serialize' and 'render'.
+-- 'unjsonToJSON', 'unjsonToByteStringLazy',
+-- 'unjsonToByteStringBuilder' and 'render'.
 module Data.Unjson
 ( Unjson(..)
 , UnjsonDef(..)
@@ -91,8 +92,9 @@ module Data.Unjson
 , PathElem(..)
 , ArrayMode(..)
 , FieldDef(..)
-, serialize
-, serialize2
+, unjsonToJSON
+, unjsonToByteStringLazy
+, unjsonToByteStringBuilder
 , objectOf
 , field
 , fieldBy
@@ -122,8 +124,11 @@ where
 
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Types as Aeson
+import qualified Data.Aeson.Encode as Aeson
 import qualified Data.ByteString.Lazy as BSL
+import qualified Data.ByteString.Lazy.Builder as Builder
 import qualified Data.Text as Text
+import qualified Data.Text.Encoding as Text
 import qualified Data.Text.Lazy as LazyText
 import qualified Data.Vector as Vector
 import qualified Data.Vector.Storable
@@ -623,53 +628,64 @@ objectDefToArray sx s (Ap (FieldDefDef key _ _ f d) r) = (key,sx d (f s)) : obje
 -- Example:
 --
 -- > let v = Thing { ... }
--- > let json = serialize unjsonThing v
+-- > let json = unjsonToJSON unjsonThing v
 --
-serialize :: UnjsonDef a -> a -> Aeson.Value
-serialize (SimpleUnjsonDef _ _ g) a = g a
-serialize (ArrayUnjsonDef _ m g k f) a =
+unjsonToJSON :: UnjsonDef a -> a -> Aeson.Value
+unjsonToJSON (SimpleUnjsonDef _ _ g) a = g a
+unjsonToJSON (ArrayUnjsonDef _ m g k f) a =
   case (m, k a) of
-    (ArrayModeParseAndOutputSingle,[b]) -> serialize f b
-    (_,c) -> Aeson.toJSON (map (serialize f) c)
-serialize (ObjectUnjsonDef f) a =
-  Aeson.object (objectDefToArray serialize a f)
-serialize (TupleUnjsonDef f) a =
-  Aeson.toJSON (tupleDefToArray serialize a f)
-serialize (DisjointUnjsonDef k l) a =
-  Aeson.object ((k,Aeson.toJSON nm) : objectDefToArray serialize a f)
+    (ArrayModeParseAndOutputSingle,[b]) -> unjsonToJSON f b
+    (_,c) -> Aeson.toJSON (map (unjsonToJSON f) c)
+unjsonToJSON (ObjectUnjsonDef f) a =
+  Aeson.object (objectDefToArray unjsonToJSON a f)
+unjsonToJSON (TupleUnjsonDef f) a =
+  Aeson.toJSON (tupleDefToArray unjsonToJSON a f)
+unjsonToJSON (DisjointUnjsonDef k l) a =
+  Aeson.object ((k,Aeson.toJSON nm) : objectDefToArray unjsonToJSON a f)
   where
     [(nm,_,f)] = filter (\(_,is,_) -> is a) l
-serialize (MapUnjsonDef f _ g) a =
-  Aeson.Object $ fmap (serialize f) (g a)
+unjsonToJSON (MapUnjsonDef f _ g) a =
+  Aeson.Object $ fmap (unjsonToJSON f) (g a)
 
-serialize2 :: UnjsonDef a -> a -> BSL.ByteString
-serialize2 (SimpleUnjsonDef _ _ g) a = Aeson.encode (g a)
-serialize2 (ArrayUnjsonDef _ m g k f) a =
+unjsonToByteStringLazy :: UnjsonDef a -> a -> BSL.ByteString
+unjsonToByteStringLazy ud a = Builder.toLazyByteString (unjsonToByteStringBuilder ud a)
+
+unjsonToByteStringBuilder :: UnjsonDef a -> a -> Builder.Builder
+#ifdef MIN_VERSION_aeson
+#if MIN_VERSION_aeson(0,8,0)
+unjsonToByteStringBuilder (SimpleUnjsonDef _ _ g) a = Aeson.encodeToByteStringBuilder (Aeson.fromValue (g a))
+#else
+unjsonToByteStringBuilder (SimpleUnjsonDef _ _ g) a = Builder.lazyByteString (Aeson.encode (g a))
+#endif
+#else
+unjsonToByteStringBuilder (SimpleUnjsonDef _ _ g) a = Builder.lazyByteString (Aeson.encode (g a))
+#endif
+unjsonToByteStringBuilder (ArrayUnjsonDef _ m g k f) a =
   case (m, k a) of
-    (ArrayModeParseAndOutputSingle,[b]) -> serialize2 f b
-    (_,c) -> BSL.concat (["["] ++ intersperse "," (map (serialize2 f) c) ++ ["]"])
-serialize2 (ObjectUnjsonDef f) a =
-  BSL.concat (["{"] ++ intersperse "," (map serx obj) ++ ["}"])
+    (ArrayModeParseAndOutputSingle,[b]) -> unjsonToByteStringBuilder f b
+    (_,c) -> mconcat ([Builder.stringUtf8 "["] ++ intersperse (Builder.stringUtf8 ",") (map (unjsonToByteStringBuilder f) c) ++ [Builder.stringUtf8 "]"])
+unjsonToByteStringBuilder (ObjectUnjsonDef f) a =
+  mconcat ([Builder.stringUtf8 "{"] ++ intersperse (Builder.stringUtf8 ",") (map serx obj) ++ [Builder.stringUtf8 "}"])
   where
-    obj :: [(Text.Text, BSL.ByteString)]
-    obj = objectDefToArray serialize2 a f
-    serx :: (Text.Text, BSL.ByteString) -> BSL.ByteString
-    serx (key,val) = Aeson.encode (Aeson.toJSON key) <> ":" <> val
-serialize2 (TupleUnjsonDef f) a =
-  BSL.concat (["["] ++ intersperse "," (tupleDefToArray serialize2 a f) ++ ["]"])
-serialize2 (DisjointUnjsonDef k l) a =
-  BSL.concat (["{"] ++ intersperse "," (map serx obj) ++ ["}"])
+    obj :: [(Text.Text, Builder.Builder)]
+    obj = objectDefToArray unjsonToByteStringBuilder a f
+    serx :: (Text.Text, Builder.Builder) -> Builder.Builder
+    serx (key,val) = Builder.lazyByteString (Aeson.encode (Aeson.toJSON key)) <> Builder.stringUtf8 ":" <> val
+unjsonToByteStringBuilder (TupleUnjsonDef f) a =
+  mconcat ([Builder.stringUtf8 "["] ++ intersperse (Builder.stringUtf8 ",") (tupleDefToArray unjsonToByteStringBuilder a f) ++ [Builder.stringUtf8 "]"])
+unjsonToByteStringBuilder (DisjointUnjsonDef k l) a =
+  mconcat ([Builder.stringUtf8 "{"] ++ intersperse (Builder.stringUtf8 ",") (map serx obj) ++ [Builder.stringUtf8 "}"])
   where
-    obj :: [(Text.Text, BSL.ByteString)]
-    obj = (k,Aeson.encode (Aeson.toJSON nm)) : objectDefToArray serialize2 a f
-    serx :: (Text.Text, BSL.ByteString) -> BSL.ByteString
-    serx (key,val) = Aeson.encode (Aeson.toJSON key) <> ":" <> val
+    obj :: [(Text.Text, Builder.Builder)]
+    obj = (k,Builder.lazyByteString (Aeson.encode (Aeson.toJSON nm))) : objectDefToArray unjsonToByteStringBuilder a f
+    serx :: (Text.Text, Builder.Builder) -> Builder.Builder
+    serx (key,val) = Builder.lazyByteString (Aeson.encode (Aeson.toJSON key)) <> Builder.stringUtf8 ":" <> val
     [(nm,_,f)] = filter (\(_,is,_) -> is a) l
-serialize2 (MapUnjsonDef f _ g) a =
-  BSL.concat (["{"] ++ intersperse "," (map serx obj) ++ ["}"])
+unjsonToByteStringBuilder (MapUnjsonDef f _ g) a =
+  mconcat ([Builder.stringUtf8 "{"] ++ intersperse (Builder.stringUtf8 ",") (map serx obj) ++ [Builder.stringUtf8 "}"])
   where
-    obj = LazyHashMap.toList (fmap (serialize2 f) (g a))
-    serx (key,val) = Aeson.encode (Aeson.toJSON key) <> ":" <> val
+    obj = LazyHashMap.toList (fmap (unjsonToByteStringBuilder f) (g a))
+    serx (key,val) = Builder.lazyByteString (Aeson.encode (Aeson.toJSON key)) <> Builder.stringUtf8 ":" <> val
 
 -- | Count how many applications there are. Useful for error
 -- reporting.
