@@ -726,12 +726,12 @@ unjsonToByteStringBuilderPretty indent (ArrayUnjsonDef _ m g k f) a =
     (ArrayModeParseAndOutputSingle,[b]) -> unjsonToByteStringBuilderPretty indent f b
     (_,c) -> unjsonGroup indent (Builder.char8 '[') (Builder.char8 ']') (unjsonToByteStringBuilderPretty (indent+4) f) c
 unjsonToByteStringBuilderPretty indent (ObjectUnjsonDef f) a =
-  unjsonGroup indent (Builder.char8 '[') (Builder.char8 ']') serx obj
+  unjsonGroup indent (Builder.char8 '{') (Builder.char8 '}') serx obj
   where
     obj :: [(Text.Text, Builder.Builder)]
     obj = objectDefToArray (unjsonToByteStringBuilderPretty (indent + 4)) a f
     serx :: (Text.Text, Builder.Builder) -> Builder.Builder
-    serx (key,val) = Builder.lazyByteString (Aeson.encode (Aeson.toJSON key)) <> Builder.stringUtf8 ":" <> val
+    serx (key,val) = Builder.lazyByteString (Aeson.encode (Aeson.toJSON key)) <> Builder.stringUtf8 ": " <> val
 unjsonToByteStringBuilderPretty indent (TupleUnjsonDef f) a =
   unjsonGroup indent (Builder.char8 '[') (Builder.char8 ']') id (tupleDefToArray (unjsonToByteStringBuilderPretty (indent+4)) a f)
 unjsonToByteStringBuilderPretty indent (DisjointUnjsonDef k l) a =
@@ -740,13 +740,13 @@ unjsonToByteStringBuilderPretty indent (DisjointUnjsonDef k l) a =
     obj :: [(Text.Text, Builder.Builder)]
     obj = (k,Builder.lazyByteString (Aeson.encode (Aeson.toJSON nm))) : objectDefToArray (unjsonToByteStringBuilderPretty (indent+4)) a f
     serx :: (Text.Text, Builder.Builder) -> Builder.Builder
-    serx (key,val) = Builder.lazyByteString (Aeson.encode (Aeson.toJSON key)) <> Builder.stringUtf8 ":" <> val
+    serx (key,val) = Builder.lazyByteString (Aeson.encode (Aeson.toJSON key)) <> Builder.stringUtf8 ": " <> val
     [(nm,_,f)] = filter (\(_,is,_) -> is a) l
 unjsonToByteStringBuilderPretty indent (MapUnjsonDef f _ g) a =
   unjsonGroup indent (Builder.char8 '{') (Builder.char8 '}') serx obj
   where
     obj = LazyHashMap.toList (fmap (unjsonToByteStringBuilderPretty (indent+4) f) (g a))
-    serx (key,val) = Builder.lazyByteString (Aeson.encode (Aeson.toJSON key)) <> Builder.stringUtf8 ":" <> val
+    serx (key,val) = Builder.lazyByteString (Aeson.encode (Aeson.toJSON key)) <> Builder.stringUtf8 ": " <> val
 
 -- | Count how many applications there are. Useful for error
 -- reporting.
