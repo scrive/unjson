@@ -1,6 +1,7 @@
 module Main where
 
 import qualified Data.Text as Text
+import qualified Data.ByteString.Lazy.Char8 as BSL
 import Data.Typeable
 import Data.Unjson
 import Control.Applicative
@@ -186,6 +187,33 @@ test_symmetry_of_serialization = "Key missing" ~: do
   let Result val iss = parse unjsonKonfig (Anchored mempty json)
   assertEqual "Serialize-parse produces no problems" expect val
   assertEqual "Serialize-parse is identity" expect val
+  return ()
+
+test_pretty_serialization :: Test
+test_pretty_serialization = "Pretty serialization" ~: do
+  let konfig = Konfig
+               { konfigHostname = "www.example.com"
+               , konfigPort = 12345
+               , konfigComment = Just "nice server"
+               , konfigCredentials = Credentials "usr1" "pass1" Nothing
+               , konfigAlternates = Nothing
+               , konfigOptions = []
+               }
+
+  let jsonstr = BSL.unpack $ unjsonToByteStringLazyPretty unjsonKonfig konfig
+  let expect = intercalate "\n"
+        [ "{"
+        , "    \"hostname\": \"www.example.com\","
+        , "    \"port\": 12345,"
+        , "    \"credentials\": {"
+        , "        \"username\": \"usr1\","
+        , "        \"password\": \"pass1\""
+        , "    },"
+        , "    \"comment\": \"nice server\","
+        , "    \"options\": []"
+        , "}"
+        ]
+  assertEqual "Serialize pretty prints proper indents" expect jsonstr
   return ()
 
 unjsonEitherIntText :: UnjsonDef (Either Int Text.Text)
@@ -428,6 +456,7 @@ tests = test [ test_proper_parse
              , test_update_from_serialization_with_reset_to_default
              , test_array_modes
              , test_array_update_by_primary_key
+             , test_pretty_serialization
              ]
 
 main :: IO Counts

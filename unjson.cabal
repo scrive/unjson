@@ -69,6 +69,7 @@ Test-Suite test
   build-depends:       HUnit
   build-depends:       bytestring
   build-depends:       pretty
+  build-depends:       bytestring
   build-depends:       primitive
   build-depends:       containers
   build-depends:       time
