@@ -707,6 +707,8 @@ unjsonToByteStringBuilder (MapUnjsonDef f _ g) a =
     serx (key,val) = Builder.lazyByteString (Aeson.encode (Aeson.toJSON key)) <> Builder.stringUtf8 ":" <> val
 
 unjsonGroup :: Int -> Builder.Builder -> Builder.Builder -> (a -> Builder.Builder) -> [a] -> Builder.Builder
+unjsonGroup indent open close _peritem [] =
+  mconcat $ [open, close]
 unjsonGroup indent open close peritem items =
   mconcat $ [open, Builder.char8 '\n'] ++ intersperse (Builder.stringUtf8 ",\n") (map ((idnt2 <>) . peritem) items) ++ [Builder.stringUtf8 "\n", idnt, close]
   where
