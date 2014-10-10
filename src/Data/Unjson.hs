@@ -582,6 +582,7 @@ instance Invariant UnjsonDef where
   invmap f g (MapUnjsonDef d n k) = MapUnjsonDef d (fmap f . n) (k . g)
   invmap f g (ObjectUnjsonDef fd) = ObjectUnjsonDef (fmap f (hoistAp (contramapFieldDef g) fd))
   invmap f g (TupleUnjsonDef td) = TupleUnjsonDef (fmap f (hoistAp (contramapTupleFieldDef g) td))
+  invmap f g (DisjointUnjsonDef d l) = DisjointUnjsonDef d (map (\(a,b,c) -> (a,b . g,fmap f (hoistAp (contramapFieldDef g) c))) l)
 
 
 -- Note: contramapFieldDef and contramapTupleFieldDef are basically
