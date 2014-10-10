@@ -217,20 +217,38 @@ test_pretty_serialization = "Pretty serialization" ~: do
   assertEqual "Serialize pretty prints proper indents" expect jsonstr
   return ()
 
+unjsonButThirteen :: UnjsonDef Int
+unjsonButThirteen = objectOf $ pure id
+    <*> fieldBy "value" id "Integer but god forbid 13" (unjsonInvmapR whenParse id $ unjsonDef)
+  where
+    whenParse 13 = fail "13 is a bad luck number"
+    whenParse x = return x
+
+test_semantic_errors_on_values :: Test
+test_semantic_errors_on_values = "test_semantic_errors_on_values" ~: do
+  do
+    let json = Aeson.object
+                 [ "value" .= (13 :: Int)
+                 ]
+    let Result _val iss = parse unjsonButThirteen (Anchored mempty json)
+    assertEqual "Problem is reported" [Anchored mempty "13 is a bad luck number"] iss
+    -- assertEqual "Just numerical_value present" (13) val
+
 unjsonEitherIntText :: UnjsonDef (Either Int Text.Text)
-unjsonEitherIntText = DisjointUnjsonDef "mode"
-                     [("number", unjsonIsConstrByName "Left",
-                       pure Left
-                                 <*> field "numerical_value"
-                                 fromLeft
-                                 "Numerical value")
+unjsonEitherIntText = disjointUnionOf "mode"
+                     [ ("number", unjsonIsConstrByName "Left",
+                        pure Left
+                          <*> field "numerical_value"
+                          fromLeft
+                          "Numerical value")
                      , ("text", unjsonIsConstrByName "Right",
                         pure Right
-                                <*> field "text_value"
-                                fromRight
-                                "Text value")]
-  where fromLeft (Left x) = x
-        fromRight (Right x) = x
+                          <*> field "text_value"
+                          fromRight
+                          "Text value")]
+  where fromLeft ~(Left x) = x
+        fromRight ~(Right x) = x
+
 
 test_parse_either_field :: Test
 test_parse_either_field = "test_parse_either_field" ~: do
@@ -458,6 +476,7 @@ tests = test [ test_proper_parse
              , test_array_modes
              , test_array_update_by_primary_key
              , test_pretty_serialization
+             , test_semantic_errors_on_values
              ]
 
 main :: IO Counts
@@ -514,3 +533,6 @@ newtype Theme = Theme { unTheme :: Int }
 
 unjsonTheme :: UnjsonDef Theme
 unjsonTheme = invmap (Theme . read :: String -> Theme) (show . unTheme :: Theme -> String) unjsonDef
+
+instance Unjson Theme where
+  unjsonDef = unjsonTheme
