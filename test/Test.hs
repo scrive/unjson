@@ -12,6 +12,7 @@ import Test.HUnit
 import Data.Monoid
 import Data.List
 import Data.Data
+import Data.Functor.Invariant
 
 default (Text.Text, String, Int, Double)
 
@@ -489,7 +490,8 @@ filterOutAnsiTillEndOfMulticharSequence [] = []
 data Example = Example
    { exampleName :: Text.Text,
      exampleArray :: [Int],
-     exampleOptional :: Maybe Bool }
+     exampleOptional :: Maybe Bool,
+     exampleIntAsString :: Int }
 
 unjsonExample :: UnjsonDef Example
 unjsonExample = objectOf $ pure Example
@@ -503,3 +505,7 @@ unjsonExample = objectOf $ pure Example
   <*> fieldOpt "optional_bool"
           exampleOptional
           "Optional boolean"
+  <*> fieldBy "int_as_string"
+          exampleIntAsString
+          "Integer value serialized as a string value in json"
+          (invmap (read :: String -> Int) (show :: Int -> String) unjsonDef)
