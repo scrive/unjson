@@ -383,27 +383,27 @@ instance Unjson v => Unjson (HashMap.HashMap String v)
                                      (HashMap.fromList . map (mapFst Text.pack) . HashMap.toList)
                                      unjsonDef
 instance Unjson v => Unjson (HashMap.HashMap Text.Text v)
-  where unjsonDef = MapUnjsonDef unjsonDef return id
+  where unjsonDef = MapUnjsonDef unjsonDef pure id
 instance Unjson v => Unjson (HashMap.HashMap LazyText.Text v)
   where unjsonDef = invmap (HashMap.fromList . map (mapFst LazyText.fromStrict) . HashMap.toList)
                                      (HashMap.fromList . map (mapFst LazyText.toStrict) . HashMap.toList)
                                      unjsonDef
 
 instance (Unjson a,Unjson b) => Unjson (a,b) where
-  unjsonDef = TupleUnjsonDef $ fmap return
+  unjsonDef = TupleUnjsonDef $ fmap pure
                  $ pure (,)
                <*> liftAp (TupleFieldDef 0 (\(p,_) -> p) unjsonDef)
                <*> liftAp (TupleFieldDef 1 (\(_,p) -> p) unjsonDef)
 
 instance (Unjson a,Unjson b,Unjson c) => Unjson (a,b,c) where
-  unjsonDef = TupleUnjsonDef $ fmap return
+  unjsonDef = TupleUnjsonDef $ fmap pure
                $ pure (,,)
                <*> liftAp (TupleFieldDef 0 (\(p,_,_) -> p) unjsonDef)
                <*> liftAp (TupleFieldDef 1 (\(_,p,_) -> p) unjsonDef)
                <*> liftAp (TupleFieldDef 2 (\(_,_,p) -> p) unjsonDef)
 
 instance (Unjson a,Unjson b,Unjson c,Unjson d) => Unjson (a,b,c,d) where
-  unjsonDef = TupleUnjsonDef $ fmap return
+  unjsonDef = TupleUnjsonDef $ fmap pure
                $ pure (,,,)
                <*> liftAp (TupleFieldDef 0 (\(p,_,_,_) -> p) unjsonDef)
                <*> liftAp (TupleFieldDef 1 (\(_,p,_,_) -> p) unjsonDef)
@@ -413,7 +413,7 @@ instance (Unjson a,Unjson b,Unjson c,Unjson d) => Unjson (a,b,c,d) where
 instance (Unjson a,Unjson b,Unjson c,Unjson d
          ,Unjson e) => Unjson (a,b,c,d
                               ,e) where
-  unjsonDef = TupleUnjsonDef $ fmap return
+  unjsonDef = TupleUnjsonDef $ fmap pure
                $ pure (,,,,)
                <*> liftAp (TupleFieldDef 0 (\(p,_,_,_,_) -> p) unjsonDef)
                <*> liftAp (TupleFieldDef 1 (\(_,p,_,_,_) -> p) unjsonDef)
@@ -425,7 +425,7 @@ instance (Unjson a,Unjson b,Unjson c,Unjson d
          ,Unjson e,Unjson f)
        => Unjson (a,b,c,d
                  ,e,f) where
-  unjsonDef = TupleUnjsonDef $ fmap return
+  unjsonDef = TupleUnjsonDef $ fmap pure
                $ pure (,,,,,)
                <*> liftAp (TupleFieldDef 0 (\(p,_,_,_,_,_) -> p) unjsonDef)
                <*> liftAp (TupleFieldDef 1 (\(_,p,_,_,_,_) -> p) unjsonDef)
@@ -438,7 +438,7 @@ instance (Unjson a,Unjson b,Unjson c,Unjson d
          ,Unjson e,Unjson f,Unjson g)
        => Unjson (a,b,c,d
                  ,e,f,g) where
-  unjsonDef = TupleUnjsonDef $ fmap return
+  unjsonDef = TupleUnjsonDef $ fmap pure
                $ pure (,,,,,,)
                <*> liftAp (TupleFieldDef 0 (\(p,_,_,_,_,_,_) -> p) unjsonDef)
                <*> liftAp (TupleFieldDef 1 (\(_,p,_,_,_,_,_) -> p) unjsonDef)
@@ -452,7 +452,7 @@ instance (Unjson a,Unjson b,Unjson c,Unjson d
          ,Unjson e,Unjson f,Unjson g,Unjson h)
        => Unjson (a,b,c,d
                  ,e,f,g,h) where
-  unjsonDef = TupleUnjsonDef $ fmap return
+  unjsonDef = TupleUnjsonDef $ fmap pure
                $ pure (,,,,,,,)
                <*> liftAp (TupleFieldDef 0 (\(p,_,_,_,_,_,_,_) -> p) unjsonDef)
                <*> liftAp (TupleFieldDef 1 (\(_,p,_,_,_,_,_,_) -> p) unjsonDef)
@@ -469,7 +469,7 @@ instance (Unjson a,Unjson b,Unjson c,Unjson d
        => Unjson (a,b,c,d
                  ,e,f,g,h
                  ,i) where
-  unjsonDef = TupleUnjsonDef $ fmap return
+  unjsonDef = TupleUnjsonDef $ fmap pure
                $ pure (,,,,,,,,)
                <*> liftAp (TupleFieldDef 0 (\(p,_,_,_,_,_,_,_,_) -> p) unjsonDef)
                <*> liftAp (TupleFieldDef 1 (\(_,p,_,_,_,_,_,_,_) -> p) unjsonDef)
@@ -487,7 +487,7 @@ instance (Unjson a,Unjson b,Unjson c,Unjson d
        => Unjson (a,b,c,d
                  ,e,f,g,h
                  ,i,j) where
-  unjsonDef = TupleUnjsonDef $ fmap return
+  unjsonDef = TupleUnjsonDef $ fmap pure
                $ pure (,,,,,,,,,)
                <*> liftAp (TupleFieldDef 0 (\(p,_,_,_,_,_,_,_,_,_) -> p) unjsonDef)
                <*> liftAp (TupleFieldDef 1 (\(_,p,_,_,_,_,_,_,_,_) -> p) unjsonDef)
@@ -506,7 +506,7 @@ instance (Unjson a,Unjson b,Unjson c,Unjson d
        => Unjson (a,b,c,d
                  ,e,f,g,h
                  ,i,j,k) where
-  unjsonDef = TupleUnjsonDef $ fmap return
+  unjsonDef = TupleUnjsonDef $ fmap pure
                $ pure (,,,,,,,,,,)
                <*> liftAp (TupleFieldDef 0 (\(p,_,_,_,_,_,_,_,_,_,_) -> p) unjsonDef)
                <*> liftAp (TupleFieldDef 1 (\(_,p,_,_,_,_,_,_,_,_,_) -> p) unjsonDef)
@@ -526,7 +526,7 @@ instance (Unjson a,Unjson b,Unjson c,Unjson d
        => Unjson (a,b,c,d
                  ,e,f,g,h
                  ,i,j,k,l) where
-  unjsonDef = TupleUnjsonDef $ fmap return
+  unjsonDef = TupleUnjsonDef $ fmap pure
                $ pure (,,,,,,,,,,,)
                <*> liftAp (TupleFieldDef 0 (\(p,_,_,_,_,_,_,_,_,_,_,_) -> p) unjsonDef)
                <*> liftAp (TupleFieldDef 1 (\(_,p,_,_,_,_,_,_,_,_,_,_) -> p) unjsonDef)
@@ -1039,7 +1039,7 @@ fieldDef key def f docstring = fieldDefBy key def f docstring unjsonDef
 -- 'fieldBy', 'fieldOpt', 'fieldOptBy',
 -- 'fieldDef' or 'fieldDefBy'.
 objectOf :: Ap (FieldDef a) a -> UnjsonDef a
-objectOf fields = ObjectUnjsonDef (fmap return fields)
+objectOf fields = ObjectUnjsonDef (fmap pure fields)
 
 
 -- | Gather all keys with respective values in a map.
@@ -1062,7 +1062,7 @@ objectOf fields = ObjectUnjsonDef (fmap return fields)
 -- >   <*> field "xmap" xMap
 -- >       "Map string to Y value"
 mapOf :: UnjsonDef x -> UnjsonDef (LazyHashMap.HashMap Text.Text x)
-mapOf def = MapUnjsonDef def return id
+mapOf def = MapUnjsonDef def pure id
 
 -- | Provide sum type support. Bidirectional case matching in Haskell
 -- is not good, so some obvious information needs to be given
@@ -1115,7 +1115,7 @@ arrayOf = arrayWithModeOf ArrayModeStrict
 -- > unjsonThing :: UnjsonDef Thing
 -- > unjsonThing = ...
 arrayWithModeOf :: ArrayMode -> UnjsonDef a -> UnjsonDef [a]
-arrayWithModeOf mode valuedef = ArrayUnjsonDef Nothing mode return id valuedef
+arrayWithModeOf mode valuedef = ArrayUnjsonDef Nothing mode pure id valuedef
 
 -- | Declare array of primitive values lifed from 'Aeson'. Accepts
 -- mode specifier.
@@ -1153,7 +1153,7 @@ arrayWithModeAndPrimaryKeyOf :: (Ord pk)
                              -> UnjsonDef a
                              -> UnjsonDef [a]
 arrayWithModeAndPrimaryKeyOf mode pk1 pk2 valuedef =
-  ArrayUnjsonDef (Just (PrimaryKeyExtraction pk1 pk2)) mode return id valuedef
+  ArrayUnjsonDef (Just (PrimaryKeyExtraction pk1 pk2)) mode pure id valuedef
 
 -- | Declare array of objects with given parsers that should be
 -- matched by a primary key. Uses 'ArrayModeStrict'.
