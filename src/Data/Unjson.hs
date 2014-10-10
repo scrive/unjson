@@ -570,7 +570,7 @@ data PrimaryKeyExtraction k = forall pk . (Ord pk) => PrimaryKeyExtraction (k ->
 -- | Opaque 'UnjsonDef' defines a bidirectional JSON parser.
 data UnjsonDef a where
   SimpleUnjsonDef   :: Text.Text -> (Anchored Aeson.Value -> Result k) -> (k -> Aeson.Value) -> UnjsonDef k
-  ArrayUnjsonDef    :: Maybe (PrimaryKeyExtraction k) -> ArrayMode -> ([k] -> v) -> (v -> [k]) -> UnjsonDef k -> UnjsonDef v
+  ArrayUnjsonDef    :: Maybe (PrimaryKeyExtraction k) -> ArrayMode -> ([k] -> Result v) -> (v -> [k]) -> UnjsonDef k -> UnjsonDef v
   ObjectUnjsonDef   :: Ap (FieldDef k) k -> UnjsonDef k
   TupleUnjsonDef    :: Ap (TupleFieldDef k) k -> UnjsonDef k
   DisjointUnjsonDef :: Text.Text -> [(Text.Text, k -> Bool, Ap (FieldDef k) k)] -> UnjsonDef k
@@ -578,7 +578,7 @@ data UnjsonDef a where
 
 instance Invariant UnjsonDef where
   invmap f g (SimpleUnjsonDef name p s) = SimpleUnjsonDef name (fmap f . p) (s . g)
-  invmap f g (ArrayUnjsonDef mpk am n k d) = ArrayUnjsonDef mpk am (f . n) (k . g) d
+  invmap f g (ArrayUnjsonDef mpk am n k d) = ArrayUnjsonDef mpk am (fmap f . n) (k . g) d
   invmap f g (MapUnjsonDef d n k) = MapUnjsonDef d (f . n) (k . g)
   invmap f g (ObjectUnjsonDef fd) = ObjectUnjsonDef (fmap f (hoistAp (contramapFieldDef g) fd))
   invmap f g (TupleUnjsonDef td) = TupleUnjsonDef (fmap f (hoistAp (contramapTupleFieldDef g) td))
@@ -760,7 +760,7 @@ parseUpdating :: UnjsonDef a -> Maybe a -> Anchored Aeson.Value -> Result a
 parseUpdating (SimpleUnjsonDef _ f _) _ov v = f v
 parseUpdating (ArrayUnjsonDef (Just (PrimaryKeyExtraction pk_from_object pk_from_json)) m g k f) (Just ov) (Anchored path v)
   = case Aeson.parseEither Aeson.parseJSON v of
-      Right v -> fmap g $
+      Right v -> join $ fmap g $
         sequenceA (zipWith (\v i -> (lookupObjectByJson (Anchored (path <> Path [PathElemIndex i]) v)) >>= \ov ->
                                         parseUpdating f ov
                                         (Anchored (path <> Path [PathElemIndex i]) v))
@@ -768,7 +768,7 @@ parseUpdating (ArrayUnjsonDef (Just (PrimaryKeyExtraction pk_from_object pk_from
       Left e -> case m of
           ArrayModeStrict ->
             resultWithThrow (Anchored path (Text.pack e))
-          _ -> fmap g $
+          _ -> join $ fmap g $
             sequenceA [(lookupObjectByJson (Anchored (path <> Path [PathElemIndex 0]) v)) >>= \ov ->
                                         parseUpdating f ov
                                         (Anchored (path <> Path [PathElemIndex 0]) v)]
@@ -780,12 +780,12 @@ parseUpdating (ArrayUnjsonDef (Just (PrimaryKeyExtraction pk_from_object pk_from
 
 parseUpdating (ArrayUnjsonDef _ m g k f) _ov (Anchored path v)
   = case Aeson.parseEither Aeson.parseJSON v of
-      Right v -> fmap g $
+      Right v -> join $ fmap g $
         sequenceA (zipWith (\v i -> parseUpdating f Nothing (Anchored (path <> Path [PathElemIndex i]) v)) (Vector.toList v) [0..])
       Left e -> case m of
           ArrayModeStrict ->
             resultWithThrow (Anchored path (Text.pack e))
-          _ -> fmap g $
+          _ -> join $ fmap g $
             sequenceA [parseUpdating f Nothing (Anchored (path <> Path [PathElemIndex 0]) v)]
 
 parseUpdating (ObjectUnjsonDef f) ov (Anchored path v)
@@ -1102,7 +1102,7 @@ arrayOf = arrayWithModeOf ArrayModeStrict
 -- > unjsonThing :: UnjsonDef Thing
 -- > unjsonThing = ...
 arrayWithModeOf :: ArrayMode -> UnjsonDef a -> UnjsonDef [a]
-arrayWithModeOf mode valuedef = ArrayUnjsonDef Nothing mode id id valuedef
+arrayWithModeOf mode valuedef = ArrayUnjsonDef Nothing mode return id valuedef
 
 -- | Declare array of primitive values lifed from 'Aeson'. Accepts
 -- mode specifier.
@@ -1140,7 +1140,7 @@ arrayWithModeAndPrimaryKeyOf :: (Ord pk)
                              -> UnjsonDef a
                              -> UnjsonDef [a]
 arrayWithModeAndPrimaryKeyOf mode pk1 pk2 valuedef =
-  ArrayUnjsonDef (Just (PrimaryKeyExtraction pk1 pk2)) mode id id valuedef
+  ArrayUnjsonDef (Just (PrimaryKeyExtraction pk1 pk2)) mode return id valuedef
 
 -- | Declare array of objects with given parsers that should be
 -- matched by a primary key. Uses 'ArrayModeStrict'.
