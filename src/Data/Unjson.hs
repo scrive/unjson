@@ -380,7 +380,7 @@ instance Unjson v => Unjson (HashMap.HashMap String v)
                                      (HashMap.fromList . map (mapFst Text.pack) . HashMap.toList)
                                      unjsonDef
 instance Unjson v => Unjson (HashMap.HashMap Text.Text v)
-  where unjsonDef = MapUnjsonDef unjsonDef id id
+  where unjsonDef = MapUnjsonDef unjsonDef return id
 instance Unjson v => Unjson (HashMap.HashMap LazyText.Text v)
   where unjsonDef = invmap (HashMap.fromList . map (mapFst LazyText.fromStrict) . HashMap.toList)
                                      (HashMap.fromList . map (mapFst LazyText.toStrict) . HashMap.toList)
@@ -574,12 +574,12 @@ data UnjsonDef a where
   ObjectUnjsonDef   :: Ap (FieldDef k) k -> UnjsonDef k
   TupleUnjsonDef    :: Ap (TupleFieldDef k) k -> UnjsonDef k
   DisjointUnjsonDef :: Text.Text -> [(Text.Text, k -> Bool, Ap (FieldDef k) k)] -> UnjsonDef k
-  MapUnjsonDef      :: UnjsonDef k -> (HashMap.HashMap Text.Text k -> v) -> (v -> HashMap.HashMap Text.Text k) -> UnjsonDef v
+  MapUnjsonDef      :: UnjsonDef k -> (HashMap.HashMap Text.Text k -> Result v) -> (v -> HashMap.HashMap Text.Text k) -> UnjsonDef v
 
 instance Invariant UnjsonDef where
   invmap f g (SimpleUnjsonDef name p s) = SimpleUnjsonDef name (fmap f . p) (s . g)
   invmap f g (ArrayUnjsonDef mpk am n k d) = ArrayUnjsonDef mpk am (fmap f . n) (k . g) d
-  invmap f g (MapUnjsonDef d n k) = MapUnjsonDef d (f . n) (k . g)
+  invmap f g (MapUnjsonDef d n k) = MapUnjsonDef d (fmap f . n) (k . g)
   invmap f g (ObjectUnjsonDef fd) = ObjectUnjsonDef (fmap f (hoistAp (contramapFieldDef g) fd))
   invmap f g (TupleUnjsonDef td) = TupleUnjsonDef (fmap f (hoistAp (contramapTupleFieldDef g) td))
 
@@ -825,7 +825,7 @@ parseUpdating (MapUnjsonDef f g h) ov a@(Anchored path v)
   = case Aeson.parseEither Aeson.parseJSON v of
       Right v ->
         let hov = fmap h ov in
-        fmap g $ HashMap.traverseWithKey (\k1 v1 -> parseUpdating f (join (fmap (HashMap.lookup k1) hov)) (Anchored (path <> Path [PathElemKey k1]) v1)) v
+        join $ fmap g $ HashMap.traverseWithKey (\k1 v1 -> parseUpdating f (join (fmap (HashMap.lookup k1) hov)) (Anchored (path <> Path [PathElemKey k1]) v1)) v
       Left e ->
         resultWithThrow (Anchored path (Text.pack e))
 
@@ -1049,7 +1049,7 @@ objectOf fields = ObjectUnjsonDef fields
 -- >   <*> field "xmap" xMap
 -- >       "Map string to Y value"
 mapOf :: UnjsonDef x -> UnjsonDef (LazyHashMap.HashMap Text.Text x)
-mapOf def = MapUnjsonDef def id id
+mapOf def = MapUnjsonDef def return id
 
 -- | Provide sum type support. Bidirectional case matching in Haskell
 -- is not good, so some obvious information needs to be given
