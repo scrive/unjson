@@ -254,6 +254,7 @@ instance Monad Result where
   return = pure
   Result a pa >>= m = Result ma (pa ++ pma)
     where Result ma pma = m a
+  fail str = resultWithThrow (Anchored mempty (Text.pack str))
 
 resultWithThrow :: Anchored Text.Text -> Result a
 resultWithThrow msg = Result (throw msg) [msg]
