@@ -509,3 +509,8 @@ unjsonExample = objectOf $ pure Example
           exampleIntAsString
           "Integer value serialized as a string value in json"
           (invmap (read :: String -> Int) (show :: Int -> String) unjsonDef)
+
+newtype Theme = Theme { unTheme :: Int }
+
+unjsonTheme :: UnjsonDef Theme
+unjsonTheme = invmap (Theme . read :: String -> Theme) (show . unTheme :: Theme -> String) unjsonDef
