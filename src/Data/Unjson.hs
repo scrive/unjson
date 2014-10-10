@@ -108,6 +108,7 @@ module Data.Unjson
 , arrayWithModeOf
 , arrayWithPrimaryKeyOf
 , arrayWithModeAndPrimaryKeyOf
+, disjointUnionOf
 , render
 , renderForPath
 , renderDoc
@@ -119,6 +120,7 @@ module Data.Unjson
 , parse
 , update
 
+, unjsonInvmapR
 , unjsonIsConstrByName
 , unjsonIPv4AsWord32
 )
@@ -574,7 +576,7 @@ data UnjsonDef a where
   ArrayUnjsonDef    :: Maybe (PrimaryKeyExtraction k) -> ArrayMode -> ([k] -> Result v) -> (v -> [k]) -> UnjsonDef k -> UnjsonDef v
   ObjectUnjsonDef   :: Ap (FieldDef k) (Result k) -> UnjsonDef k
   TupleUnjsonDef    :: Ap (TupleFieldDef k) (Result k) -> UnjsonDef k
-  DisjointUnjsonDef :: Text.Text -> [(Text.Text, k -> Bool, Ap (FieldDef k) k)] -> UnjsonDef k
+  DisjointUnjsonDef :: Text.Text -> [(Text.Text, k -> Bool, Ap (FieldDef k) (Result k))] -> UnjsonDef k
   MapUnjsonDef      :: UnjsonDef k -> (HashMap.HashMap Text.Text k -> Result v) -> (v -> HashMap.HashMap Text.Text k) -> UnjsonDef v
 
 instance Invariant UnjsonDef where
@@ -583,15 +585,15 @@ instance Invariant UnjsonDef where
   invmap f g (MapUnjsonDef d n k) = MapUnjsonDef d (fmap f . n) (k . g)
   invmap f g (ObjectUnjsonDef fd) = ObjectUnjsonDef (fmap (fmap f) (hoistAp (contramapFieldDef g) fd))
   invmap f g (TupleUnjsonDef td) = TupleUnjsonDef (fmap (fmap f) (hoistAp (contramapTupleFieldDef g) td))
-  invmap f g (DisjointUnjsonDef d l) = DisjointUnjsonDef d (map (\(a,b,c) -> (a,b . g,fmap f (hoistAp (contramapFieldDef g) c))) l)
+  invmap f g (DisjointUnjsonDef d l) = DisjointUnjsonDef d (map (\(a,b,c) -> (a,b . g,fmap (fmap f) (hoistAp (contramapFieldDef g) c))) l)
 
 unjsonInvmapR :: (a -> Result b) -> (b -> a) -> UnjsonDef a -> UnjsonDef b
 unjsonInvmapR f g (SimpleUnjsonDef name p s) = SimpleUnjsonDef name (join . fmap f . p) (s . g)
 unjsonInvmapR f g (ArrayUnjsonDef mpk am n k d) = ArrayUnjsonDef mpk am (join . fmap f . n) (k . g) d
 unjsonInvmapR f g (MapUnjsonDef d n k) = MapUnjsonDef d (join . fmap f . n) (k . g)
 unjsonInvmapR f g (ObjectUnjsonDef fd) = ObjectUnjsonDef (fmap (join . fmap f) (hoistAp (contramapFieldDef g) fd))
---unjsonInvmapR f g (TupleUnjsonDef td) = TupleUnjsonDef (fmap f (hoistAp (contramapTupleFieldDef g) td))
---unjsonInvmapR f g (DisjointUnjsonDef d l) = DisjointUnjsonDef d (map (\(a,b,c) -> (a,b . g,fmap f (hoistAp (contramapFieldDef g) c))) l)
+unjsonInvmapR f g (TupleUnjsonDef td) = TupleUnjsonDef (fmap (join . fmap f) (hoistAp (contramapTupleFieldDef g) td))
+unjsonInvmapR f g (DisjointUnjsonDef d l) = DisjointUnjsonDef d (map (\(a,b,c) -> (a,b . g,fmap (join . fmap f) (hoistAp (contramapFieldDef g) c))) l)
 
 -- Note: contramapFieldDef and contramapTupleFieldDef are basically
 -- Contravariant, but due to type parameters in wrong order we would
@@ -822,7 +824,7 @@ parseUpdating (DisjointUnjsonDef k l) ov a@(Anchored path v)
       Right v -> case HashMap.lookup k v of
         Just x -> case Aeson.parseEither Aeson.parseJSON x of
           Right xx -> case filter (\(nm,_,_) -> nm==xx) l of
-            [(_,_,f)] -> runAp (lookupByFieldDef (Anchored path v) ov) f
+            [(_,_,f)] -> join (runAp (lookupByFieldDef (Anchored path v) ov) f)
             _ ->
               resultWithThrow (Anchored (path <> Path [PathElemKey k]) "value is not one of the allowed for enumeration")
           Left e ->
@@ -1071,7 +1073,7 @@ mapOf def = MapUnjsonDef def return id
 -- > data X = A { aString :: String } | B { bInt :: Int }
 -- >             deriving (Data,Typeable)
 -- >
--- > unjsonX = disjoinUnionOf "type"
+-- > unjsonX = disjointUnionOf "type"
 -- >             [("a_thing", unjsonIsConstrByName "A",
 -- >               pure A <*> field "string" "A string value"),
 -- >              ("b_thing", unjsonIsConstrByName "B",
@@ -1085,9 +1087,9 @@ mapOf def = MapUnjsonDef def return id
 --
 -- 'unjsonIsConstrByName' is of help, but you may use other method if
 -- you do not like 'Data.Data.Data' typeclass.
-disjoinUnionOf :: Text.Text -> [(Text.Text, k -> Bool, Ap (FieldDef k) k)] -> UnjsonDef k
-disjoinUnionOf key alternates =
-  DisjointUnjsonDef key alternates
+disjointUnionOf :: Text.Text -> [(Text.Text, k -> Bool, Ap (FieldDef k) k)] -> UnjsonDef k
+disjointUnionOf key alternates =
+  DisjointUnjsonDef key (map (\(a,b,c) -> (a,b,fmap return c)) alternates)
 
 -- | Declare array of values where each of them is described by
 -- valuedef. Use 'unjsonAeson' to parse.
