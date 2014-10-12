@@ -572,7 +572,7 @@ data PrimaryKeyExtraction k = forall pk . (Ord pk) => PrimaryKeyExtraction (k ->
 
 -- | Opaque 'UnjsonDef' defines a bidirectional JSON parser.
 data UnjsonDef a where
-  SimpleUnjsonDef   :: Text.Text -> (Anchored Aeson.Value -> Result k) -> (k -> Aeson.Value) -> UnjsonDef k
+  SimpleUnjsonDef   :: Text.Text -> (Aeson.Value -> Result k) -> (k -> Aeson.Value) -> UnjsonDef k
   ArrayUnjsonDef    :: Maybe (PrimaryKeyExtraction k) -> ArrayMode -> ([k] -> Result v) -> (v -> [k]) -> UnjsonDef k -> UnjsonDef v
   ObjectUnjsonDef   :: Ap (FieldDef k) (Result k) -> UnjsonDef k
   TupleUnjsonDef    :: Ap (TupleFieldDef k) (Result k) -> UnjsonDef k
@@ -767,80 +767,87 @@ countAp :: Int -> Ap x a -> Int
 countAp !n (Pure _) = n
 countAp n (Ap _ r) = countAp (succ n) r
 
-parseUpdating :: UnjsonDef a -> Maybe a -> Anchored Aeson.Value -> Result a
+mapResultsIssuePaths :: (Path -> Path) -> Result a -> Result a
+mapResultsIssuePaths f (Result v paths) = (Result v (map (\(Anchored path v) -> Anchored (f path) v) paths))
+
+resultPrependIndex :: Int -> Result a -> Result a
+resultPrependIndex i = mapResultsIssuePaths (Path [PathElemIndex i]<>)
+
+resultPrependKey :: Text.Text -> Result a -> Result a
+resultPrependKey k = mapResultsIssuePaths (Path [PathElemKey k]<>)
+
+parseUpdating :: UnjsonDef a -> Maybe a -> Aeson.Value -> Result a
 parseUpdating (SimpleUnjsonDef _ f _) _ov v = f v
-parseUpdating (ArrayUnjsonDef (Just (PrimaryKeyExtraction pk_from_object pk_from_json)) m g k f) (Just ov) (Anchored path v)
+parseUpdating (ArrayUnjsonDef (Just (PrimaryKeyExtraction pk_from_object pk_from_json)) m g k f) (Just ov) v
   = case Aeson.parseEither Aeson.parseJSON v of
       Right v -> join $ fmap g $
-        sequenceA (zipWith (\v i -> (lookupObjectByJson (Anchored (path <> Path [PathElemIndex i]) v)) >>= \ov ->
-                                        parseUpdating f ov
-                                        (Anchored (path <> Path [PathElemIndex i]) v))
+        sequenceA (zipWith (\v i -> lookupObjectByJson v >>= \ov -> (resultPrependIndex i $ parseUpdating f ov v))
                                     (Vector.toList v) [0..])
       Left e -> case m of
           ArrayModeStrict ->
-            resultWithThrow (Anchored path (Text.pack e))
+            fail e
           _ -> join $ fmap g $
-            sequenceA [(lookupObjectByJson (Anchored (path <> Path [PathElemIndex 0]) v)) >>= \ov ->
+            sequenceA [lookupObjectByJson v >>= \ov ->
                                         parseUpdating f ov
-                                        (Anchored (path <> Path [PathElemIndex 0]) v)]
+                                        v]
   where
     -- Note: Map.fromList is right-biased, so that Map.fromList [(1,1),(1,2)] is [(1,2)]
     -- we need it to be left-biased, so we use Map.fromListWith (flip const)
     objectMap = Map.fromListWith (flip const) (map (\o -> (pk_from_object o, o)) (k ov))
     lookupObjectByJson js = parseUpdating pk_from_json Nothing js >>= \val -> return (Map.lookup val objectMap)
 
-parseUpdating (ArrayUnjsonDef _ m g k f) _ov (Anchored path v)
+parseUpdating (ArrayUnjsonDef _ m g k f) _ov v
   = case Aeson.parseEither Aeson.parseJSON v of
       Right v -> join $ fmap g $
-        sequenceA (zipWith (\v i -> parseUpdating f Nothing (Anchored (path <> Path [PathElemIndex i]) v)) (Vector.toList v) [0..])
+        sequenceA (zipWith (\v i -> resultPrependIndex i $ parseUpdating f Nothing v) (Vector.toList v) [0..])
       Left e -> case m of
           ArrayModeStrict ->
-            resultWithThrow (Anchored path (Text.pack e))
+            fail e
           _ -> join $ fmap g $
-            sequenceA [parseUpdating f Nothing (Anchored (path <> Path [PathElemIndex 0]) v)]
+            sequenceA [parseUpdating f Nothing v]
 
-parseUpdating (ObjectUnjsonDef f) ov (Anchored path v)
+parseUpdating (ObjectUnjsonDef f) ov v
   = case Aeson.parseEither Aeson.parseJSON v of
       Right v ->
-        join (runAp (lookupByFieldDef (Anchored path v) ov) f)
+        join (runAp (lookupByFieldDef v ov) f)
       Left e ->
-        resultWithThrow (Anchored path (Text.pack e))
+        fail e
 
-parseUpdating (TupleUnjsonDef f) ov (Anchored path v)
+parseUpdating (TupleUnjsonDef f) ov v
   = case Aeson.parseEither Aeson.parseJSON v of
       Right v ->
-        let r@(Result g h) = runAp (lookupByTupleFieldDef (Anchored path v) ov) f
+        let r@(Result g h) = runAp (lookupByTupleFieldDef v ov) f
             tupleSize = countAp 0 f
             arrayLength = Vector.length v
         in if tupleSize == arrayLength
              then join r
-             else join $ Result g (h <> [Anchored path ("cannot parse array of length " <> Text.pack (show arrayLength) <>
-                                                 " into tuple of size " <> Text.pack (show tupleSize))])
+             else join $ Result g ([Anchored mempty ("cannot parse array of length " <> Text.pack (show arrayLength) <>
+                                                 " into tuple of size " <> Text.pack (show tupleSize))] <> h)
       Left e ->
-        resultWithThrow (Anchored path (Text.pack e))
+        fail e
 
-parseUpdating (DisjointUnjsonDef k l) ov a@(Anchored path v)
+parseUpdating (DisjointUnjsonDef k l) ov v
   = case Aeson.parseEither Aeson.parseJSON v of
       Right v -> case HashMap.lookup k v of
         Just x -> case Aeson.parseEither Aeson.parseJSON x of
           Right xx -> case filter (\(nm,_,_) -> nm==xx) l of
-            [(_,_,f)] -> join (runAp (lookupByFieldDef (Anchored path v) ov) f)
+            [(_,_,f)] -> join (runAp (lookupByFieldDef v ov) f)
             _ ->
-              resultWithThrow (Anchored (path <> Path [PathElemKey k]) "value is not one of the allowed for enumeration")
+              resultPrependKey k $ fail "value is not one of the allowed for enumeration"
           Left e ->
-            resultWithThrow (Anchored (path <> Path [PathElemKey k]) (Text.pack e))
+            fail e
         Nothing -> case ov of
           Just xov -> Result xov []
-          Nothing -> resultWithThrow (Anchored (path <> Path [PathElemKey k]) "missing key")
+          Nothing -> resultPrependKey k $ fail "missing key"
       Left e ->
-        resultWithThrow (Anchored path (Text.pack e))
-parseUpdating (MapUnjsonDef f g h) ov a@(Anchored path v)
+        fail e
+parseUpdating (MapUnjsonDef f g h) ov v
   = case Aeson.parseEither Aeson.parseJSON v of
       Right v ->
         let hov = fmap h ov in
-        join $ fmap g $ HashMap.traverseWithKey (\k1 v1 -> parseUpdating f (join (fmap (HashMap.lookup k1) hov)) (Anchored (path <> Path [PathElemKey k1]) v1)) v
+        join $ fmap g $ HashMap.traverseWithKey (\k1 v1 -> resultPrependKey k1 $ parseUpdating f (join (fmap (HashMap.lookup k1) hov)) v1) v
       Left e ->
-        resultWithThrow (Anchored path (Text.pack e))
+        fail e
 
 
 -- | Parse JSON according to unjson definition.
@@ -869,7 +876,7 @@ parseUpdating (MapUnjsonDef f g h) ov a@(Anchored path v)
 -- values that result in parse errors.
 --
 -- For discussion of update mode see 'update'.
-parse :: UnjsonDef a -> Anchored Aeson.Value -> Result a
+parse :: UnjsonDef a -> Aeson.Value -> Result a
 parse vd = parseUpdating vd Nothing
 
 -- | Update object with JSON according to unjson definition.
@@ -901,39 +908,39 @@ parse vd = parseUpdating vd Nothing
 -- values that result in parse errors.
 --
 -- For discussion of parse mode see 'parse'.
-update :: a -> UnjsonDef a -> Anchored Aeson.Value -> Result a
+update :: a -> UnjsonDef a -> Aeson.Value -> Result a
 update a vd = parseUpdating vd (Just a)
 
-lookupByFieldDef :: Anchored Aeson.Object -> Maybe s -> FieldDef s a -> Result a
-lookupByFieldDef (Anchored path v) ov (FieldReqDef name docstring f valuedef)
-  = case HashMap.lookup name v of
-      Just x  -> parseUpdating valuedef (fmap f ov) (Anchored (path <> Path [PathElemKey name]) x)
+lookupByFieldDef :: Aeson.Object -> Maybe s -> FieldDef s a -> Result a
+lookupByFieldDef v ov (FieldReqDef name docstring f valuedef)
+  = resultPrependKey name $ case HashMap.lookup name v of
+      Just x  -> parseUpdating valuedef (fmap f ov) x
       Nothing -> case ov of
                    Just xov -> Result (f xov) []
-                   Nothing -> resultWithThrow (Anchored (path <> Path [PathElemKey name]) "missing key")
-lookupByFieldDef (Anchored path v) ov (FieldDefDef name docstring def f valuedef)
-  = case HashMap.lookup name v of
+                   Nothing -> fail "missing key"
+lookupByFieldDef v ov (FieldDefDef name docstring def f valuedef)
+  = resultPrependKey name $ case HashMap.lookup name v of
       Just Aeson.Null -> Result def []
-      Just x  -> parseUpdating valuedef (fmap f ov) (Anchored (path <> Path [PathElemKey name]) x)
+      Just x  -> parseUpdating valuedef (fmap f ov) x
       Nothing -> case ov of
                    Just xov -> Result (f xov) []
                    Nothing -> Result def []
-lookupByFieldDef (Anchored path v) ov (FieldOptDef name docstring f valuedef)
-  = case HashMap.lookup name v of
+lookupByFieldDef v ov (FieldOptDef name docstring f valuedef)
+  = resultPrependKey name $ case HashMap.lookup name v of
       Just Aeson.Null -> Result Nothing []
       Just x  -> case ov of
-                   Just xov -> fmap Just (parseUpdating valuedef (f xov) (Anchored (path <> Path [PathElemKey name]) x))
-                   Nothing -> fmap Just (parseUpdating valuedef Nothing (Anchored (path <> Path [PathElemKey name]) x))
+                   Just xov -> fmap Just (parseUpdating valuedef (f xov) x)
+                   Nothing -> fmap Just (parseUpdating valuedef Nothing x)
       Nothing -> case ov of
                    Just xov -> Result (f xov) []
                    Nothing -> Result Nothing []
 
 
-lookupByTupleFieldDef :: Anchored Aeson.Array -> Maybe s -> TupleFieldDef s a -> Result a
-lookupByTupleFieldDef (Anchored path v) ov (TupleFieldDef idx f valuedef)
-  = case v Vector.!? idx of
-      Just x  -> parseUpdating valuedef (fmap f ov) (Anchored (path <> Path [PathElemIndex idx]) x)
-      Nothing -> resultWithThrow (Anchored (path <> Path [PathElemIndex idx]) "missing key")
+lookupByTupleFieldDef :: Aeson.Array -> Maybe s -> TupleFieldDef s a -> Result a
+lookupByTupleFieldDef v ov (TupleFieldDef idx f valuedef)
+  = resultPrependIndex idx $ case v Vector.!? idx of
+      Just x  -> parseUpdating valuedef (fmap f ov) x
+      Nothing -> fail "missing key"
 
 -- | Declare a required field with definition given inline by valuedef.
 --
@@ -1215,10 +1222,10 @@ unjsonAeson = unjsonAesonFixCharArrayToString
 -- that should identify type.
 unjsonAesonWithDoc :: (Aeson.FromJSON a,Aeson.ToJSON a) => Text.Text -> UnjsonDef a
 unjsonAesonWithDoc docstring = SimpleUnjsonDef docstring
-              (\(Anchored path value) ->
+              (\value ->
                 case Aeson.fromJSON value of
                   Aeson.Success result -> Result result []
-                  Aeson.Error message -> resultWithThrow (Anchored path (Text.pack message)))
+                  Aeson.Error message -> fail message)
               Aeson.toJSON
 
 -- | Rename @[Char]@ to @String@ everywhere.
@@ -1397,7 +1404,7 @@ parseIPv4 = do
 -- order applies, so 127.0.0.1 is 0x7F000001.
 unjsonIPv4AsWord32 :: UnjsonDef Word32
 unjsonIPv4AsWord32 = SimpleUnjsonDef "IPv4 in decimal dot notation A.B.C.D"
-              (\(Anchored path value) ->
+              (\value ->
                 case Aeson.fromJSON value of
                   Aeson.Success result ->
                     -- a number, treat it as is, for example 0x7f000001 = 2130706433 = 127.0.0.1
@@ -1406,9 +1413,9 @@ unjsonIPv4AsWord32 = SimpleUnjsonDef "IPv4 in decimal dot notation A.B.C.D"
                     case Aeson.fromJSON value of
                       Aeson.Success result -> case ReadP.readP_to_S parseIPv4 result of
                         [(r,"")] -> Result r []
-                        _ -> resultWithThrow (Anchored path (Text.pack "cannot parse as decimal dot IPv4"))
+                        _ -> fail "cannot parse as decimal dot IPv4"
                       Aeson.Error _ ->
-                        resultWithThrow (Anchored path (Text.pack "expected IPv4 as decimal dot string or a single integer")))
+                        fail "expected IPv4 as decimal dot string or a single integer")
               (Aeson.toJSON . showAsIPv4)
   where
     showAsIPv4 :: Word32 -> String

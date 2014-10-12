@@ -94,7 +94,7 @@ test_proper_parse = "Proper parsing of a complex structure" ~: do
                , konfigOptions = []
                }
 
-  let Result val iss = parse unjsonKonfig (Anchored mempty json)
+  let Result val iss = parse unjsonKonfig json
   assertEqual "There are no issues in parsing" [] iss
   assertEqual "Value parsed is the one expected" expect val
   return ()
@@ -110,7 +110,7 @@ test_missing_key = "Key missing" ~: do
                    ]
                ]
 
-  let Result val iss = parse unjsonKonfig (Anchored mempty json)
+  let Result val iss = parse unjsonKonfig json
   assertEqual "There is one issue in parsing" [Anchored (Path [ PathElemKey "credentials"
                                                               , PathElemKey "password"
                                                               ]) "missing key"] iss
@@ -128,7 +128,7 @@ test_wrong_value_type = "Value at key is wrong type" ~: do
                , "credentials" .= "www.example.com"
                ]
 
-  let Result val iss = parse unjsonKonfig (Anchored mempty json)
+  let Result val iss = parse unjsonKonfig json
   assertEqual "Number of issues in parsing" 3 (length iss)
   assertEqual "Hostname must be string error info is present"
                 (Anchored (Path [ PathElemKey "hostname"
@@ -149,26 +149,26 @@ test_tuple_parsing = "Tuple parsing" ~: do
                , (Aeson.toJSON 123)
                ]
 
-  let Result (val1 :: String, val2 :: Text.Text, val3 ::Int) iss = parse unjsonDef (Anchored mempty json)
+  let Result (val1 :: String, val2 :: Text.Text, val3 ::Int) iss = parse unjsonDef json
   assertEqual "Number of issues in parsing" [] iss
   assertEqual "First element of tuple" "hostname" val1
   assertEqual "Second element of tuple" "port" val2
   assertEqual "Third element of tuple" 123 val3
 
-  let Result (xval1 :: String, xval2 :: Text.Text, xval3 :: Int, xval4 :: Int) iss = parse unjsonDef (Anchored mempty json)
-  assertEqual "Issue in parsing" [Anchored (Path [PathElemIndex 3]) "missing key"
-                                 ,Anchored mempty "cannot parse array of length 3 into tuple of size 4"] iss
+  let Result (xval1 :: String, xval2 :: Text.Text, xval3 :: Int, xval4 :: Int) iss = parse unjsonDef json
+  assertEqual "Issue in parsing" [Anchored mempty "cannot parse array of length 3 into tuple of size 4"
+                                 ,Anchored (Path [PathElemIndex 3]) "missing key"] iss
 
   ((xval4 `seq` return False) `catch` \(Anchored _ (t :: Text.Text)) -> return True) @? "Evaluating not parsed parts throws exception"
 
-  let Result (yval1 :: Int, yval2 :: Int, yval3 :: Text.Text) iss = parse unjsonDef (Anchored mempty json)
+  let Result (yval1 :: Int, yval2 :: Int, yval3 :: Text.Text) iss = parse unjsonDef json
   assertEqual "Issues in parsing"
                 [ Anchored (Path [PathElemIndex 0]) "when expecting a Integral, encountered String instead"
                 , Anchored (Path [PathElemIndex 1]) "when expecting a Integral, encountered String instead"
                 , Anchored (Path [PathElemIndex 2]) "when expecting a Text, encountered Number instead"
                 ] iss
 
-  let Result (zval1 :: String, zval2 :: Text.Text) iss = parse unjsonDef (Anchored mempty json)
+  let Result (zval1 :: String, zval2 :: Text.Text) iss = parse unjsonDef json
   assertEqual "Array too long for 2-tuple" [Anchored mempty "cannot parse array of length 3 into tuple of size 2"] iss
 
   return ()
@@ -185,7 +185,7 @@ test_symmetry_of_serialization = "Key missing" ~: do
                }
 
   let json = unjsonToJSON unjsonKonfig expect
-  let Result val iss = parse unjsonKonfig (Anchored mempty json)
+  let Result val iss = parse unjsonKonfig json
   assertEqual "Serialize-parse produces no problems" expect val
   assertEqual "Serialize-parse is identity" expect val
   return ()
@@ -230,8 +230,8 @@ test_semantic_errors_on_values = "test_semantic_errors_on_values" ~: do
     let json = Aeson.object
                  [ "value" .= (13 :: Int)
                  ]
-    let Result _val iss = parse unjsonButThirteen (Anchored mempty json)
-    assertEqual "Problem is reported" [Anchored mempty "13 is a bad luck number"] iss
+    let Result _val iss = parse unjsonButThirteen json
+    assertEqual "Problem is reported" [Anchored (Path [PathElemKey "value"]) "13 is a bad luck number"] iss
     -- assertEqual "Just numerical_value present" (13) val
 
 unjsonEitherIntText :: UnjsonDef (Either Int Text.Text)
@@ -257,7 +257,7 @@ test_parse_either_field = "test_parse_either_field" ~: do
                  [ "mode" .= "number"
                  , "numerical_value" .= 12345
                  ]
-    let Result val iss = parse unjsonEitherIntText (Anchored mempty json)
+    let Result val iss = parse unjsonEitherIntText json
     assertEqual "No problems" [] iss
     assertEqual "Just numerical_value present" (Left 12345) val
   do
@@ -265,7 +265,7 @@ test_parse_either_field = "test_parse_either_field" ~: do
                  [ "mode" .= "text"
                  , "text_value" .= "asfsdfaf"
                  ]
-    let Result val iss = parse unjsonEitherIntText (Anchored mempty json)
+    let Result val iss = parse unjsonEitherIntText json
     assertEqual "No problems" [] iss
     assertEqual "Just text_value present" (Right "asfsdfaf") val
   do
@@ -273,13 +273,13 @@ test_parse_either_field = "test_parse_either_field" ~: do
                  [ "text_value" .= False
                  , "numerical_value" .= 12345
                  ]
-    let Result val iss = parse unjsonEitherIntText (Anchored mempty json)
+    let Result val iss = parse unjsonEitherIntText json
     assertEqual "Problem when mode is missing" [Anchored (Path [PathElemKey "mode"]) "missing key"] iss
   do
     let json = Aeson.object
                  [ "mode" .= "something else"
                  ]
-    let Result val iss = parse unjsonEitherIntText (Anchored mempty json)
+    let Result val iss = parse unjsonEitherIntText json
     assertEqual "Problem when mode is missing" [Anchored (Path [PathElemKey "mode"]) "value is not one of the allowed for enumeration"] iss
   do
     let json = Aeson.object
@@ -322,7 +322,7 @@ test_update_from_serialization = "test_update_from_serialization" ~: do
                                [ "domain" .= "domain"
                                , "username" .= "usr2" ]
                ]
-  let Result val iss = update initial unjsonKonfig (Anchored mempty json)
+  let Result val iss = update initial unjsonKonfig json
   assertEqual "No problems" [] iss
   assertEqual "Object updated with json" expect val
   return ()
@@ -359,7 +359,7 @@ test_update_from_serialization_with_reset_to_default = "test_update_from_seriali
                                    ]
                                  ]
                ]
-  let Result val iss = update initial unjsonKonfig (Anchored mempty json)
+  let Result val iss = update initial unjsonKonfig json
   assertEqual "Cannot reset mangatory field without default"
                 [Anchored (Path [PathElemKey "hostname"]) "when expecting a Text, encountered Null instead"] iss
   assertEqual "Can reset value with default" (konfigPort expect) (konfigPort val)
@@ -390,15 +390,15 @@ test_array_modes = "test_array_modes" ~: do
          <*> fieldBy "hostname" id
                  "Single value or array"
                  (arrayWithModeOf ArrayModeParseAndOutputSingle unjsonDef)
-  let Result val0 iss0 = parse p0 (Anchored mempty json)
+  let Result val0 iss0 = parse p0 json
   assertEqual "Does not parse value in strict array mode" [Anchored (Path [PathElemKey "hostname"]) "when expecting a Vector a, encountered String instead"] iss0
-  let Result val1 iss1 = parse p1 (Anchored mempty json)
+  let Result val1 iss1 = parse p1 json
   assertEqual "No problems" [] iss1
   assertEqual "Accepts singel value in ArrayModeParseSingle" ["www.example.com"] val1
   let sjson1 = unjsonToJSON p1 val1
   assertEqual "Same json" json1 sjson1
 
-  let Result val2 iss2 = parse p2 (Anchored mempty json)
+  let Result val2 iss2 = parse p2 json
   assertEqual "No problems" [] iss2
   assertEqual "Array fetch produced result" ["www.example.com"] val2
   let sjson2 = unjsonToJSON p2 val2
@@ -456,10 +456,10 @@ test_array_update_by_primary_key = "test_array_update_by_primary_key" ~: do
                  id
                  "Array updated by primary key"
                  (arrayWithPrimaryKeyOf pk1 pk2 unjsonPair)
-  let Result val0 iss0 = parse p0 (Anchored mempty json)
+  let Result val0 iss0 = parse p0 json
   assertEqual "No problems" [] iss0
   assertEqual "Parsing keeps proper order" [(12,"for 12"),(17,"for 17"),(3,"for 3"),(17,"wrong value for 17")] val0
-  let Result val1 iss1 = update val0 p0 (Anchored mempty json1)
+  let Result val1 iss1 = update val0 p0 json1
   assertEqual "No problems" [] iss1
   assertEqual "Update keeps proper order" [(17,"for 17"),(4,"for 4"),(12,"for 12 new value")] val1
   return ()
