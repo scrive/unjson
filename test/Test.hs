@@ -280,7 +280,7 @@ test_parse_either_field = "test_parse_either_field" ~: do
                  [ "mode" .= "something else"
                  ]
     let Result val iss = parse unjsonEitherIntText json
-    assertEqual "Problem when mode is missing" [Anchored (Path [PathElemKey "mode"]) "value is not one of the allowed for enumeration"] iss
+    assertEqual "Problem when mode is missing" [Anchored (Path [PathElemKey "mode"]) "value 'something else' is not one of the allowed for enumeration [number,text]"] iss
   do
     let json = Aeson.object
                  [ "mode" .= "number"

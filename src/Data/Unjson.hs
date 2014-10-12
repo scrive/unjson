@@ -833,7 +833,7 @@ parseUpdating (DisjointUnjsonDef k l) ov v
           Right xx -> case filter (\(nm,_,_) -> nm==xx) l of
             [(_,_,f)] -> join (runAp (lookupByFieldDef v ov) f)
             _ ->
-              resultPrependKey k $ fail "value is not one of the allowed for enumeration"
+              resultPrependKey k $ fail $ "value '" ++ Text.unpack xx ++ "' is not one of the allowed for enumeration [" ++ intercalate "," (map (\(a,_,_) -> Text.unpack a) l) ++ "]"
           Left e ->
             fail e
         Nothing -> case ov of
