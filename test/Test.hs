@@ -115,7 +115,7 @@ test_missing_key = "Key missing" ~: do
                                                               , PathElemKey "password"
                                                               ]) "missing key"] iss
   assertEqual "Value is accesible in parsed parts" "usr1" (credentialsUsername (konfigCredentials val))
-  ((credentialsPassword (konfigCredentials val) `seq` return False) `catch` \(Anchored _ (t :: Text.Text)) -> return True) @? "Evaluating not parsed parts throws exception"
+  ((credentialsPassword (konfigCredentials val) `seq` return False) `catch` \(ErrorCall _) -> return True) @? "Evaluating not parsed parts throws exception"
   return ()
 
 test_wrong_value_type :: Test
@@ -159,7 +159,7 @@ test_tuple_parsing = "Tuple parsing" ~: do
   assertEqual "Issue in parsing" [Anchored mempty "cannot parse array of length 3 into tuple of size 4"
                                  ,Anchored (Path [PathElemIndex 3]) "missing key"] iss
 
-  ((xval4 `seq` return False) `catch` \(Anchored _ (t :: Text.Text)) -> return True) @? "Evaluating not parsed parts throws exception"
+  ((xval4 `seq` return False) `catch` \(ErrorCall  _) -> return True) @? "Evaluating not parsed parts throws exception"
 
   let Result (yval1 :: Int, yval2 :: Int, yval3 :: Text.Text) iss = parse unjsonDef json
   assertEqual "Issues in parsing"
