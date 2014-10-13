@@ -101,6 +101,23 @@ test_proper_parse = "Proper parsing of a complex structure" ~: do
 
 test_missing_key :: Test
 test_missing_key = "Key missing" ~: do
+
+  -- Note:
+  --
+  -- This test is strange with respect to what is returned as
+  -- exceptions. We would expect to have whole path to problematic
+  -- place returned, for some reason only last part of the path is
+  -- returned. This is good enough to keep this mechanism in place but
+  -- overall it is unknown why not everything is returned.
+  --
+  -- Underlying mechanism is supposed to use mapException inside of
+  -- mapException and that should stack them on top concatenating the
+  -- path. Tests with external setup prove this is really the case,
+  -- but for some reason does not happen in general scenario.
+  --
+  -- *Data.Unjson> resultPrependKey "a" (resultPrependKey "b" (fail "d" :: Result ()))
+  -- Result *** Exception: a.b: "d"
+  --
   let json1 = Aeson.object
               [ "hostname" .= "www.example.com"
               , "port" .= 12345
