@@ -256,7 +256,8 @@ instance Monad Result where
   return = pure
   Result a pa >>= m = Result ma (pa ++ pma)
     where Result ma pma = m a
-  fail str = Result (error str) [Anchored mempty (Text.pack str)]
+  fail str = Result (throw anchoredMessage) [anchoredMessage]
+    where anchoredMessage = Anchored mempty (Text.pack str)
 
 -- | 'Unjson' typeclass describes all types that can be parsed from
 -- JSON and JSON generated from their values.
@@ -765,7 +766,11 @@ countAp !n (Pure _) = n
 countAp n (Ap _ r) = countAp (succ n) r
 
 mapResultsIssuePaths :: (Path -> Path) -> Result a -> Result a
-mapResultsIssuePaths f (Result v paths) = (Result v (map (\(Anchored path v) -> Anchored (f path) v) paths))
+mapResultsIssuePaths f (Result v paths) = Result v' paths'
+  where
+    paths' = map fa paths
+    v' = mapException fa v
+    fa (Anchored path x) = Anchored (f path) x
 
 resultPrependIndex :: Int -> Result a -> Result a
 resultPrependIndex i = mapResultsIssuePaths (Path [PathElemIndex i]<>)
