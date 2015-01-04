@@ -13,6 +13,9 @@ import Data.Monoid
 import Data.List
 import Data.Data
 import Data.Functor.Invariant
+import qualified Data.HashMap.Strict as HashMap
+import qualified Data.HashMap.Lazy as LazyHashMap
+import qualified Data.Map as Map
 
 default (Text.Text, String, Int, Double)
 
@@ -523,6 +526,38 @@ test_array_update_by_primary_key = "test_array_update_by_primary_key" ~: do
   assertEqual "Update keeps proper order" [(17,"for 17"),(4,"for 4"),(12,"for 12 new value")] val1
   return ()
 
+test_maps :: Test
+test_maps = "test_maps" ~: do
+
+  let json = Aeson.object
+               [ "k1" .= (12 :: Int)
+               , "k2" .= (1122 :: Int)
+               , "a4" .= (666 :: Int)
+               ]
+      jsonEmbedded = Aeson.object
+                     [ "a_map" .= json ]
+  let unjsonMapByInstance :: (Unjson a) => UnjsonDef a
+      unjsonMapByInstance = objectOf $ pure id
+         <*> field "a_map"
+             id
+             "The only map"
+  let unjsonMapByExplicit :: (Unjson a) => UnjsonDef (HashMap.HashMap Text.Text a)
+      unjsonMapByExplicit = objectOf $ pure id
+         <*> fieldBy "a_map"
+             id
+             "The only map"
+             (mapOf unjsonDef)
+  let Result val0 iss0 = parse unjsonMapByInstance jsonEmbedded
+  assertEqual "No problems" [] iss0
+  assertEqual "Parsing keeps proper order in Data.Map" (Map.fromList [("k1"::String, 12::Int),("k2", 1122), ("a4", 666)]) val0
+  let Result val1 iss1 = parse unjsonMapByInstance jsonEmbedded
+  assertEqual "No problems" [] iss1
+  assertEqual "Parsing keeps proper order" (HashMap.fromList [("k1"::String, 12::Int),("k2", 1122), ("a4", 666)]) val1
+  let Result val2 iss2 = parse unjsonMapByExplicit jsonEmbedded
+  assertEqual "No problems" [] iss2
+  assertEqual "Parsing keeps proper order" (LazyHashMap.fromList [("k1"::Text.Text, 12::Int),("k2", 1122), ("a4", 666)]) val2
+  return ()
+
 tests :: Test
 tests = test [ test_proper_parse
              , test_missing_key
@@ -536,6 +571,7 @@ tests = test [ test_proper_parse
              , test_array_update_by_primary_key
              , test_pretty_serialization
              , test_semantic_errors_on_values
+             , test_maps
              ]
 
 main :: IO Counts

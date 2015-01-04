@@ -108,6 +108,7 @@ module Data.Unjson
 , arrayWithModeOf
 , arrayWithPrimaryKeyOf
 , arrayWithModeAndPrimaryKeyOf
+, mapOf
 , disjointUnionOf
 , render
 , renderForPath
