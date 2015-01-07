@@ -263,7 +263,7 @@ test_pretty_serialization = "Pretty serialization" ~: do
                , konfigOptions = []
                }
 
-  let jsonstr = BSL.unpack $ unjsonToByteStringLazyPretty unjsonKonfig konfig
+  let jsonstr = BSL.unpack $ unjsonToByteStringLazy' (Options { nulls = False, indent = 4, pretty = True }) unjsonKonfig konfig
   let expect = intercalate "\n"
         [ "{"
         , "    \"hostname\": \"www.example.com\","
@@ -277,7 +277,63 @@ test_pretty_serialization = "Pretty serialization" ~: do
         , "}"
         ]
   assertEqual "Serialize pretty prints proper indents" expect jsonstr
+  let jsonstr5 = BSL.unpack $ unjsonToByteStringLazy' (Options { nulls = False, indent = 5, pretty = True }) unjsonKonfig konfig
+  let expect5 = intercalate "\n"
+        [ "{"
+        , "     \"hostname\": \"www.example.com\","
+        , "     \"port\": 12345,"
+        , "     \"credentials\": {"
+        , "          \"username\": \"usr1\","
+        , "          \"password\": \"pass1\""
+        , "     },"
+        , "     \"comment\": \"nice server\","
+        , "     \"options\": []"
+        , "}"
+        ]
+  assertEqual "Serialize pretty prints proper indents" expect5 jsonstr5
+  let jsonstr3 = BSL.unpack $ unjsonToByteStringLazy' (Options { nulls = False, indent = 3, pretty = False }) unjsonKonfig konfig
+  let expect3 = concat
+        [ "{"
+        , "\"hostname\":\"www.example.com\","
+        , "\"port\":12345,"
+        , "\"credentials\":{"
+        , "\"username\":\"usr1\","
+        , "\"password\":\"pass1\""
+        , "},"
+        , "\"comment\":\"nice server\","
+        , "\"options\":[]"
+        , "}"
+        ]
+  assertEqual "Serialize pretty prints proper indents" expect3 jsonstr3
   return ()
+
+test_serialize_with_nulls :: Test
+test_serialize_with_nulls = "Serialize with nulls" ~: do
+  let konfig = Konfig
+               { konfigHostname = "www.example.com"
+               , konfigPort = 12345
+               , konfigComment = Just "nice server"
+               , konfigCredentials = Credentials "usr1" "pass1" Nothing
+               , konfigAlternates = Nothing
+               , konfigOptions = []
+               }
+
+  let jsonstr = BSL.unpack $ unjsonToByteStringLazy' (Options { nulls = True, indent = 4, pretty = True }) unjsonKonfig konfig
+  let expect = intercalate "\n"
+        [ "{"
+        , "    \"hostname\": \"www.example.com\","
+        , "    \"port\": 12345,"
+        , "    \"credentials\": {"
+        , "        \"username\": \"usr1\","
+        , "        \"password\": \"pass1\","
+        , "        \"domain\": null"
+        , "    },"
+        , "    \"comment\": \"nice server\","
+        , "    \"options\": [],"
+        , "    \"alternates\": null"
+        , "}"
+        ]
+  assertEqual "Serialize pretty prints proper indents" expect jsonstr
 
 unjsonButThirteen :: UnjsonDef Int
 unjsonButThirteen = objectOf $ pure id
@@ -564,6 +620,7 @@ tests = test [ test_proper_parse
              , test_wrong_value_type
              , test_tuple_parsing
              , test_symmetry_of_serialization
+             , test_serialize_with_nulls
              , test_parse_either_field
              , test_update_from_serialization
              , test_update_from_serialization_with_reset_to_default
