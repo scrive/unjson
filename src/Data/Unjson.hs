@@ -626,14 +626,14 @@ tupleDefToArray sx _ (Pure _) = []
 tupleDefToArray sx s (Ap (TupleFieldDef _ f d) r) =  (sx d (f s)) : tupleDefToArray sx s r
 
 
-objectDefToArray :: (forall b . UnjsonDef b -> b -> v) -> s -> Ap (FieldDef s) a -> [(Text.Text,v)]
-objectDefToArray sx _ (Pure _) = []
-objectDefToArray sx s (Ap (FieldReqDef key _ f d) r) = (key,sx d (f s)) : objectDefToArray sx s r
-objectDefToArray sx s (Ap (FieldOptDef key _ f d) r) =
+objectDefToArray :: Bool -> (forall b . UnjsonDef b -> b -> v) -> s -> Ap (FieldDef s) a -> [(Text.Text,v)]
+objectDefToArray _ sx _ (Pure _) = []
+objectDefToArray explicitNulls sx s (Ap (FieldReqDef key _ f d) r) = (key,sx d (f s)) : objectDefToArray explicitNulls sx s r
+objectDefToArray explicitNulls sx s (Ap (FieldOptDef key _ f d) r) =
   case f s of
-    Nothing -> objectDefToArray sx s r
-    Just g ->  (key,sx d g) : objectDefToArray sx s r
-objectDefToArray sx s (Ap (FieldDefDef key _ _ f d) r) = (key,sx d (f s)) : objectDefToArray sx s r
+    Nothing -> (if explicitNulls then [(key,sx unjsonDef Aeson.Null)] else []) ++ objectDefToArray explicitNulls sx s r
+    Just g ->  (key,sx d g) : objectDefToArray explicitNulls sx s r
+objectDefToArray explicitNulls sx s (Ap (FieldDefDef key _ _ f d) r) = (key,sx d (f s)) : objectDefToArray explicitNulls sx s r
 
 -- | Given a definition of a value and a value produce a 'Aeson.Value'.
 --
@@ -649,11 +649,11 @@ unjsonToJSON (ArrayUnjsonDef _ m g k f) a =
     (ArrayModeParseAndOutputSingle,[b]) -> unjsonToJSON f b
     (_,c) -> Aeson.toJSON (map (unjsonToJSON f) c)
 unjsonToJSON (ObjectUnjsonDef f) a =
-  Aeson.object (objectDefToArray unjsonToJSON a f)
+  Aeson.object (objectDefToArray False unjsonToJSON a f)
 unjsonToJSON (TupleUnjsonDef f) a =
   Aeson.toJSON (tupleDefToArray unjsonToJSON a f)
 unjsonToJSON (DisjointUnjsonDef k l) a =
-  Aeson.object ((k,Aeson.toJSON nm) : objectDefToArray unjsonToJSON a f)
+  Aeson.object ((k,Aeson.toJSON nm) : objectDefToArray False unjsonToJSON a f)
   where
     [(nm,_,f)] = filter (\(_,is,_) -> is a) l
 unjsonToJSON (MapUnjsonDef f _ g) a =
@@ -697,7 +697,7 @@ unjsonToByteStringBuilder (ObjectUnjsonDef f) a =
   mconcat ([Builder.stringUtf8 "{"] ++ intersperse (Builder.stringUtf8 ",") (map serx obj) ++ [Builder.stringUtf8 "}"])
   where
     obj :: [(Text.Text, Builder.Builder)]
-    obj = objectDefToArray unjsonToByteStringBuilder a f
+    obj = objectDefToArray False unjsonToByteStringBuilder a f
     serx :: (Text.Text, Builder.Builder) -> Builder.Builder
     serx (key,val) = Builder.lazyByteString (Aeson.encode (Aeson.toJSON key)) <> Builder.stringUtf8 ":" <> val
 unjsonToByteStringBuilder (TupleUnjsonDef f) a =
@@ -706,7 +706,7 @@ unjsonToByteStringBuilder (DisjointUnjsonDef k l) a =
   mconcat ([Builder.stringUtf8 "{"] ++ intersperse (Builder.stringUtf8 ",") (map serx obj) ++ [Builder.stringUtf8 "}"])
   where
     obj :: [(Text.Text, Builder.Builder)]
-    obj = (k,Builder.lazyByteString (Aeson.encode (Aeson.toJSON nm))) : objectDefToArray unjsonToByteStringBuilder a f
+    obj = (k,Builder.lazyByteString (Aeson.encode (Aeson.toJSON nm))) : objectDefToArray False unjsonToByteStringBuilder a f
     serx :: (Text.Text, Builder.Builder) -> Builder.Builder
     serx (key,val) = Builder.lazyByteString (Aeson.encode (Aeson.toJSON key)) <> Builder.stringUtf8 ":" <> val
     [(nm,_,f)] = filter (\(_,is,_) -> is a) l
@@ -741,7 +741,7 @@ unjsonToByteStringBuilderPretty indent (ObjectUnjsonDef f) a =
   unjsonGroup indent (Builder.char8 '{') (Builder.char8 '}') serx obj
   where
     obj :: [(Text.Text, Builder.Builder)]
-    obj = objectDefToArray (unjsonToByteStringBuilderPretty (indent + 4)) a f
+    obj = objectDefToArray False (unjsonToByteStringBuilderPretty (indent + 4)) a f
     serx :: (Text.Text, Builder.Builder) -> Builder.Builder
     serx (key,val) = Builder.lazyByteString (Aeson.encode (Aeson.toJSON key)) <> Builder.stringUtf8 ": " <> val
 unjsonToByteStringBuilderPretty indent (TupleUnjsonDef f) a =
@@ -750,7 +750,7 @@ unjsonToByteStringBuilderPretty indent (DisjointUnjsonDef k l) a =
   unjsonGroup indent (Builder.char8 '{') (Builder.char8 '}') serx obj
   where
     obj :: [(Text.Text, Builder.Builder)]
-    obj = (k,Builder.lazyByteString (Aeson.encode (Aeson.toJSON nm))) : objectDefToArray (unjsonToByteStringBuilderPretty (indent+4)) a f
+    obj = (k,Builder.lazyByteString (Aeson.encode (Aeson.toJSON nm))) : objectDefToArray False (unjsonToByteStringBuilderPretty (indent+4)) a f
     serx :: (Text.Text, Builder.Builder) -> Builder.Builder
     serx (key,val) = Builder.lazyByteString (Aeson.encode (Aeson.toJSON key)) <> Builder.stringUtf8 ": " <> val
     [(nm,_,f)] = filter (\(_,is,_) -> is a) l
