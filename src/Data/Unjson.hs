@@ -98,6 +98,7 @@ module Data.Unjson
 -- * Data definitions
 , Unjson(..)
 , UnjsonDef(..)
+
 -- ** Objects
 , objectOf
 , field
@@ -113,8 +114,9 @@ module Data.Unjson
 , arrayWithPrimaryKeyOf
 , arrayWithModeAndPrimaryKeyOf
 , ArrayMode(..)
--- ** Maps, sums
+-- ** Maps, enums, sums
 , mapOf
+, enumOf
 , disjointUnionOf
 -- ** Helpers
 , unjsonAeson
@@ -1099,6 +1101,8 @@ mapOf def = MapUnjsonDef def pure id
 -- is not good, so some obvious information needs to be given
 -- manually.
 --
+-- For related functionality see 'enumOf'.
+--
 -- Example:
 --
 -- > data X = A { aString :: String } | B { bInt :: Int }
@@ -1121,6 +1125,22 @@ mapOf def = MapUnjsonDef def pure id
 disjointUnionOf :: Text.Text -> [(Text.Text, k -> Bool, Ap (FieldDef k) k)] -> UnjsonDef k
 disjointUnionOf key alternates =
   DisjointUnjsonDef key (map (\(a,b,c) -> (a,b,fmap return c)) alternates)
+
+-- | Provide sum type support for parametersless constructors.
+--
+-- For related functionality see 'disjointUnionOf'.
+--
+-- Example:
+--
+-- > data X = A | B
+-- >
+-- > unjsonX = enumOf "type_thing"
+-- >             [("a_thing", A),
+-- >              ("b_thing", B)]
+--
+enumOf :: (Eq k) => Text.Text -> [(Text.Text, k)] -> UnjsonDef k
+enumOf key alternates =
+  DisjointUnjsonDef key (map (\(a,b) -> (a,(==)b,fmap return (pure b))) alternates)
 
 -- | Declare array of values where each of them is described by
 -- valuedef. Use 'unjsonAeson' to parse.

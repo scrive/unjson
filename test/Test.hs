@@ -412,6 +412,47 @@ test_parse_either_field = "test_parse_either_field" ~: do
     assertBool "Documentation generates" (length docstr > 0)
   return ()
 
+data AB = A | B
+   deriving (Show, Eq, Ord)
+
+
+unjsonEnumAB :: UnjsonDef AB
+unjsonEnumAB = enumOf "mode"
+                     [ ("A", A)
+                     , ("B", B)]
+
+
+test_enum_field :: Test
+test_enum_field = "test_enum_field" ~: do
+  do
+    let json = Aeson.object
+                 [ "mode" .= "A"
+                 ]
+    let Result val iss = parse unjsonEnumAB json
+    assertEqual "No problems" [] iss
+    assertEqual "Proper value present" A val
+  do
+    let json = Aeson.object
+                 [ "mode" .= "B"
+                 ]
+    let Result val iss = parse unjsonEnumAB json
+    assertEqual "No problems" [] iss
+    assertEqual "Proper value present" B val
+  do
+    let json = Aeson.object
+                 [ "mode" .= "wrong"
+                 ]
+    let Result val iss = parse unjsonEnumAB json
+    assertEqual "No problems" [Anchored (Path [PathElemKey "mode"]) "value 'wrong' is not one of the allowed for enumeration [A,B]"] iss
+    catch
+         (do
+             _ <- return $! val
+             assertFailure "Should have thrown an exception")
+         (\(Anchored path (msg :: Text.Text)) -> do
+             assertEqual "Path to problematic key"
+                           (Path [ PathElemKey "mode"
+                                 ]) path
+             assertEqual "Message about the problem" (Text.pack "value 'wrong' is not one of the allowed for enumeration [A,B]") msg)
 
 test_update_from_serialization :: Test
 test_update_from_serialization = "test_update_from_serialization" ~: do
@@ -622,6 +663,7 @@ tests = test [ test_proper_parse
              , test_symmetry_of_serialization
              , test_serialize_with_nulls
              , test_parse_either_field
+             , test_enum_field
              , test_update_from_serialization
              , test_update_from_serialization_with_reset_to_default
              , test_array_modes
