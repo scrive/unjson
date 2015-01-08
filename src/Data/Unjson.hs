@@ -84,21 +84,21 @@
 -- 'unjsonToJSON', 'unjsonToByteStringLazy',
 -- 'unjsonToByteStringBuilder' and 'render'.
 module Data.Unjson
-( Unjson(..)
-, UnjsonDef(..)
-, Problem
-, Problems
-, Path(..)
-, PathElem(..)
-, ArrayMode(..)
-, FieldDef(..)
-, unjsonToJSON
+(
+-- * Serialization to JSON
+  unjsonToJSON
 , unjsonToJSON'
 , unjsonToByteStringLazy
 , unjsonToByteStringLazy'
 , unjsonToByteStringBuilder
 , unjsonToByteStringBuilder'
 , unjsonToByteStringBuilder''
+, Options(..)
+
+-- * Data definitions
+, Unjson(..)
+, UnjsonDef(..)
+-- ** Objects
 , objectOf
 , field
 , fieldBy
@@ -106,24 +106,36 @@ module Data.Unjson
 , fieldOptBy
 , fieldDef
 , fieldDefBy
+, FieldDef(..)
+-- ** Arrays
 , arrayOf
 , arrayWithModeOf
 , arrayWithPrimaryKeyOf
 , arrayWithModeAndPrimaryKeyOf
+, ArrayMode(..)
+-- ** Maps, sums
 , mapOf
 , disjointUnionOf
+-- ** Helpers
+, unjsonAeson
+, unjsonAesonWithDoc
+
+-- * Documentation rendering
 , render
 , renderForPath
 , renderDoc
 , renderDocForPath
-, unjsonAeson
-, unjsonAesonWithDoc
-, Result(..)
-, Anchored(..)
+
+-- * Parsing and updating
 , parse
 , update
+, Result(..)
+, Anchored(..)
+, Problem
+, Problems
+, Path(..)
+, PathElem(..)
 
-, Options(..)
 , unjsonInvmapR
 , unjsonIsConstrByName
 , unjsonIPv4AsWord32
@@ -638,10 +650,13 @@ objectDefToArray explicitNulls sx s (Ap (FieldOptDef key _ f d) r) =
     Just g ->  (key,sx d g) : objectDefToArray explicitNulls sx s r
 objectDefToArray explicitNulls sx s (Ap (FieldDefDef key _ _ f d) r) = (key,sx d (f s)) : objectDefToArray explicitNulls sx s r
 
+-- | Formatting options when serializing to JSON. Used in
+-- 'unjsonToJSON'', 'unjsonToByteStringLazy'' and
+-- 'unjsonToByteStringBuilder''.
 data Options = Options
-  { pretty :: Bool
-  , indent :: Int
-  , nulls  :: Bool
+  { pretty :: Bool -- ^ Pretty format. Use spaces and newlines.
+  , indent :: Int  -- ^ Amount of spaces for indent. 4 looks good.
+  , nulls  :: Bool -- ^ Output explicit nulls for absent optional fields.
   }
   deriving (Eq, Ord, Show)
 
@@ -691,6 +706,14 @@ unjsonToJSON' opt (MapUnjsonDef f _ g) a =
 unjsonToByteStringLazy :: UnjsonDef a -> a -> BSL.ByteString
 unjsonToByteStringLazy = unjsonToByteStringLazy' (Options { pretty = False, indent = 4, nulls = False })
 
+-- | Given a definition of a value and a value produce a
+-- 'BSL.ByteString'. Also takes formatting 'Options'.
+--
+-- Example:
+--
+-- > let v = Thing { ... }
+-- > let utf8bsrep = unjsonToByteStringLazy' options unjsonThing v
+--
 unjsonToByteStringLazy' :: Options -> UnjsonDef a -> a -> BSL.ByteString
 unjsonToByteStringLazy' opt ud a = Builder.toLazyByteString (unjsonToByteStringBuilder' opt ud a)
 
@@ -708,6 +731,11 @@ unjsonGroup level opt open close peritem items =
     idnt2 :: Builder.Builder
     idnt2 = if pretty opt then mconcat (take (level + indent opt) (repeat (Builder.char8 ' '))) else mempty
 
+-- | Given a definition of a value and a value produce a
+-- 'Builder.Builder'. Functionally it is the same as
+-- 'unjsonToByteStringLazy' but useful if json serialization is a part
+-- of some bigger serialization function. Also takes formatting
+-- 'Options'.
 unjsonToByteStringBuilder' :: Options -> UnjsonDef a -> a -> Builder.Builder
 unjsonToByteStringBuilder' = unjsonToByteStringBuilder'' 0
 
@@ -719,9 +747,8 @@ unjsonToByteStringBuilder :: UnjsonDef a -> a -> Builder.Builder
 unjsonToByteStringBuilder = unjsonToByteStringBuilder' (Options { pretty = False, indent = 4, nulls = False })
 
 -- | Given a definition of a value and a value produce a
--- 'Builder.Builder'. Functionally it is the same as
--- 'unjsonToByteStringLazyPretty' but useful if json serialization is
--- a part of some bigger serialization function.
+-- 'Builder.Builder'. Useful when JSON serialization is
+-- a part of a bigger serialization function.
 unjsonToByteStringBuilder'' :: Int -> Options -> UnjsonDef a -> a -> Builder.Builder
 unjsonToByteStringBuilder'' level opt (SimpleUnjsonDef _ _ g) a = Builder.lazyByteString (Aeson.encode (g a))
 unjsonToByteStringBuilder'' level opt (ArrayUnjsonDef _ m g k f) a =
@@ -1057,7 +1084,7 @@ objectOf fields = ObjectUnjsonDef (fmap pure fields)
 -- >       "Map string to Y value"
 -- >       (mapOf unjsonY)
 --
--- Note that overloading allows for automatice conversion to more map
+-- Note that overloading allows for automatic conversion to more map
 -- types, for example:
 --
 -- > data X = X { xMap :: Map.Map String x }
