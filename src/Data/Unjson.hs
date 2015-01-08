@@ -1120,8 +1120,8 @@ mapOf def = MapUnjsonDef def pure id
 -- and also based on data contructor which of serialization cases to
 -- use.
 --
--- 'unjsonIsConstrByName' is of help, but you may use other method if
--- you do not like 'Data.Data.Data' typeclass.
+-- Note that 'unjsonIsConstrByName' is helpful, but you may use usual
+-- @case ... of@ if you do not like the 'Data.Data.Data' typeclass.
 disjointUnionOf :: Text.Text -> [(Text.Text, k -> Bool, Ap (FieldDef k) k)] -> UnjsonDef k
 disjointUnionOf key alternates =
   DisjointUnjsonDef key (map (\(a,b,c) -> (a,b,fmap return c)) alternates)
