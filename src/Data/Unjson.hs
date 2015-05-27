@@ -107,6 +107,8 @@ module Data.Unjson
 , fieldOptBy
 , fieldDef
 , fieldDefBy
+, fieldReadonly
+, fieldReadonlyBy
 , FieldDef(..)
 -- ** Arrays
 , arrayOf
@@ -624,6 +626,7 @@ contramapFieldDef :: (b -> a) -> FieldDef a x -> FieldDef b x
 contramapFieldDef f (FieldReqDef name doc ext d) = FieldReqDef name doc (ext . f) d
 contramapFieldDef f (FieldOptDef name doc ext d) = FieldOptDef name doc (ext . f) d
 contramapFieldDef f (FieldDefDef name doc def ext d) = FieldDefDef name doc def (ext . f) d
+contramapFieldDef f (FieldRODef name doc ext d) = FieldRODef name doc (ext . f) d
 
 contramapTupleFieldDef :: (b -> a) -> TupleFieldDef a x -> TupleFieldDef b x
 contramapTupleFieldDef f (TupleFieldDef i e d) = TupleFieldDef i (e . f) d
@@ -637,6 +640,7 @@ data FieldDef s a where
   FieldReqDef :: Text.Text -> Text.Text -> (s -> a) -> UnjsonDef a -> FieldDef s a
   FieldOptDef :: Text.Text -> Text.Text -> (s -> Maybe a) -> UnjsonDef a -> FieldDef s (Maybe a)
   FieldDefDef :: Text.Text -> Text.Text -> a -> (s -> a) -> UnjsonDef a -> FieldDef s a
+  FieldRODef  :: Text.Text -> Text.Text -> (s -> a) -> UnjsonDef a -> FieldDef s ()
 
 -- | Define a tuple element. 'TupleFieldDef' holds information about
 -- index, accessor function and a parser definition.
@@ -656,6 +660,7 @@ objectDefToArray explicitNulls sx s (Ap (FieldOptDef key _ f d) r) =
     Nothing -> (if explicitNulls then [(key,sx unjsonDef Aeson.Null)] else []) ++ objectDefToArray explicitNulls sx s r
     Just g ->  (key,sx d g) : objectDefToArray explicitNulls sx s r
 objectDefToArray explicitNulls sx s (Ap (FieldDefDef key _ _ f d) r) = (key,sx d (f s)) : objectDefToArray explicitNulls sx s r
+objectDefToArray explicitNulls sx s (Ap (FieldRODef  key _ f d) r) = (key,sx d (f s)) : objectDefToArray explicitNulls sx s r
 
 -- | Formatting options when serializing to JSON. Used in
 -- 'unjsonToJSON'', 'unjsonToByteStringLazy'' and
@@ -805,6 +810,7 @@ listRequiredKeysForField :: FieldDef s a -> [Text.Text]
 listRequiredKeysForField (FieldReqDef key _docstring _f _d) = [key]
 listRequiredKeysForField (FieldOptDef _key _docstring _f _d) = []
 listRequiredKeysForField (FieldDefDef _key _docstring _f _ _d) = []
+listRequiredKeysForField (FieldRODef  _key _docstring _f _d) = []
 
 listRequiredKeys :: Ap (FieldDef s) a -> [Text.Text]
 listRequiredKeys (Pure _) = []
@@ -996,6 +1002,7 @@ lookupByFieldDef v ov (FieldOptDef name docstring f valuedef)
       Nothing -> case ov of
                    Just xov -> Result (f xov) []
                    Nothing -> Result Nothing []
+lookupByFieldDef _ _ (FieldRODef name docstring f valuedef) = Result () []
 
 
 lookupByTupleFieldDef :: Aeson.Array -> Maybe s -> TupleFieldDef s a -> Result a
@@ -1095,6 +1102,45 @@ fieldDefBy key def f docstring valuedef = liftAp (FieldDefDef key docstring def 
 -- > data Thing = Thing { thingPort :: Int, ... }
 fieldDef :: (Unjson a) => Text.Text -> a -> (s -> a) -> Text.Text -> Ap (FieldDef s) a
 fieldDef key def f docstring = fieldDefBy key def f docstring unjsonDef
+
+
+-- | Declare a field that is readonly from the point of view of Haskell structures,
+-- it will be serialized to JSON but never read from JSON.
+--
+-- Example:
+--
+-- > unjsonThing :: UnjsonDef Thing
+-- > unjsonThing = objectOf $ pure (\s -> Thing 59123 s)
+-- >    <* fieldReadonly "port"
+-- >          thingPort
+-- >          "Random port the server is listening on"
+-- >    <*> field "string"
+-- >          thingString
+-- >          "Additional string"
+-- >
+-- > data Thing = Thing { thingPort :: Int, thingString :: String, ... }
+fieldReadonly :: (Unjson a) => Text.Text -> (s -> a) -> Text.Text ->  Ap (FieldDef s) ()
+fieldReadonly key f docstring = fieldReadonlyBy key f docstring unjsonDef
+
+-- | Declare a field that is readonly from the point of view of Haskell structures,
+-- it will be serialized to JSON but never read from JSON. Accepts
+-- unjson parser as a parameter.
+--
+-- Example:
+--
+-- > unjsonThing :: UnjsonDef Thing
+-- > unjsonThing = objectOf $ pure (\s -> Thing 59123 s)
+-- >    <* fieldReadonlyBy "port"
+-- >          thingPort
+-- >          "Random port the server is listening on"
+-- >          unjsonPort
+-- >    <*> field "string"
+-- >          thingString
+-- >          "Additional string"
+-- >
+-- > data Thing = Thing { thingPort :: Port, thingString :: String, ... }
+fieldReadonlyBy ::  Text.Text -> (s -> a) -> Text.Text -> UnjsonDef a -> Ap (FieldDef s) ()
+fieldReadonlyBy key f docstring valuedef = liftAp (FieldRODef key docstring f valuedef)
 
 -- | Declare an object as bidirectional mapping from JSON object to Haskell record and back.
 --
@@ -1445,7 +1491,8 @@ renderField (FieldOptDef key docstring _f d) =
   P.text (ansiBold ++ Text.unpack key ++ ansiReset) P.<> P.text " (opt):" P.$+$ P.nest 4 (P.text (Text.unpack docstring) P.$+$ renderDoc d)
 renderField (FieldDefDef key docstring _f _ d) =
   P.text (ansiBold ++ Text.unpack key ++ ansiReset) P.<> P.text " (def):" P.$+$ P.nest 4 (P.text (Text.unpack docstring) P.$+$ renderDoc d)
-
+renderField (FieldRODef key docstring _f d) =
+  P.text (ansiBold ++ Text.unpack key ++ ansiReset) P.<> P.text " (ro):" P.$+$ P.nest 4 (P.text (Text.unpack docstring) P.$+$ renderDoc d)
 
 renderFields :: Ap (FieldDef s) a -> [P.Doc]
 renderFields (Pure _) = []
@@ -1480,9 +1527,11 @@ findNestedFieldUnjson :: (Monad m) => Text.Text -> Path -> Ap (FieldDef s) a -> 
 findNestedFieldUnjson key (Path []) (Ap f@(FieldReqDef k _ _ _d) _r) | k==key = return (renderField f)
 findNestedFieldUnjson key (Path []) (Ap f@(FieldOptDef k _ _ _d) _r) | k==key = return (renderField f)
 findNestedFieldUnjson key (Path []) (Ap f@(FieldDefDef k _ _ _ _d) _r) | k==key = return (renderField f)
+findNestedFieldUnjson key (Path []) (Ap f@(FieldRODef k _ _ _d) _r) | k==key = return (renderField f)
 findNestedFieldUnjson key path (Ap (FieldReqDef k _ _ d) _r) | k==key = findNestedUnjson path d
 findNestedFieldUnjson key path (Ap (FieldOptDef k _ _ d) _r) | k==key = findNestedUnjson path d
 findNestedFieldUnjson key path (Ap (FieldDefDef k _ _ _ d) _r) | k==key = findNestedUnjson path d
+findNestedFieldUnjson key path (Ap (FieldRODef  k _ _ d) _r) | k==key = findNestedUnjson path d
 findNestedFieldUnjson key path (Ap _ r) =
   findNestedFieldUnjson key path r
 findNestedFieldUnjson _ _ _ = fail "findNestedFieldUnjson"

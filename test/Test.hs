@@ -726,6 +726,51 @@ test_plain_unions = "test_maps" ~: do
   return ()
 
 
+data ROTest = ROTest
+              { roTestF1 :: Int
+              , roTestF2 :: String
+              }
+            deriving (Eq,Ord,Show)
+
+unjsonROTest :: UnjsonDef ROTest
+unjsonROTest = objectOf $
+   pure (\f2 -> ROTest 444 f2)
+   <*> field "f2" roTestF2 "f2 is a normal field"
+   <* fieldReadonly "f1" roTestF1 "f1 is readonly field"
+
+
+test_readonly_fields :: Test
+test_readonly_fields = "test_readonly_fields" ~: do
+
+  -- simplest case
+  let json1 = Aeson.object
+               [ "f2" .= ("abc" :: String)
+               , "f1" .= (123 :: Int)
+               ]
+
+  let Result val1 iss1 = parse unjsonROTest json1
+  assertEqual "No problems" [] iss1
+  assertEqual "Got expected value" (ROTest 444 "abc") val1
+
+  let json2 = Aeson.object
+               [ "f2" .= ("abc" :: String)
+               ]
+
+  let Result val2 iss2 = parse unjsonROTest json2
+  assertEqual "No problems" [] iss2
+  assertEqual "Got expected value" (ROTest 444 "abc") val2
+
+  let json3 = Aeson.object
+               [ "f2x" .= ("abc" :: String)
+               , "f1" .= ("should not be inspected" :: String)
+               ]
+
+  let Result _val3 iss3 = parse unjsonROTest json3
+  assertEqual "There are problems" [Anchored (Path [ PathElemKey "f2"
+                                                   ]) "missing key"] iss3
+  return ()
+
+
 tests :: Test
 tests = test [ test_proper_parse
              , test_missing_key
@@ -743,6 +788,7 @@ tests = test [ test_proper_parse
              , test_semantic_errors_on_values
              , test_maps
              , test_plain_unions
+             , test_readonly_fields
              ]
 
 main :: IO Counts
