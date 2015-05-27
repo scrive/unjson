@@ -23,7 +23,7 @@ default (Text.Text, String, Int, Double)
 -- There are some mandatory fields and some optional fields.
 data Konfig =
      Konfig { konfigHostname    :: Text.Text
-            , konfigPort        :: Int
+            , konfigPort        :: Integer
             , konfigCredentials :: Credentials
             , konfigComment     :: Maybe Text.Text
             , konfigOptions     :: [Text.Text]
@@ -204,7 +204,7 @@ test_tuple_parsing = "Tuple parsing" ~: do
                , (Aeson.toJSON 123)
                ]
 
-  let Result (val1 :: String, val2 :: Text.Text, val3 ::Int) iss = parse unjsonDef json
+  let Result (val1 :: String, val2 :: Text.Text, val3 ::Integer) iss = parse unjsonDef json
   assertEqual "Number of issues in parsing" [] iss
   assertEqual "First element of tuple" "hostname" val1
   assertEqual "Second element of tuple" "port" val2
@@ -223,7 +223,7 @@ test_tuple_parsing = "Tuple parsing" ~: do
                       (Path [PathElemIndex 3]) path
         assertEqual "Message about the problem" (Text.pack "missing key") msg)
 
-  let Result (yval1 :: Int, yval2 :: Int, yval3 :: Text.Text) iss = parse unjsonDef json
+  let Result (yval1 :: Integer, yval2 :: Integer, yval3 :: Text.Text) iss = parse unjsonDef json
   assertEqual "Issues in parsing"
                 [ Anchored (Path [PathElemIndex 0]) "when expecting a Integral, encountered String instead"
                 , Anchored (Path [PathElemIndex 1]) "when expecting a Integral, encountered String instead"
@@ -655,6 +655,77 @@ test_maps = "test_maps" ~: do
   assertEqual "Parsing keeps proper order" (LazyHashMap.fromList [("k1"::Text.Text, 12::Int),("k2", 1122), ("a4", 666)]) val2
   return ()
 
+
+data PlainUnion
+  = PlainUnionA
+    { plainUnionKey1 :: String
+    , plainUnionKey2 :: Maybe Int
+    }
+  | PlainUnionB
+    { plainUnionKey3 :: Int
+    , plainUnionKey4 :: Int
+    }
+    deriving (Eq, Show, Typeable, Data)
+
+unjsonPlainUnion :: UnjsonDef PlainUnion
+unjsonPlainUnion = unionOf
+                   [ (unjsonIsConstrByName "PlainUnionA",
+                      pure PlainUnionA
+                      <*> field "key1" plainUnionKey1 ""
+                      <*> fieldOpt "key2" plainUnionKey2 "")
+                   , (unjsonIsConstrByName "PlainUnionB",
+                      pure PlainUnionB
+                      <*> field "key3" plainUnionKey3 ""
+                      <*> fieldDef "key4" 123 plainUnionKey4 "")
+                   ]
+
+test_plain_unions :: Test
+test_plain_unions = "test_maps" ~: do
+
+  -- simplest case
+  let json1 = Aeson.object
+               [ "key1" .= ("abc" :: String)
+               ]
+
+  let Result val1 iss1 = parse unjsonPlainUnion json1
+  assertEqual "No problems" [] iss1
+  assertEqual "Got expected value" (PlainUnionA "abc" Nothing) val1
+
+  -- anyway choose first object on list, because 'key1' is present
+  let json2 = Aeson.object
+               [ "key1" .= ("abc" :: String)
+               , "key3" .= ("abc" :: String)
+               , "key4" .= ("abc" :: String)
+               ]
+
+  let Result val2 iss2 = parse unjsonPlainUnion json2
+  assertEqual "No problems" [] iss2
+  assertEqual "Got expected value" (PlainUnionA "abc" Nothing) val2
+
+  -- key is present so PlainUnionA will be chosen and then fail
+  -- because of wrong types
+  let json3 = Aeson.object
+               [ "key1" .= (123 :: Int)
+               ]
+
+  let Result val3 iss3 = parse unjsonPlainUnion json3
+  assertEqual "Cannot parse PlainUnionA" [Anchored (Path [PathElemKey "key1"]) "when expecting a String, encountered Number instead"] iss3
+
+
+  -- choose PlainUnionB
+  let json4 = Aeson.object
+               [ "xx" .= (123 :: Int)
+               , "key3" .= (15523 :: Int)
+               , "key4" .= (13 :: Int)
+               ]
+
+  let Result val4 iss4 = parse unjsonPlainUnion json4
+  assertEqual "No issues" [] iss4
+  assertEqual "Got expected value" (PlainUnionB 15523 13) val4
+
+  return ()
+
+
 tests :: Test
 tests = test [ test_proper_parse
              , test_missing_key
@@ -671,6 +742,7 @@ tests = test [ test_proper_parse
              , test_pretty_serialization
              , test_semantic_errors_on_values
              , test_maps
+             , test_plain_unions
              ]
 
 main :: IO Counts

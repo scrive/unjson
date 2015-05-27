@@ -118,6 +118,7 @@ module Data.Unjson
 , mapOf
 , enumOf
 , disjointUnionOf
+, unionOf
 -- ** Helpers
 , unjsonAeson
 , unjsonAesonWithDoc
@@ -165,6 +166,7 @@ import qualified Data.HashSet as HashSet
 import Data.Typeable
 import Data.Data
 import Data.Monoid
+import Data.Maybe
 import Data.Primitive.Types
 import Data.Hashable
 #ifdef MIN_VERSION_aeson
@@ -593,6 +595,7 @@ data UnjsonDef a where
   ObjectUnjsonDef   :: Ap (FieldDef k) (Result k) -> UnjsonDef k
   TupleUnjsonDef    :: Ap (TupleFieldDef k) (Result k) -> UnjsonDef k
   DisjointUnjsonDef :: Text.Text -> [(Text.Text, k -> Bool, Ap (FieldDef k) (Result k))] -> UnjsonDef k
+  UnionUnjsonDef    :: [(k -> Bool, Ap (FieldDef k) (Result k))] -> UnjsonDef k
   MapUnjsonDef      :: UnjsonDef k -> (HashMap.HashMap Text.Text k -> Result v) -> (v -> HashMap.HashMap Text.Text k) -> UnjsonDef v
 
 instance Invariant UnjsonDef where
@@ -602,6 +605,7 @@ instance Invariant UnjsonDef where
   invmap f g (ObjectUnjsonDef fd) = ObjectUnjsonDef (fmap (fmap f) (hoistAp (contramapFieldDef g) fd))
   invmap f g (TupleUnjsonDef td) = TupleUnjsonDef (fmap (fmap f) (hoistAp (contramapTupleFieldDef g) td))
   invmap f g (DisjointUnjsonDef d l) = DisjointUnjsonDef d (map (\(a,b,c) -> (a,b . g,fmap (fmap f) (hoistAp (contramapFieldDef g) c))) l)
+  invmap f g (UnionUnjsonDef l) = UnionUnjsonDef (map (\(b,c) -> (b . g,fmap (fmap f) (hoistAp (contramapFieldDef g) c))) l)
 
 unjsonInvmapR :: (a -> Result b) -> (b -> a) -> UnjsonDef a -> UnjsonDef b
 unjsonInvmapR f g (SimpleUnjsonDef name p s) = SimpleUnjsonDef name (join . fmap f . p) (s . g)
@@ -610,6 +614,7 @@ unjsonInvmapR f g (MapUnjsonDef d n k) = MapUnjsonDef d (join . fmap f . n) (k .
 unjsonInvmapR f g (ObjectUnjsonDef fd) = ObjectUnjsonDef (fmap (join . fmap f) (hoistAp (contramapFieldDef g) fd))
 unjsonInvmapR f g (TupleUnjsonDef td) = TupleUnjsonDef (fmap (join . fmap f) (hoistAp (contramapTupleFieldDef g) td))
 unjsonInvmapR f g (DisjointUnjsonDef d l) = DisjointUnjsonDef d (map (\(a,b,c) -> (a,b . g,fmap (join . fmap f) (hoistAp (contramapFieldDef g) c))) l)
+unjsonInvmapR f g (UnionUnjsonDef l) = UnionUnjsonDef (map (\(b,c) -> (b . g,fmap (join . fmap f) (hoistAp (contramapFieldDef g) c))) l)
 
 -- Note: contramapFieldDef and contramapTupleFieldDef are basically
 -- Contravariant, but due to type parameters in wrong order we would
@@ -695,6 +700,10 @@ unjsonToJSON' opt (DisjointUnjsonDef k l) a =
   Aeson.object ((k,Aeson.toJSON nm) : objectDefToArray (nulls opt) (unjsonToJSON' opt) a f)
   where
     [(nm,_,f)] = filter (\(_,is,_) -> is a) l
+unjsonToJSON' opt (UnionUnjsonDef l) a =
+  Aeson.object (objectDefToArray (nulls opt) (unjsonToJSON' opt) a f)
+  where
+    [(_,f)] = filter (\(is,_) -> is a) l
 unjsonToJSON' opt (MapUnjsonDef f _ g) a =
   Aeson.Object $ fmap (unjsonToJSON' opt f) (g a)
 
@@ -776,12 +785,32 @@ unjsonToByteStringBuilder'' level opt (DisjointUnjsonDef k l) a =
     serx (key,val) = Builder.lazyByteString (Aeson.encode (Aeson.toJSON key)) <> Builder.char8 ':'
                      <> (if pretty opt then Builder.char8 ' ' else mempty)  <> val
     [(nm,_,f)] = filter (\(_,is,_) -> is a) l
+unjsonToByteStringBuilder'' level opt (UnionUnjsonDef l) a =
+  unjsonGroup level opt (Builder.char8 '{') (Builder.char8 '}') serx obj
+  where
+    obj :: [(Text.Text, Builder.Builder)]
+    obj = objectDefToArray (nulls opt) (unjsonToByteStringBuilder'' (level + indent opt) opt) a f
+    serx :: (Text.Text, Builder.Builder) -> Builder.Builder
+    serx (key,val) = Builder.lazyByteString (Aeson.encode (Aeson.toJSON key)) <> Builder.char8 ':'
+                     <> (if pretty opt then Builder.char8 ' ' else mempty)  <> val
+    [(_,f)] = filter (\(is,_) -> is a) l
 unjsonToByteStringBuilder'' level opt (MapUnjsonDef f _ g) a =
   unjsonGroup level opt (Builder.char8 '{') (Builder.char8 '}') serx obj
   where
     obj = LazyHashMap.toList (fmap (unjsonToByteStringBuilder'' (level + indent opt) opt f) (g a))
     serx (key,val) = Builder.lazyByteString (Aeson.encode (Aeson.toJSON key)) <> Builder.char8 ':'
                      <> (if pretty opt then Builder.char8 ' ' else mempty) <> val
+
+listRequiredKeysForField :: FieldDef s a -> [Text.Text]
+listRequiredKeysForField (FieldReqDef key _docstring _f _d) = [key]
+listRequiredKeysForField (FieldOptDef _key _docstring _f _d) = []
+listRequiredKeysForField (FieldDefDef _key _docstring _f _ _d) = []
+
+listRequiredKeys :: Ap (FieldDef s) a -> [Text.Text]
+listRequiredKeys (Pure _) = []
+listRequiredKeys (Ap f r) =
+  listRequiredKeysForField f ++ listRequiredKeys r
+
 
 -- | Count how many applications there are. Useful for error
 -- reporting.
@@ -865,6 +894,13 @@ parseUpdating (DisjointUnjsonDef k l) ov v
         Nothing -> case ov of
           Just xov -> Result xov []
           Nothing -> resultPrependKey k $ fail "missing key"
+      Left e ->
+        fail e
+parseUpdating (UnionUnjsonDef l) ov v
+  = case Aeson.parseEither Aeson.parseJSON v of
+      Right v -> case filter (\(_,f) -> isJust (mapM_ (\k -> HashMap.lookup k v) (listRequiredKeys f))) l of
+        ((_,f):_) -> join (runAp (lookupByFieldDef v ov) f)
+        _ -> fail $ "union value type could not be recognized based on presence of keys"
       Left e ->
         fail e
 parseUpdating (MapUnjsonDef f g h) ov v
@@ -1126,6 +1162,38 @@ disjointUnionOf :: Text.Text -> [(Text.Text, k -> Bool, Ap (FieldDef k) k)] -> U
 disjointUnionOf key alternates =
   DisjointUnjsonDef key (map (\(a,b,c) -> (a,b,fmap return c)) alternates)
 
+-- | Provide sum type support, non-disjoin version. Bidirectional case matching in Haskell
+-- is not good, so some obvious information needs to be given
+-- manually.
+--
+-- For related functionality see 'enumOf'.
+--
+-- Example:
+--
+-- > data X = A { aString :: String } | B { bInt :: Int }
+-- >             deriving (Data,Typeable)
+-- >
+-- > unjsonX = unionOf
+-- >             [(unjsonIsConstrByName "A",
+-- >               pure A <*> field "string" "A string value"),
+-- >              (unjsonIsConstrByName "B",
+-- >               pure B <*> field "int" "An int value")]
+--
+-- Note that each case in list must be able to discriminate between
+-- constructors in a data type and ti has to be able to this both
+-- ways: to find out based on json contents which constructor applies
+-- and also based on data contructor which of serialization cases to
+-- use. To know what constructor to use at parsing time unjson looks
+-- at fields present in json object and on list of field names
+-- required to satisfy. First constructor for which all fields are
+-- present is chosen.
+--
+-- Note that 'unjsonIsConstrByName' is helpful, but you may use usual
+-- @case ... of@ if you do not like the 'Data.Data.Data' typeclass.
+unionOf :: [(k -> Bool, Ap (FieldDef k) k)] -> UnjsonDef k
+unionOf alternates =
+  UnionUnjsonDef (map (\(b,c) -> (b,fmap return c)) alternates)
+
 -- | Provide sum type support for parametersless constructors.
 --
 -- For related functionality see 'disjointUnionOf'.
@@ -1360,6 +1428,8 @@ renderDoc (TupleUnjsonDef f) = P.text (ansiDimmed ++ "tuple of size " ++ show (c
              P.vcat (renderTupleFields f)
 renderDoc (DisjointUnjsonDef k z) = P.text (ansiDimmed ++ "disjoint union based on key:" ++ ansiReset) P.$+$
   P.vcat [P.text (ansiBold ++ Text.unpack k ++ ": " ++ Text.unpack l ++ ansiReset) P.$+$ P.nest 4 (P.vcat (renderFields f)) | (l,_,f) <- z]
+renderDoc (UnionUnjsonDef z) = P.text (ansiDimmed ++ "plain union based on presence of required keys:" ++ ansiReset) P.$+$
+  P.vcat [P.text (ansiBold ++ "case " ++ show i ++ ":" ++ ansiReset) P.$+$ P.nest 4 (P.vcat (renderFields f)) | ((_,f),i) <- zip z [1..]]
 
 -- | Render only selected part of structure documentation as
 -- 'P.Doc'. Path should point to a subtree, if it does not then
