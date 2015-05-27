@@ -57,7 +57,6 @@ Test-Suite test
   main-is:             Test.hs
   hs-source-dirs:      src, test
   build-depends:       base
-  build-depends:       Cabal
   build-depends:       text
   build-depends:       aeson
   --build-depends:       unjson
