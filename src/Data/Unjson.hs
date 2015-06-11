@@ -176,7 +176,13 @@ import Data.Hashable
 import Data.Scientific
 #endif
 #endif
+#ifdef MIN_VERSION_attoparsec
+#if MIN_VERSION_attoparsec(0,14,0)
+    -- do nothing
+#else
 import Data.Attoparsec.Number
+#endif
+#endif
 import Data.Time.LocalTime
 import Data.Time.Clock
 import Data.Fixed
@@ -338,7 +344,13 @@ instance Unjson Word32           where unjsonDef = unjsonAeson
 instance Unjson Word64           where unjsonDef = unjsonAeson
 instance Unjson ()               where unjsonDef = unjsonAeson
 instance Unjson Text.Text        where unjsonDef = unjsonAeson
+#ifdef MIN_VERSION_attoparsec
+#if MIN_VERSION_attoparsec(0,14,0)
+    -- do nothing
+#else
 instance Unjson Number           where unjsonDef = unjsonAeson
+#endif
+#endif
 instance Unjson IntSet.IntSet    where unjsonDef = unjsonAeson
 #ifdef MIN_VERSION_aeson
 #if MIN_VERSION_aeson(0,7,0)
