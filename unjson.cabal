@@ -20,21 +20,10 @@ library
   exposed-modules:     Data.Unjson
   -- other-modules:
   -- other-extensions:
-  build-depends:       base < 10
-  build-depends:       text
-  build-depends:       aeson
-  build-depends:       free
-  build-depends:       scientific
-  build-depends:       attoparsec
-  build-depends:       unordered-containers
-  build-depends:       vector
-  build-depends:       pretty
-  build-depends:       bytestring
-  build-depends:       containers
-  build-depends:       hashable
-  build-depends:       primitive
-  build-depends:       time
-  build-depends:       invariant
+  build-depends:       base < 10, text, aeson, free, scientific,
+                       attoparsec, unordered-containers, vector,
+                       pretty, bytestring, containers, hashable,
+                       primitive, time, invariant
   hs-source-dirs:      src
   default-language:    Haskell2010
   default-extensions:  DeriveDataTypeable,
@@ -57,24 +46,10 @@ Test-Suite test
   type:                exitcode-stdio-1.0
   main-is:             Test.hs
   hs-source-dirs:      src, test
-  build-depends:       base
-  build-depends:       text
-  build-depends:       aeson
-  --build-depends:       unjson
-  build-depends:       free
-  build-depends:       scientific
-  build-depends:       attoparsec
-  build-depends:       unordered-containers
-  build-depends:       vector
-  build-depends:       HUnit
-  build-depends:       bytestring
-  build-depends:       pretty
-  build-depends:       bytestring
-  build-depends:       primitive
-  build-depends:       containers
-  build-depends:       time
-  build-depends:       hashable
-  build-depends:       invariant
+  build-depends:       base, text, aeson, free, scientific, attoparsec,
+                       unordered-containers, vector, HUnit, bytestring,
+                       pretty, bytestring, primitive, containers, time,
+                       hashable, invariant
   default-language:    Haskell2010
   default-extensions:  DeriveDataTypeable,
                        OverloadedStrings,
