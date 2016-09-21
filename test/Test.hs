@@ -200,7 +200,7 @@ test_wrong_value_type = "Value at key is wrong type" ~: do
                                 ]) "expected Integer, encountered Object") (iss!!1)
   assertEqual "Credentials must be object error info is present"
                 (Anchored (Path [ PathElemKey "credentials"
-                                ]) "Error in $: expected HashMap Text a, encountered String") (iss!!2)
+                                ]) "Error in $: expected HashMap ~Text v, encountered String") (iss!!2)
   return ()
 
 test_tuple_parsing :: Test
