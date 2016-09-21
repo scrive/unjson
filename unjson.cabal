@@ -7,9 +7,9 @@ synopsis:            Bidirectional JSON parsing and generation.
 description:         Bidirectional JSON parsing and generation with automatic documentation support.
 license:             BSD3
 license-file:        LICENSE
-author:              Gracjan Polak
-maintainer:          Gracjan Polak <gracjanpolak@gmail.com>, Mikhail Glushenkov <mikhail@scrive.com>
-copyright:           Gracjan Polak
+author:              Scrive AB
+maintainer:          Gracjan Polak <gracjanpolak@gmail.com>, Jonathan Jouty <jonathan@scrive.com>, Mikhail Glushenkov <mikhail@scrive.com>
+copyright:           Scrive AB
 category:            Data
 build-type:          Simple
 -- extra-source-files:
