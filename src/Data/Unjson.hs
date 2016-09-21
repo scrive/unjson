@@ -147,7 +147,7 @@ module Data.Unjson
 )
 where
 
-import qualified Data.Aeson as Aeson
+import qualified Data.Aeson as Aeson hiding (encode)
 import qualified Data.Aeson.Types as Aeson
 import qualified Data.Aeson.Encode as Aeson
 import qualified Data.ByteString.Lazy as BSL
