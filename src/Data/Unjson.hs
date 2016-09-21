@@ -171,11 +171,7 @@ import Data.Monoid
 import Data.Maybe
 import Data.Primitive.Types
 import Data.Hashable
-#ifdef MIN_VERSION_aeson
-#if MIN_VERSION_aeson(0,7,0)
 import Data.Scientific
-#endif
-#endif
 #ifdef MIN_VERSION_attoparsec
 #if MIN_VERSION_attoparsec(0,14,0)
     -- do nothing
