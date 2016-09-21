@@ -3,8 +3,8 @@
 
 name:                unjson
 version:             0.14
-synopsis:            JSON bidirectional parsing and generation with automatic documentation support.
--- description:
+synopsis:            Bidirectional JSON parsing and generation.
+description:         Bidirectional JSON parsing and generation with automatic documentation support.
 license:             BSD3
 license-file:        LICENSE
 author:              Gracjan Polak
