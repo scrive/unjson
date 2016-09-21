@@ -8,7 +8,7 @@ synopsis:            JSON bidirectional parsing and generation with automatic do
 license:             BSD3
 license-file:        LICENSE
 author:              Gracjan Polak
-maintainer:          gracjanpolak@gmail.com
+maintainer:          Gracjan Polak <gracjanpolak@gmail.com>, Mikhail Glushenkov <mikhail@scrive.com>
 copyright:           Gracjan Polak
 category:            Data
 build-type:          Simple
@@ -20,7 +20,7 @@ library
   exposed-modules:     Data.Unjson
   -- other-modules:
   -- other-extensions:
-  build-depends:       base < 10, text, aeson, free, scientific,
+  build-depends:       base < 10, text, aeson < 1.0, free, scientific,
                        attoparsec, unordered-containers, vector,
                        pretty, bytestring, containers, hashable,
                        primitive, time, invariant
@@ -46,7 +46,7 @@ Test-Suite test
   type:                exitcode-stdio-1.0
   main-is:             Test.hs
   hs-source-dirs:      src, test
-  build-depends:       base, text, aeson, free, scientific, attoparsec,
+  build-depends:       base, text, aeson < 1.0, free, scientific, attoparsec,
                        unordered-containers, vector, HUnit, bytestring,
                        pretty, bytestring, primitive, containers, time,
                        hashable, invariant
