@@ -18,6 +18,8 @@ import qualified Data.HashMap.Strict as HashMap
 import qualified Data.HashMap.Lazy as LazyHashMap
 import qualified Data.Map as Map
 
+import System.Exit (ExitCode (..), exitWith)
+
 #if !MIN_VERSION_base(4,6,0)
 import Prelude hiding (catch)
 #endif
@@ -152,7 +154,7 @@ test_missing_key = "Key missing" ~: do
        assertEqual "Value is accessible in parsed parts" "usr1" (credentialsUsername (konfigCredentials val))
        catch
          (do
-             _ <- return $! credentialsPassword (konfigCredentials val)
+             evaluate $ credentialsPassword (konfigCredentials val)
              assertFailure "Should have thrown an exception")
          (\(Anchored path (msg :: Text.Text)) -> do
              assertEqual "Path to problematic key"
@@ -169,7 +171,7 @@ test_missing_key = "Key missing" ~: do
        assertEqual "Value is accessible in parsed parts" "usr1" (credentialsUsername (konfigCredentials val))
        catch
          (do
-             _ <- return $! credentialsPassword (konfigCredentials val)
+             evaluate $ credentialsPassword (konfigCredentials val)
              assertFailure "Should have thrown an exception")
          (\(Anchored path (msg :: Text.Text)) -> do
              assertEqual "Path to problematic key"
@@ -192,13 +194,13 @@ test_wrong_value_type = "Value at key is wrong type" ~: do
   assertEqual "Number of issues in parsing" 3 (length iss)
   assertEqual "Hostname must be string error info is present"
                 (Anchored (Path [ PathElemKey "hostname"
-                                ]) "when expecting a Text, encountered Number instead") (iss!!0)
+                                ]) "expected Text, encountered Number") (iss!!0)
   assertEqual "Port must be number error info is present"
                 (Anchored (Path [ PathElemKey "port"
-                                ]) "when expecting a Integral, encountered Object instead") (iss!!1)
+                                ]) "expected Integral, encountered Object") (iss!!1)
   assertEqual "Credentials must be object error info is present"
                 (Anchored (Path [ PathElemKey "credentials"
-                                ]) "when expecting a HashMap Text a, encountered String instead") (iss!!2)
+                                ]) "Error in $: expected HashMap Text a, encountered String") (iss!!2)
   return ()
 
 test_tuple_parsing :: Test
@@ -221,7 +223,7 @@ test_tuple_parsing = "Tuple parsing" ~: do
 
   catch
     (do
-        _ <- return $! xval4
+        evaluate $ xval4
         assertFailure "Should have thrown an exception")
     (\(Anchored path (msg :: Text.Text)) -> do
         assertEqual "Path to problematic key"
@@ -230,9 +232,9 @@ test_tuple_parsing = "Tuple parsing" ~: do
 
   let Result (yval1 :: Integer, yval2 :: Integer, yval3 :: Text.Text) iss = parse unjsonDef json
   assertEqual "Issues in parsing"
-                [ Anchored (Path [PathElemIndex 0]) "when expecting a Integral, encountered String instead"
-                , Anchored (Path [PathElemIndex 1]) "when expecting a Integral, encountered String instead"
-                , Anchored (Path [PathElemIndex 2]) "when expecting a Text, encountered Number instead"
+                [ Anchored (Path [PathElemIndex 0]) "expected Integral, encountered String"
+                , Anchored (Path [PathElemIndex 1]) "expected Integral, encountered String"
+                , Anchored (Path [PathElemIndex 2]) "expected Text, encountered Number"
                 ] iss
 
   let Result (zval1 :: String, zval2 :: Text.Text) iss = parse unjsonDef json
@@ -451,7 +453,7 @@ test_enum_field = "test_enum_field" ~: do
     assertEqual "No problems" [Anchored (Path [PathElemKey "mode"]) "value 'wrong' is not one of the allowed for enumeration [A,B]"] iss
     catch
          (do
-             _ <- return $! val
+             evaluate val
              assertFailure "Should have thrown an exception")
          (\(Anchored path (msg :: Text.Text)) -> do
              assertEqual "Path to problematic key"
@@ -525,7 +527,7 @@ test_update_from_serialization_with_reset_to_default = "test_update_from_seriali
                ]
   let Result val iss = update initial unjsonKonfig json
   assertEqual "Cannot reset mangatory field without default"
-                [Anchored (Path [PathElemKey "hostname"]) "when expecting a Text, encountered Null instead"] iss
+                [Anchored (Path [PathElemKey "hostname"]) "expected Text, encountered Null"] iss
   assertEqual "Can reset value with default" (konfigPort expect) (konfigPort val)
   assertEqual "Can reset optional value" (konfigComment expect) (konfigComment val)
   return ()
@@ -555,7 +557,9 @@ test_array_modes = "test_array_modes" ~: do
                  "Single value or array"
                  (arrayWithModeOf ArrayModeParseAndOutputSingle unjsonDef)
   let Result val0 iss0 = parse p0 json
-  assertEqual "Does not parse value in strict array mode" [Anchored (Path [PathElemKey "hostname"]) "when expecting a Vector a, encountered String instead"] iss0
+  assertEqual "Does not parse value in strict array mode"
+    [Anchored (Path [PathElemKey "hostname"])
+      "Error in $: expected Vector a, encountered String"] iss0
   let Result val1 iss1 = parse p1 json
   assertEqual "No problems" [] iss1
   assertEqual "Accepts singel value in ArrayModeParseSingle" ["www.example.com"] val1
@@ -714,7 +718,7 @@ test_plain_unions = "test_maps" ~: do
                ]
 
   let Result val3 iss3 = parse unjsonPlainUnion json3
-  assertEqual "Cannot parse PlainUnionA" [Anchored (Path [PathElemKey "key1"]) "when expecting a String, encountered Number instead"] iss3
+  assertEqual "Cannot parse PlainUnionA" [Anchored (Path [PathElemKey "key1"]) "expected String, encountered Number"] iss3
 
 
   -- choose PlainUnionB
@@ -797,7 +801,10 @@ tests = test [ test_proper_parse
              ]
 
 main :: IO Counts
-main = runTestTT tests
+main = do results <- runTestTT tests
+          if (errors results + failures results == 0)
+            then exitWith ExitSuccess
+            else exitWith (ExitFailure 1)
 
 updateExampleRendering :: IO ()
 updateExampleRendering = do
