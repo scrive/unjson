@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 module Main where
 
 import qualified Data.Text as Text
@@ -16,6 +17,10 @@ import Data.Functor.Invariant
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.HashMap.Lazy as LazyHashMap
 import qualified Data.Map as Map
+
+#if !MIN_VERSION_base(4,6,0)
+import Prelude hiding (catch)
+#endif
 
 default (Text.Text, String, Int, Double)
 

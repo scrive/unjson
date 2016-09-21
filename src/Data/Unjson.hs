@@ -205,6 +205,10 @@ import qualified Text.ParserCombinators.ReadP as ReadP
 import Data.Char
 import Control.Monad
 
+#if !MIN_VERSION_base(4,6,0)
+import Prelude hiding (catch)
+#endif
+
 import qualified Text.PrettyPrint.HughesPJ as P
 
 -- | Describe a path from root JSON element to a specific
