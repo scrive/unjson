@@ -197,7 +197,7 @@ test_wrong_value_type = "Value at key is wrong type" ~: do
                                 ]) "expected Text, encountered Number") (iss!!0)
   assertEqual "Port must be number error info is present"
                 (Anchored (Path [ PathElemKey "port"
-                                ]) "expected Integral, encountered Object") (iss!!1)
+                                ]) "expected Integer, encountered Object") (iss!!1)
   assertEqual "Credentials must be object error info is present"
                 (Anchored (Path [ PathElemKey "credentials"
                                 ]) "Error in $: expected HashMap Text a, encountered String") (iss!!2)
@@ -232,8 +232,8 @@ test_tuple_parsing = "Tuple parsing" ~: do
 
   let Result (yval1 :: Integer, yval2 :: Integer, yval3 :: Text.Text) iss = parse unjsonDef json
   assertEqual "Issues in parsing"
-                [ Anchored (Path [PathElemIndex 0]) "expected Integral, encountered String"
-                , Anchored (Path [PathElemIndex 1]) "expected Integral, encountered String"
+                [ Anchored (Path [PathElemIndex 0]) "expected Integer, encountered String"
+                , Anchored (Path [PathElemIndex 1]) "expected Integer, encountered String"
                 , Anchored (Path [PathElemIndex 2]) "expected Text, encountered Number"
                 ] iss
 
