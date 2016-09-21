@@ -2,7 +2,7 @@
 -- documentation, see http://haskell.org/cabal/users-guide/
 
 name:                unjson
-version:             0.14
+version:             0.14.0.1
 synopsis:            Bidirectional JSON parsing and generation.
 description:         Bidirectional JSON parsing and generation with automatic documentation support.
 license:             BSD3
@@ -12,7 +12,7 @@ maintainer:          Gracjan Polak <gracjanpolak@gmail.com>, Jonathan Jouty <jon
 copyright:           Scrive AB
 category:            Data
 build-type:          Simple
--- extra-source-files:
+extra-source-files:  README.md
 cabal-version:       >=1.18
 tested-with:         GHC == 7.4.2, GHC == 7.6.3, GHC == 7.8.4, GHC == 7.10.3, GHC == 8.0.1
 
