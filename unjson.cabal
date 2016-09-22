@@ -1,25 +1,30 @@
 name:                unjson
 version:             0.14.0.1
 synopsis:            Bidirectional JSON parsing and generation.
-description:         Bidirectional JSON parsing and generation with automatic documentation support.
+description:         Bidirectional JSON parsing and generation
+                     with automatic documentation support.
+homepage:            https://github.com/scrive/unjson
 license:             BSD3
 license-file:        LICENSE
 author:              Scrive AB
-maintainer:          Gracjan Polak <gracjanpolak@gmail.com>, Jonathan Jouty <jonathan@scrive.com>, Mikhail Glushenkov <mikhail@scrive.com>
+maintainer:          Gracjan Polak <gracjanpolak@gmail.com>,
+                     Jonathan Jouty <jonathan@scrive.com>,
+                     Mikhail Glushenkov <mikhail@scrive.com>
 copyright:           Scrive AB
 category:            Data
 build-type:          Simple
 extra-source-files:  README.md
 cabal-version:       >=1.18
-tested-with:         GHC == 7.4.2, GHC == 7.6.3, GHC == 7.8.4, GHC == 7.10.3, GHC == 8.0.1
+tested-with:         GHC == 7.4.2,  GHC == 7.6.3, GHC == 7.8.4,
+                     GHC == 7.10.3, GHC == 8.0.1
 
 source-repository head
   type:     git
-  location: https://github.com/scrive/unjson
+  location: https://github.com/scrive/unjson.git
 
 source-repository this
   type:     git
-  location: https://github.com/scrive/unjson
+  location: https://github.com/scrive/unjson.git
   tag:      0.14.0.1
 
 library
