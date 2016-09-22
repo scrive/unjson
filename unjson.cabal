@@ -29,7 +29,7 @@ library
   exposed-modules:     Data.Unjson
   -- other-modules:
   -- other-extensions:
-  build-depends:       base >= 4.5 && < 5, text, aeson < 1.1 && >= 0.7,
+  build-depends:       base >= 4.5 && < 5, text, aeson >= 0.7 && < 1.1,
                        free, scientific, attoparsec,
                        unordered-containers, vector, pretty,
                        bytestring >= 0.10, containers, hashable,
