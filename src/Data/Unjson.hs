@@ -622,13 +622,17 @@ instance Invariant UnjsonDef where
   invmap f g (UnionUnjsonDef l) = UnionUnjsonDef (map (\(b,c) -> (b . g,fmap (fmap f) (hoistAp (contramapFieldDef g) c))) l)
 
 unjsonInvmapR :: (a -> Result b) -> (b -> a) -> UnjsonDef a -> UnjsonDef b
-unjsonInvmapR f g (SimpleUnjsonDef name p s) = SimpleUnjsonDef name (join . fmap f . p) (s . g)
-unjsonInvmapR f g (ArrayUnjsonDef mpk am n k d) = ArrayUnjsonDef mpk am (join . fmap f . n) (k . g) d
-unjsonInvmapR f g (MapUnjsonDef d n k) = MapUnjsonDef d (join . fmap f . n) (k . g)
-unjsonInvmapR f g (ObjectUnjsonDef fd) = ObjectUnjsonDef (fmap (join . fmap f) (hoistAp (contramapFieldDef g) fd))
-unjsonInvmapR f g (TupleUnjsonDef td) = TupleUnjsonDef (fmap (join . fmap f) (hoistAp (contramapTupleFieldDef g) td))
-unjsonInvmapR f g (DisjointUnjsonDef d l) = DisjointUnjsonDef d (map (\(a,b,c) -> (a,b . g,fmap (join . fmap f) (hoistAp (contramapFieldDef g) c))) l)
-unjsonInvmapR f g (UnionUnjsonDef l) = UnionUnjsonDef (map (\(b,c) -> (b . g,fmap (join . fmap f) (hoistAp (contramapFieldDef g) c))) l)
+unjsonInvmapR f g (SimpleUnjsonDef name p s) = SimpleUnjsonDef name ((mapAndJoinResults f) . p) (s . g)
+unjsonInvmapR f g (ArrayUnjsonDef mpk am n k d) = ArrayUnjsonDef mpk am (mapAndJoinResults f . n) (k . g) d
+unjsonInvmapR f g (MapUnjsonDef d n k) = MapUnjsonDef d (mapAndJoinResults f . n) (k . g)
+unjsonInvmapR f g (ObjectUnjsonDef fd) = ObjectUnjsonDef (fmap (mapAndJoinResults f) (hoistAp (contramapFieldDef g) fd))
+unjsonInvmapR f g (TupleUnjsonDef td) = TupleUnjsonDef (fmap (mapAndJoinResults f) (hoistAp (contramapTupleFieldDef g) td))
+unjsonInvmapR f g (DisjointUnjsonDef d l) = DisjointUnjsonDef d (map (\(a,b,c) -> (a,b . g,fmap (mapAndJoinResults f) (hoistAp (contramapFieldDef g) c))) l)
+unjsonInvmapR f g (UnionUnjsonDef l) = UnionUnjsonDef (map (\(b,c) -> (b . g,fmap (mapAndJoinResults f) (hoistAp (contramapFieldDef g) c))) l)
+
+mapAndJoinResults :: (a -> Result b) -> Result a -> Result b
+mapAndJoinResults f (Result a []) = f a
+mapAndJoinResults _ (Result _ issues) = Result (error "Error inside join on Result") issues
 
 -- Note: contramapFieldDef and contramapTupleFieldDef are basically
 -- Contravariant, but due to type parameters in wrong order we would
