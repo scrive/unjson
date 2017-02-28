@@ -1,5 +1,5 @@
 name:                unjson
-version:             0.14.0.1
+version:             0.14.0.2
 synopsis:            Bidirectional JSON parsing and generation.
 description:         Bidirectional JSON parsing and generation
                      with automatic documentation support.
