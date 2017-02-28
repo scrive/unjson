@@ -282,8 +282,8 @@ instance Applicative Result where
 
 instance Monad Result where
   return = pure
-  Result a pa >>= m = Result ma (pa ++ pma)
-    where Result ma pma = m a
+  Result a [] >>= m = m a
+  Result _ es@(e:_) >>= _ = Result (throw e) es
   fail str = Result (throw anchoredMessage) [anchoredMessage]
     where anchoredMessage = Anchored mempty (Text.pack str)
 
