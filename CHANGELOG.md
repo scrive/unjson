@@ -1,3 +1,6 @@
+# unjson-0.14.1.1 (2017-02-28)
+* Adjusting tests
+
 # unjson-0.14.1.0 (2017-02-28)
 * Changed (>>=) to prevent error unpacking
 
