@@ -1,6 +1,3 @@
-# unjson-0.14.0.2 (2017-XX-XX)
-* fix and unpacking error inside join ([#2](https://github.com/scrive/unjson/pull/2))
-
 # unjson-0.14.0.1 (2016-09-21)
 * add README.md to extra-source-files
 * relax the constraint on aeson
