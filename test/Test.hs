@@ -151,34 +151,11 @@ test_missing_key = "Key missing" ~: do
                                                                    , PathElemKey "credentials"
                                                                    , PathElemKey "password"
                                                                    ]) "missing key"] iss
-       assertEqual "Value is accessible in parsed parts" "usr1" (credentialsUsername (konfigCredentials val))
-       catch
-         (do
-             evaluate $ credentialsPassword (konfigCredentials val)
-             assertFailure "Should have thrown an exception")
-         (\(Anchored path (msg :: Text.Text)) -> do
-             assertEqual "Path to problematic key"
-                           (Path [ PathElemKey "password"
-                                 ]) path
-             assertEqual "Message about the problem" (Text.pack "missing key") msg)
-       return ()
-
   do
        let Result val iss = parse unjsonKonfig json1
        assertEqual "There is one issue in parsing" [Anchored (Path [ PathElemKey "credentials"
                                                                    , PathElemKey "password"
                                                                    ]) "missing key"] iss
-       assertEqual "Value is accessible in parsed parts" "usr1" (credentialsUsername (konfigCredentials val))
-       catch
-         (do
-             evaluate $ credentialsPassword (konfigCredentials val)
-             assertFailure "Should have thrown an exception")
-         (\(Anchored path (msg :: Text.Text)) -> do
-             assertEqual "Path to problematic key"
-                           (Path [ PathElemKey "password"
-                                 ]) path
-             assertEqual "Message about the problem" (Text.pack "missing key") msg)
-       return ()
 
 test_wrong_value_type :: Test
 test_wrong_value_type = "Value at key is wrong type" ~: do
@@ -217,27 +194,18 @@ test_tuple_parsing = "Tuple parsing" ~: do
   assertEqual "Second element of tuple" "port" val2
   assertEqual "Third element of tuple" 123 val3
 
-  let Result (xval1 :: String, xval2 :: Text.Text, xval3 :: Int, xval4 :: Int) iss = parse unjsonDef json
+  let Result (_ :: (String, Text.Text, Int, Int)) iss = parse unjsonDef json
   assertEqual "Issue in parsing" [Anchored mempty "cannot parse array of length 3 into tuple of size 4"
                                  ,Anchored (Path [PathElemIndex 3]) "missing key"] iss
 
-  catch
-    (do
-        evaluate $ xval4
-        assertFailure "Should have thrown an exception")
-    (\(Anchored path (msg :: Text.Text)) -> do
-        assertEqual "Path to problematic key"
-                      (Path [PathElemIndex 3]) path
-        assertEqual "Message about the problem" (Text.pack "missing key") msg)
-
-  let Result (yval1 :: Integer, yval2 :: Integer, yval3 :: Text.Text) iss = parse unjsonDef json
+  let Result (_ :: (Integer, Integer, Text.Text)) iss = parse unjsonDef json
   assertEqual "Issues in parsing"
                 [ Anchored (Path [PathElemIndex 0]) "expected Integer, encountered String"
                 , Anchored (Path [PathElemIndex 1]) "expected Integer, encountered String"
                 , Anchored (Path [PathElemIndex 2]) "expected Text, encountered Number"
                 ] iss
 
-  let Result (zval1 :: String, zval2 :: Text.Text) iss = parse unjsonDef json
+  let Result (_ :: (String, Text.Text)) iss = parse unjsonDef json
   assertEqual "Array too long for 2-tuple" [Anchored mempty "cannot parse array of length 3 into tuple of size 2"] iss
 
   return ()
@@ -451,15 +419,6 @@ test_enum_field = "test_enum_field" ~: do
                  ]
     let Result val iss = parse unjsonEnumAB json
     assertEqual "No problems" [Anchored (Path [PathElemKey "mode"]) "value 'wrong' is not one of the allowed for enumeration [A,B]"] iss
-    catch
-         (do
-             evaluate val
-             assertFailure "Should have thrown an exception")
-         (\(Anchored path (msg :: Text.Text)) -> do
-             assertEqual "Path to problematic key"
-                           (Path [ PathElemKey "mode"
-                                 ]) path
-             assertEqual "Message about the problem" (Text.pack "value 'wrong' is not one of the allowed for enumeration [A,B]") msg)
 
 test_update_from_serialization :: Test
 test_update_from_serialization = "test_update_from_serialization" ~: do
@@ -525,11 +484,9 @@ test_update_from_serialization_with_reset_to_default = "test_update_from_seriali
                                    ]
                                  ]
                ]
-  let Result val iss = update initial unjsonKonfig json
+  let Result _ iss = update initial unjsonKonfig json
   assertEqual "Cannot reset mangatory field without default"
                 [Anchored (Path [PathElemKey "hostname"]) "expected Text, encountered Null"] iss
-  assertEqual "Can reset value with default" (konfigPort expect) (konfigPort val)
-  assertEqual "Can reset optional value" (konfigComment expect) (konfigComment val)
   return ()
 
 test_array_modes :: Test
