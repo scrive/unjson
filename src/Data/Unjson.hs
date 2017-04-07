@@ -147,9 +147,9 @@ module Data.Unjson
 )
 where
 
-import qualified Data.Aeson as Aeson hiding (encode)
+import qualified Data.Aeson as Aeson
+import qualified Data.Aeson.Text as Aeson
 import qualified Data.Aeson.Types as Aeson
-import qualified Data.Aeson.Encode as Aeson
 import qualified Data.ByteString.Lazy as BSL
 import qualified Data.ByteString.Lazy.Builder as Builder
 import qualified Data.Text as Text
@@ -172,13 +172,11 @@ import Data.Maybe
 import Data.Primitive.Types
 import Data.Hashable
 import Data.Scientific
-#ifdef MIN_VERSION_attoparsec
-#if MIN_VERSION_attoparsec(0,14,0)
-    -- do nothing
-#else
-import Data.Attoparsec.Number
-#endif
-#endif
+-- #ifdef MIN_VERSION_attoparsec
+-- #if !MIN_VERSION_attoparsec(0,14,0)
+-- import Data.Attoparsec.Number
+-- #endif
+-- #endif
 import Data.Time.LocalTime
 import Data.Time.Clock
 import Data.Fixed
@@ -321,10 +319,10 @@ class Unjson a where
   -- 'UnjsonDef'.
   unjsonDef :: UnjsonDef a
 
-instance (Unjson a) => Unjson [a] where
+instance {-# OVERLAPPABLE #-} (Unjson a) => Unjson [a] where
   unjsonDef = arrayOf unjsonDef
 
-instance Unjson String where
+instance {-# INCOHERENT #-} Unjson String where
   unjsonDef = unjsonAesonWithDoc "String"
 
 instance Unjson Bool             where unjsonDef = unjsonAeson
@@ -344,19 +342,8 @@ instance Unjson Word32           where unjsonDef = unjsonAeson
 instance Unjson Word64           where unjsonDef = unjsonAeson
 instance Unjson ()               where unjsonDef = unjsonAeson
 instance Unjson Text.Text        where unjsonDef = unjsonAeson
-#ifdef MIN_VERSION_attoparsec
-#if MIN_VERSION_attoparsec(0,14,0)
-    -- do nothing
-#else
-instance Unjson Number           where unjsonDef = unjsonAeson
-#endif
-#endif
 instance Unjson IntSet.IntSet    where unjsonDef = unjsonAeson
-#ifdef MIN_VERSION_aeson
-#if MIN_VERSION_aeson(0,7,0)
 instance Unjson Scientific       where unjsonDef = unjsonAeson
-#endif
-#endif
 instance Unjson LazyText.Text    where unjsonDef = unjsonAeson
 instance Unjson ZonedTime        where unjsonDef = unjsonAeson
 instance Unjson UTCTime          where unjsonDef = unjsonAeson
