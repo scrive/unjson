@@ -1,3 +1,6 @@
+# unjson-0.14.1.2 (2017-04-11)
+* Bumped the dependency on aeson
+
 # unjson-0.14.1.1 (2017-02-28)
 * Adjusting tests
 
