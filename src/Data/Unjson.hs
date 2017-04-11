@@ -172,11 +172,6 @@ import Data.Maybe
 import Data.Primitive.Types
 import Data.Hashable
 import Data.Scientific
--- #ifdef MIN_VERSION_attoparsec
--- #if !MIN_VERSION_attoparsec(0,14,0)
--- import Data.Attoparsec.Number
--- #endif
--- #endif
 import Data.Time.LocalTime
 import Data.Time.Clock
 import Data.Fixed
