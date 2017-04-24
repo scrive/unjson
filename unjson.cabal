@@ -55,8 +55,8 @@ library
 Test-Suite test
   type:                exitcode-stdio-1.0
   main-is:             Test.hs
-  hs-source-dirs:      src, test
-  build-depends:       base >= 4.5 && < 5, text, aeson >= 1.0 && < 1.2,
+  hs-source-dirs:      test
+  build-depends:       unjson, base, text, aeson,
                        free, scientific, attoparsec,
                        unordered-containers, vector, HUnit, bytestring >= 0.10,
                        pretty, primitive, containers, time,
@@ -70,7 +70,6 @@ Test-Suite test
                        FlexibleInstances,
                        GADTs,
                        GeneralizedNewtypeDeriving,
-                       OverlappingInstances,
                        OverloadedStrings,
                        OverloadedStrings,
                        RankNTypes,
