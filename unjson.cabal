@@ -71,7 +71,6 @@ Test-Suite test
                        GADTs,
                        GeneralizedNewtypeDeriving,
                        OverloadedStrings,
-                       OverloadedStrings,
                        RankNTypes,
                        ScopedTypeVariables,
                        TypeFamilies,
