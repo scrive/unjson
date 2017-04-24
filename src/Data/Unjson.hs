@@ -1,4 +1,7 @@
 {-# LANGUAGE CPP #-}
+#if __GLASGOW_HASKELL__ < 710
+{-# LANGUAGE OverlappingInstances #-}
+#endif
 
 -- | @Unjson@: bidirectional JSON (de)serialization with strong error
 -- reporting capabilities and automatic documentation generation.

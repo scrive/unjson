@@ -51,8 +51,6 @@ library
                        ScopedTypeVariables,
                        TypeFamilies,
                        UndecidableInstances
-  if impl(ghc < 7.10)
-      default-extensions: OverloadedInstances
 
 Test-Suite test
   type:                exitcode-stdio-1.0
@@ -77,5 +75,3 @@ Test-Suite test
                        ScopedTypeVariables,
                        TypeFamilies,
                        UndecidableInstances
-  if impl(ghc < 7.10)
-      default-extensions: OverloadedInstances
