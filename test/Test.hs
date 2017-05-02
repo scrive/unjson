@@ -4,6 +4,7 @@ module Main where
 
 import qualified Data.Text as Text
 import qualified Data.ByteString.Lazy.Char8 as BSL
+import Data.Int
 import Data.Typeable
 import Data.Unjson
 import Control.Applicative
@@ -36,6 +37,7 @@ data Konfig =
             , konfigComment     :: Maybe Text.Text
             , konfigOptions     :: [Text.Text]
             , konfigAlternates  :: Maybe (Text.Text,Credentials)
+            , konfigInt32       :: Int32
             }
   deriving (Eq,Ord,Show,Typeable)
 
@@ -68,6 +70,9 @@ unjsonKonfig = objectOf $ pure Konfig
            <*> fieldOpt "alternates"
                  konfigAlternates
                  "Alternate names for this server"
+           <*> field "int32"
+                 konfigInt32
+                 "A bounded integer fieldd."
 
 unjsonCredentials :: UnjsonDef Credentials
 unjsonCredentials = objectOf $ pure Credentials
@@ -95,6 +100,7 @@ test_proper_parse = "Proper parsing of a complex structure" ~: do
                    [ "username" .= "usr1"
                    , "password" .= "pass1"
                    ]
+               , "int32" .= 42
                ]
   let expect = Konfig
                { konfigHostname = "www.example.com"
@@ -103,6 +109,7 @@ test_proper_parse = "Proper parsing of a complex structure" ~: do
                , konfigCredentials = Credentials "usr1" "pass1" Nothing
                , konfigAlternates = Nothing
                , konfigOptions = []
+               , konfigInt32 = 42
                }
 
   let Result val iss = parse unjsonKonfig json
@@ -136,6 +143,7 @@ test_missing_key = "Key missing" ~: do
               , "credentials" .= Aeson.object
                                 [ "username" .= "usr1"
                                 ]
+              , "int32" .= 999
               ]
   let json = Aeson.object
                [ "payload" .= json1
@@ -166,6 +174,7 @@ test_wrong_value_type = "Value at key is wrong type" ~: do
                    [ "username" .= "usr1"
                    ]
                , "credentials" .= "www.example.com"
+               , "int32" .= 999
                ]
 
   let Result val iss = parse unjsonKonfig json
@@ -220,6 +229,7 @@ test_symmetry_of_serialization = "Key missing" ~: do
                , konfigCredentials = Credentials "usr1" "pass1" Nothing
                , konfigAlternates = Nothing
                , konfigOptions = []
+               , konfigInt32 = 42
                }
 
   let json = unjsonToJSON unjsonKonfig expect
@@ -237,6 +247,7 @@ test_pretty_serialization = "Pretty serialization" ~: do
                , konfigCredentials = Credentials "usr1" "pass1" Nothing
                , konfigAlternates = Nothing
                , konfigOptions = []
+               , konfigInt32 = 42
                }
 
   let jsonstr = BSL.unpack $ unjsonToByteStringLazy' (Options { nulls = False, indent = 4, pretty = True }) unjsonKonfig konfig
@@ -249,7 +260,8 @@ test_pretty_serialization = "Pretty serialization" ~: do
         , "        \"password\": \"pass1\""
         , "    },"
         , "    \"comment\": \"nice server\","
-        , "    \"options\": []"
+        , "    \"options\": [],"
+        , "    \"int32\": 42"
         , "}"
         ]
   assertEqual "Serialize pretty prints proper indents" expect jsonstr
@@ -263,7 +275,8 @@ test_pretty_serialization = "Pretty serialization" ~: do
         , "          \"password\": \"pass1\""
         , "     },"
         , "     \"comment\": \"nice server\","
-        , "     \"options\": []"
+        , "     \"options\": [],"
+        , "     \"int32\": 42"
         , "}"
         ]
   assertEqual "Serialize pretty prints proper indents" expect5 jsonstr5
@@ -277,7 +290,8 @@ test_pretty_serialization = "Pretty serialization" ~: do
         , "\"password\":\"pass1\""
         , "},"
         , "\"comment\":\"nice server\","
-        , "\"options\":[]"
+        , "\"options\":[],"
+        , "\"int32\":42"
         , "}"
         ]
   assertEqual "Serialize pretty prints proper indents" expect3 jsonstr3
@@ -292,6 +306,7 @@ test_serialize_with_nulls = "Serialize with nulls" ~: do
                , konfigCredentials = Credentials "usr1" "pass1" Nothing
                , konfigAlternates = Nothing
                , konfigOptions = []
+               , konfigInt32 = 42
                }
 
   let jsonstr = BSL.unpack $ unjsonToByteStringLazy' (Options { nulls = True, indent = 4, pretty = True }) unjsonKonfig konfig
@@ -306,7 +321,8 @@ test_serialize_with_nulls = "Serialize with nulls" ~: do
         , "    },"
         , "    \"comment\": \"nice server\","
         , "    \"options\": [],"
-        , "    \"alternates\": null"
+        , "    \"alternates\": null,"
+        , "    \"int32\": 42"
         , "}"
         ]
   assertEqual "Serialize pretty prints proper indents" expect jsonstr
@@ -430,6 +446,7 @@ test_update_from_serialization = "test_update_from_serialization" ~: do
                , konfigCredentials = Credentials "usr1" "pass1" Nothing
                , konfigAlternates = Nothing
                , konfigOptions = []
+               , konfigInt32   = 42
                }
   let expect = Konfig
                { konfigHostname = "www.example.com"
@@ -438,6 +455,7 @@ test_update_from_serialization = "test_update_from_serialization" ~: do
                , konfigCredentials = Credentials "usr2" "pass1" (Just "domain")
                , konfigAlternates = Nothing
                , konfigOptions = []
+               , konfigInt32   = 256
                }
 
   let json = Aeson.object
@@ -447,6 +465,7 @@ test_update_from_serialization = "test_update_from_serialization" ~: do
                , "credentials" .= Aeson.object
                                [ "domain" .= "domain"
                                , "username" .= "usr2" ]
+               , "int32" .= 256
                ]
   let Result val iss = update initial unjsonKonfig json
   assertEqual "No problems" [] iss
@@ -462,6 +481,7 @@ test_update_from_serialization_with_reset_to_default = "test_update_from_seriali
                , konfigCredentials = Credentials "usr1" "pass1" (Just "domain")
                , konfigAlternates = Nothing
                , konfigOptions = []
+               , konfigInt32 = 0
                }
   let expect = Konfig
                { konfigHostname = "www.example.com"
@@ -470,6 +490,7 @@ test_update_from_serialization_with_reset_to_default = "test_update_from_seriali
                , konfigCredentials = Credentials "usr1" "pass1" (Nothing)
                , konfigAlternates = Just ("abc", Credentials "usrx" "passx" Nothing)
                , konfigOptions = []
+               , konfigInt32 = 256
                }
 
   let json = Aeson.object
@@ -486,7 +507,7 @@ test_update_from_serialization_with_reset_to_default = "test_update_from_seriali
                                  ]
                ]
   let Result _ iss = update initial unjsonKonfig json
-  assertEqual "Cannot reset mangatory field without default"
+  assertEqual "Cannot reset mandatory field without default"
                 [Anchored (Path [PathElemKey "hostname"]) "expected Text, encountered Null"] iss
   return ()
 
