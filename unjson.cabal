@@ -56,7 +56,7 @@ Test-Suite test
   type:                exitcode-stdio-1.0
   main-is:             Test.hs
   hs-source-dirs:      test
-  build-depends:       unjson, base, text, aeson,
+  build-depends:       unjson, base, data-default, text, aeson,
                        free, scientific, attoparsec,
                        unordered-containers, vector, HUnit, bytestring >= 0.10,
                        pretty, primitive, containers, time,

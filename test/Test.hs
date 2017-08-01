@@ -2,23 +2,25 @@
 
 module Main where
 
-import qualified Data.Text as Text
-import qualified Data.ByteString.Lazy.Char8 as BSL
+import Control.Applicative
+import Control.Exception
+import Data.Aeson ((.=))
+import Data.Data
+import Data.Default
+import Data.Functor.Invariant
 import Data.Int
+import Data.List
+import Data.Monoid
 import Data.Typeable
 import Data.Unjson
-import Control.Applicative
-import qualified Data.Aeson as Aeson
-import Data.Aeson ((.=))
-import Control.Exception
 import Test.HUnit
-import Data.Monoid
-import Data.List
-import Data.Data
-import Data.Functor.Invariant
-import qualified Data.HashMap.Strict as HashMap
+
+import qualified Data.Aeson as Aeson
+import qualified Data.ByteString.Lazy.Char8 as BSL
 import qualified Data.HashMap.Lazy as LazyHashMap
+import qualified Data.HashMap.Strict as HashMap
 import qualified Data.Map as Map
+import qualified Data.Text as Text
 
 import System.Exit (ExitCode (..), exitWith)
 
@@ -788,6 +790,79 @@ test_readonly_fields = "test_readonly_fields" ~: do
                                                    ]) "missing key"] iss3
   return ()
 
+data D1 = D1 { sign_order :: Int
+             , other_field :: Int
+             } deriving (Eq, Show)
+
+instance Default D1 where
+  def = D1 1 0
+
+data D2 = D2 { title   :: String
+             , parties :: [D1]
+             } deriving (Eq, Show)
+
+instance Default D2 where
+  def = D2 "" []
+
+test_subarray_update :: Test
+test_subarray_update = "test_subarray_update" ~: do
+  let jsn          = Aeson.object []
+      Result res _ = update_x jsn
+    in assertEqual "update x {} /= x" x res
+
+  let jsn          = Aeson.object ["other_field" .= (0::Int)]
+      Result res _ = update_x jsn
+    in assertEqual "update x { 'other_field' : 0 } /= x" x res
+
+  let jsn          = Aeson.object [
+        "parties" .= [Aeson.object ["sign_order" .= (7::Int)
+                                   ,"other_field" .= (0::Int)]]
+        ]
+      Result res _ = update_y jsn
+    in assertEqual
+       "update y {'parties' : [{'sign_order':7, 'other_field':0}]} /= y"
+       y res
+
+  let jsn          = Aeson.object [
+        "parties" .= [Aeson.object ["other_field" .= (0::Int)]]
+        ]
+      Result res _ = update_y jsn
+    in assertEqual
+       "update y {'parties' : [{'other_field':0}]} /= y"
+       y res
+
+  let jsn          = Aeson.object ["parties" .= [Aeson.object []]]
+      Result res _ = update_y jsn
+    in assertEqual
+       "update y {'parties' : [{}]} /= y"
+       y res
+
+  let jsn          = Aeson.object ["parties" .= [Aeson.object []]]
+      Result res _ = update_y jsn
+    in assertEqual
+       "update y {'parties' : [{}, {}]} /= y'"
+       y' res
+
+    where
+      x           = D1 7 0
+      y           = D2 "test" [x]
+      y'          = D2 "test" [x, def]
+      update_x    = update x unjsonD1
+      update_y    = update y unjsonD2
+
+      unjsonD1 :: UnjsonDef D1
+      unjsonD1 = objectOf $
+        D1 <$> (fieldDef "sign_order" (sign_order def) sign_order
+                "Signatory sign order")
+        <*> (pure $ other_field def)
+
+      unjsonD2 :: UnjsonDef D2
+      unjsonD2 =
+        objectOf $
+        D2 <$> (fieldDef "title" (title def) title "Document title")
+        <*> (fieldDefBy "parties" (parties def) parties "Document parties"
+             (arrayOf unjsonD1))
+
 
 tests :: Test
 tests = test [ test_proper_parse
@@ -807,6 +882,7 @@ tests = test [ test_proper_parse
              , test_maps
              , test_plain_unions
              , test_readonly_fields
+             , test_subarray_update
              ]
 
 main :: IO Counts
