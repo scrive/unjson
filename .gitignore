@@ -1,7 +1,8 @@
 /dist-newstyle/
 /dist/
-cabal.project.local
+/.stack-work/
+/cabal.project.local
+/cabal.project.local~
+/cabal.project.freeze
 /TAGS
-.stack-work
-.ghc.environment.*
-cabal.project.local~
+/.ghc.environment.*
