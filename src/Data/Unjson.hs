@@ -855,15 +855,32 @@ parseUpdating (ArrayUnjsonDef (Just (PrimaryKeyExtraction pk_from_object pk_from
     objectMap = Map.fromListWith (flip const) (map (\o -> (pk_from_object o, o)) (k ov))
     lookupObjectByJson js = parseUpdating pk_from_json Nothing js >>= \val -> return (Map.lookup val objectMap)
 
-parseUpdating (ArrayUnjsonDef _ m g k f) _ov v
+parseUpdating (ArrayUnjsonDef _ m g k f) ov v
   = case Aeson.parseEither Aeson.parseJSON v of
-      Right v -> join $ fmap g $
-        sequenceA (zipWith (\v i -> resultPrependIndex i $ parseUpdating f Nothing v) (Vector.toList v) [0..])
+      Right v ->
+          join . fmap g . sequenceA $
+          zipWith (\(v,ov) i -> resultPrependIndex i $ parseUpdating f ov v)
+          (zipExtend (Vector.toList v) ov)
+          [0..]
       Left e -> case m of
           ArrayModeStrict ->
             fail e
-          _ -> join $ fmap g $
-            sequenceA [parseUpdating f Nothing v]
+          _ ->
+            join . fmap g . sequenceA $
+            zipWith (\(v, ov) i -> resultPrependIndex i $ parseUpdating f ov v)
+            (zipExtend [v] ov)
+            [0..]
+  where
+    zipExtend [] Nothing = []
+    zipExtend v  ov      = zipExtend' v (sequence $ fmap k ov)
+
+    zipExtend' vs ovs =
+      let l_vs  = length vs
+          l_ovs = length ovs
+          vs_e  = max l_vs l_ovs - l_vs
+          ovs_e = max l_vs l_ovs - l_ovs
+      in zip (vs ++ replicate vs_e (Aeson.object []))
+         (ovs ++ replicate ovs_e Nothing)
 
 parseUpdating (ObjectUnjsonDef f) ov v
   = case Aeson.parseEither Aeson.parseJSON v of
@@ -969,6 +986,12 @@ parse vd = parseUpdating vd Nothing
 -- - fields with default value take the original value if json key is
 -- missing unless the value is @null@, then the default value is
 -- returned (reset to default)
+--
+-- When updating an array, unjson will try to produce an array with a
+-- length equal to the maximum of the lengths of the old array and the
+-- new array, and then update each element recursively. If the new
+-- array is longer than the older one, unjson will append elements
+-- missing from the old array.
 --
 -- Note that Unjson makes strong difference between missing keys and
 -- values that result in parse errors.

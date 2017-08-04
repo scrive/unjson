@@ -4,6 +4,7 @@ module Main where
 
 import Control.Applicative
 import Control.Exception
+import Control.Monad
 import Data.Aeson ((.=))
 import Data.Data
 import Data.Default
@@ -837,18 +838,45 @@ test_subarray_update = "test_subarray_update" ~: do
        "update y {'parties' : [{}]} /= y"
        y res
 
-  let jsn          = Aeson.object ["parties" .= [Aeson.object []]]
+  let jsn          = Aeson.object ["parties" .= [Aeson.object []
+                                                ,Aeson.object []]]
       Result res _ = update_y jsn
     in assertEqual
        "update y {'parties' : [{}, {}]} /= y'"
        y' res
 
+  forM_ [ArrayModeParseSingle, ArrayModeParseAndOutputSingle] $ \m ->
+    forM_ [("y", y), ("y'", y')] $ \(n, val) -> do
+    let jsn          = Aeson.object ["parties" .= Aeson.object []]
+        Result res _ = update val (unjsonD2 m) jsn
+        msg          = "update " <> n <> " {'parties' : {} } /= "
+                       <> n <> " [" <> show m <>" mode]"
+    assertEqual msg val res
+
+  let jsn          = Aeson.object ["parties" .= [Aeson.object []]]
+      Result res _ = update y'' (unjsonD2 ArrayModeStrict) jsn
+    in assertEqual
+       "update y'' {'parties' : [{}]} /= y'''"
+       y''' res
+
+  let jsn           = Aeson.object
+        ["parties" .= [Aeson.object [], Aeson.object [], Aeson.object []
+                      ,Aeson.object ["sign_order"  .= (99 :: Int)
+                                    ,"other_field" .= (99 :: Int)]]]
+      Result res _  = update y'' (unjsonD2 ArrayModeStrict) jsn
+    in assertEqual
+       "update y'' {'parties' : [{}, {}, {}, {99,99}]} /= y''''"
+       y'''' res
+
     where
-      x           = D1 7 0
-      y           = D2 "test" [x]
-      y'          = D2 "test" [x, def]
-      update_x    = update x unjsonD1
-      update_y    = update y unjsonD2
+      x               = D1 7 0
+      y               = D2 "test" [x]
+      y'              = D2 "test" [x, def]
+      y''             = D2 "tezzzt" [D1 1 2, D1 3 4, D1 5 6]
+      y'''            = D2 "tezzzt" [D1 1 0, D1 3 0, D1 5 0]
+      y''''           = D2 "tezzzt" [D1 1 0, D1 3 0, D1 5 0, D1 99 0]
+      update_x        = update x unjsonD1
+      update_y        = update y  $ unjsonD2 ArrayModeStrict
 
       unjsonD1 :: UnjsonDef D1
       unjsonD1 = objectOf $
@@ -856,12 +884,12 @@ test_subarray_update = "test_subarray_update" ~: do
                 "Signatory sign order")
         <*> (pure $ other_field def)
 
-      unjsonD2 :: UnjsonDef D2
-      unjsonD2 =
+      unjsonD2 :: ArrayMode -> UnjsonDef D2
+      unjsonD2 m =
         objectOf $
         D2 <$> (fieldDef "title" (title def) title "Document title")
         <*> (fieldDefBy "parties" (parties def) parties "Document parties"
-             (arrayOf unjsonD1))
+             (arrayWithModeOf m unjsonD1))
 
 
 tests :: Test
