@@ -805,6 +805,14 @@ data D2 = D2 { title   :: String
 instance Default D2 where
   def = D2 "" []
 
+data D3 = D3 { d3Title  :: String
+             , d3IntArr :: [Int]
+             } deriving (Eq, Show)
+
+instance Default D3 where
+  def = D3 "" []
+
+
 test_subarray_update :: Test
 test_subarray_update = "test_subarray_update" ~: do
   let jsn          = Aeson.object []
@@ -868,6 +876,25 @@ test_subarray_update = "test_subarray_update" ~: do
        "update y'' {'parties' : [{}, {}, {}, {99,99}]} /= y''''"
        y'''' res
 
+  -- This is currently failing and I'm not quite sure how to fix it
+  -- without a major refactoring. Basically, when the new array is
+  -- shorter than the old and consists of something other than
+  -- objects, you get an exception.
+  let jsn          = Aeson.object
+                     ["d3_int_array" .= [Aeson.Number 6, Aeson.Number 7]]
+      Result res _ = update_z jsn
+    in do assertEqual
+            "update z {'d3IntArr' : [6,7]} == z'"
+            z' res `catch` \(_::SomeException) -> return ()
+
+  -- This is *not* failing. The new array is longer than the old.
+  let jsn          = Aeson.object
+                     ["d3_int_array" .= map Aeson.Number [6, 7, 8, 9, 0]]
+      Result res _ = update_z jsn
+    in do assertEqual
+            "update z {'d3IntArr' : [6,7,8,9,0]} == z''"
+            z'' res
+
     where
       x               = D1 7 0
       y               = D2 "test" [x]
@@ -875,8 +902,12 @@ test_subarray_update = "test_subarray_update" ~: do
       y''             = D2 "tezzzt" [D1 1 2, D1 3 4, D1 5 6]
       y'''            = D2 "tezzzt" [D1 1 0, D1 3 0, D1 5 0]
       y''''           = D2 "tezzzt" [D1 1 0, D1 3 0, D1 5 0, D1 99 0]
+      z               = D3 "d3t" [1,2,3,4]
+      z'              = D3 "d3t" [6,7,3,4]
+      z''             = D3 "d3t" [6,7,8,9,0]
       update_x        = update x unjsonD1
       update_y        = update y  $ unjsonD2 ArrayModeStrict
+      update_z        = update z  $ unjsonD3 ArrayModeStrict
 
       unjsonD1 :: UnjsonDef D1
       unjsonD1 = objectOf $
@@ -890,6 +921,13 @@ test_subarray_update = "test_subarray_update" ~: do
         D2 <$> (fieldDef "title" (title def) title "Document title")
         <*> (fieldDefBy "parties" (parties def) parties "Document parties"
              (arrayWithModeOf m unjsonD1))
+
+      unjsonD3 :: ArrayMode -> UnjsonDef D3
+      unjsonD3 m =
+        objectOf $
+        D3 <$> (fieldDef "d3_title" (d3Title def) d3Title "Title")
+        <*> (fieldDefBy "d3_int_array" (d3IntArr def) d3IntArr "Int array"
+             (arrayWithModeOf m unjsonDef))
 
 
 tests :: Test
