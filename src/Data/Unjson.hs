@@ -634,10 +634,10 @@ contramapTupleFieldDef f (TupleFieldDef i e d) = TupleFieldDef i (e . f) d
 -- parsing definition.  'FieldDef' has three cases for fields that are
 -- required, optional (via 'Maybe') or jave default value.
 data FieldDef s a where
-  FieldReqDef :: Text.Text -> Text.Text -> (s -> a) -> UnjsonDef a -> FieldDef s a
-  FieldOptDef :: Text.Text -> Text.Text -> (s -> Maybe a) -> UnjsonDef a -> FieldDef s (Maybe a)
-  FieldDefDef :: Text.Text -> Text.Text -> a -> (s -> a) -> UnjsonDef a -> FieldDef s a
-  FieldRODef  :: Text.Text -> Text.Text -> (s -> a) -> UnjsonDef a -> FieldDef s ()
+  FieldReqDef :: Typeable a => Text.Text -> Text.Text -> (s -> a)       -> UnjsonDef a -> FieldDef s a
+  FieldOptDef :: Typeable a => Text.Text -> Text.Text -> (s -> Maybe a) -> UnjsonDef a -> FieldDef s (Maybe a)
+  FieldDefDef :: Typeable a => Text.Text -> Text.Text -> a -> (s -> a)  -> UnjsonDef a -> FieldDef s a
+  FieldRODef  :: Typeable a => Text.Text -> Text.Text -> (s -> a)       -> UnjsonDef a -> FieldDef s ()
 
 -- | Define a tuple element. 'TupleFieldDef' holds information about
 -- index, accessor function and a parser definition.
@@ -1021,7 +1021,7 @@ lookupByTupleFieldDef v ov (TupleFieldDef idx f valuedef)
 -- >
 -- > data Thing = Thing { thingCredentials :: Credentials, ... }
 -- > unjsonCredentials :: UnjsonDef Credentials
-fieldBy :: Text.Text -> (s -> a) -> Text.Text -> UnjsonDef a -> Ap (FieldDef s) a
+fieldBy :: Typeable a => Text.Text -> (s -> a) -> Text.Text -> UnjsonDef a -> Ap (FieldDef s) a
 fieldBy key f docstring valuedef = liftAp (FieldReqDef key docstring f valuedef)
 
 -- | Declare a required field with definition from 'Unjson' typeclass.
@@ -1036,7 +1036,7 @@ fieldBy key f docstring valuedef = liftAp (FieldReqDef key docstring f valuedef)
 -- >
 -- > data Thing = Thing { thingCredentials :: Credentials, ... }
 -- > instance Unjson Credentials where ...
-field :: (Unjson a) => Text.Text -> (s -> a) -> Text.Text -> Ap (FieldDef s) a
+field :: (Unjson a, Typeable a) => Text.Text -> (s -> a) -> Text.Text -> Ap (FieldDef s) a
 field key f docstring = fieldBy key f docstring unjsonDef
 
 -- | Declare an optional field and definition by valuedef.
@@ -1052,7 +1052,7 @@ field key f docstring = fieldBy key f docstring unjsonDef
 -- >
 -- > data Thing = Thing { thingCredentials :: Credentials, ... }
 -- > unjsonCredentials :: UnjsonDef Credentials
-fieldOptBy :: Text.Text -> (s -> Maybe a) -> Text.Text -> UnjsonDef a -> Ap (FieldDef s) (Maybe a)
+fieldOptBy :: Typeable a => Text.Text -> (s -> Maybe a) -> Text.Text -> UnjsonDef a -> Ap (FieldDef s) (Maybe a)
 fieldOptBy key f docstring valuedef = liftAp (FieldOptDef key docstring f valuedef)
 
 -- | Declare an optional field and definition by 'Unjson' typeclass.
@@ -1067,7 +1067,7 @@ fieldOptBy key f docstring valuedef = liftAp (FieldOptDef key docstring f valued
 -- >
 -- > data Thing = Thing { thingCredentials :: Credentials, ... }
 -- > instance Unjson Credentials where ...
-fieldOpt :: (Unjson a) => Text.Text -> (s -> Maybe a) -> Text.Text -> Ap (FieldDef s) (Maybe a)
+fieldOpt :: (Unjson a, Typeable a) => Text.Text -> (s -> Maybe a) -> Text.Text -> Ap (FieldDef s) (Maybe a)
 fieldOpt key f docstring = fieldOptBy key f docstring unjsonDef
 
 -- | Declare a field with default value and definition by valuedef.
@@ -1083,7 +1083,7 @@ fieldOpt key f docstring = fieldOptBy key f docstring unjsonDef
 -- >
 -- > data Thing = Thing { thingCredentials :: Credentials, ... }
 -- > unjsonCredentials :: UnjsonDef Credentials
-fieldDefBy :: Text.Text -> a -> (s -> a) -> Text.Text -> UnjsonDef a -> Ap (FieldDef s) a
+fieldDefBy :: Typeable a => Text.Text -> a -> (s -> a) -> Text.Text -> UnjsonDef a -> Ap (FieldDef s) a
 fieldDefBy key def f docstring valuedef = liftAp (FieldDefDef key docstring def f valuedef)
 
 -- | Declare a field with default value and definition by 'Unjson' typeclass.
@@ -1097,7 +1097,7 @@ fieldDefBy key def f docstring valuedef = liftAp (FieldDefDef key docstring def 
 -- >          "Port to listen on, defaults to 80"
 -- >
 -- > data Thing = Thing { thingPort :: Int, ... }
-fieldDef :: (Unjson a) => Text.Text -> a -> (s -> a) -> Text.Text -> Ap (FieldDef s) a
+fieldDef :: (Unjson a, Typeable a) => Text.Text -> a -> (s -> a) -> Text.Text -> Ap (FieldDef s) a
 fieldDef key def f docstring = fieldDefBy key def f docstring unjsonDef
 
 
@@ -1116,7 +1116,7 @@ fieldDef key def f docstring = fieldDefBy key def f docstring unjsonDef
 -- >          "Additional string"
 -- >
 -- > data Thing = Thing { thingPort :: Int, thingString :: String, ... }
-fieldReadonly :: (Unjson a) => Text.Text -> (s -> a) -> Text.Text ->  Ap (FieldDef s) ()
+fieldReadonly :: (Unjson a, Typeable a) => Text.Text -> (s -> a) -> Text.Text ->  Ap (FieldDef s) ()
 fieldReadonly key f docstring = fieldReadonlyBy key f docstring unjsonDef
 
 -- | Declare a field that is readonly from the point of view of Haskell structures,
@@ -1136,7 +1136,7 @@ fieldReadonly key f docstring = fieldReadonlyBy key f docstring unjsonDef
 -- >          "Additional string"
 -- >
 -- > data Thing = Thing { thingPort :: Port, thingString :: String, ... }
-fieldReadonlyBy ::  Text.Text -> (s -> a) -> Text.Text -> UnjsonDef a -> Ap (FieldDef s) ()
+fieldReadonlyBy :: Typeable a => Text.Text -> (s -> a) -> Text.Text -> UnjsonDef a -> Ap (FieldDef s) ()
 fieldReadonlyBy key f docstring valuedef = liftAp (FieldRODef key docstring f valuedef)
 
 -- | Declare an object as bidirectional mapping from JSON object to Haskell record and back.
