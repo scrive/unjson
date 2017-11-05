@@ -383,25 +383,25 @@ instance (Prim a, Unjson a) => Unjson (Data.Vector.Primitive.Vector a)
 mapFst :: (a -> c) -> (a,b) -> (c,b)
 mapFst f (a,b) = (f a, b)
 
-instance Unjson v => Unjson (Map.Map String v)
+instance (Typeable v, Unjson v) => Unjson (Map.Map String v)
   where unjsonDef = invmap (Map.fromList . map (mapFst Text.unpack) . HashMap.toList)
                                      (HashMap.fromList . map (mapFst Text.pack) . Map.toList)
                                      unjsonDef
-instance Unjson v => Unjson (Map.Map Text.Text v)
+instance (Typeable v, Unjson v) => Unjson (Map.Map Text.Text v)
   where unjsonDef = invmap (Map.fromList . HashMap.toList)
                                      (HashMap.fromList . Map.toList)
                                      unjsonDef
-instance Unjson v => Unjson (Map.Map LazyText.Text v)
+instance (Typeable v, Unjson v) => Unjson (Map.Map LazyText.Text v)
   where unjsonDef = invmap (Map.fromList . map (mapFst LazyText.fromStrict) . HashMap.toList)
                                      (HashMap.fromList . map (mapFst LazyText.toStrict) . Map.toList)
                                      unjsonDef
-instance Unjson v => Unjson (HashMap.HashMap String v)
+instance (Typeable v, Unjson v) => Unjson (HashMap.HashMap String v)
   where unjsonDef = invmap (HashMap.fromList . map (mapFst Text.unpack) . HashMap.toList)
                                      (HashMap.fromList . map (mapFst Text.pack) . HashMap.toList)
                                      unjsonDef
-instance Unjson v => Unjson (HashMap.HashMap Text.Text v)
+instance (Typeable v, Unjson v) => Unjson (HashMap.HashMap Text.Text v)
   where unjsonDef = MapUnjsonDef unjsonDef pure id
-instance Unjson v => Unjson (HashMap.HashMap LazyText.Text v)
+instance (Typeable v, Unjson v) => Unjson (HashMap.HashMap LazyText.Text v)
   where unjsonDef = invmap (HashMap.fromList . map (mapFst LazyText.fromStrict) . HashMap.toList)
                                      (HashMap.fromList . map (mapFst LazyText.toStrict) . HashMap.toList)
                                      unjsonDef
@@ -595,7 +595,7 @@ data UnjsonDef a where
   TupleUnjsonDef    :: Ap (TupleFieldDef k) (Result k) -> UnjsonDef k
   DisjointUnjsonDef :: Text.Text -> [(Text.Text, k -> Bool, Ap (FieldDef k) (Result k))] -> UnjsonDef k
   UnionUnjsonDef    :: [(k -> Bool, Ap (FieldDef k) (Result k))] -> UnjsonDef k
-  MapUnjsonDef      :: UnjsonDef k -> (HashMap.HashMap Text.Text k -> Result v) -> (v -> HashMap.HashMap Text.Text k) -> UnjsonDef v
+  MapUnjsonDef      :: Typeable k => UnjsonDef k -> (HashMap.HashMap Text.Text k -> Result v) -> (v -> HashMap.HashMap Text.Text k) -> UnjsonDef v
 
 instance Invariant UnjsonDef where
   invmap f g (SimpleUnjsonDef name p s) = SimpleUnjsonDef name (fmap f . p) (s . g)
@@ -1173,7 +1173,7 @@ objectOf fields = ObjectUnjsonDef (fmap pure fields)
 -- > objectOf $ pure X
 -- >   <*> field "xmap" xMap
 -- >       "Map string to Y value"
-mapOf :: UnjsonDef x -> UnjsonDef (LazyHashMap.HashMap Text.Text x)
+mapOf :: Typeable x => UnjsonDef x -> UnjsonDef (LazyHashMap.HashMap Text.Text x)
 mapOf def = MapUnjsonDef def pure id
 
 -- | Provide sum type support. Bidirectional case matching in Haskell
