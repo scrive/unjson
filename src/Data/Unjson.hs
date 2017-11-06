@@ -317,7 +317,7 @@ class Unjson a where
   -- 'UnjsonDef'.
   unjsonDef :: UnjsonDef a
 
-instance {-# OVERLAPPABLE #-} (Unjson a) => Unjson [a] where
+instance {-# OVERLAPPABLE #-} (Unjson a, Typeable a) => Unjson [a] where
   unjsonDef = arrayOf unjsonDef
 
 instance {-# INCOHERENT #-} Unjson String where
@@ -364,19 +364,19 @@ instance Unjson v => Unjson (Tree v)  where unjsonDef = unjsonAeson
 instance (Unjson a, Unjson b) => Unjson (Either a b)  where unjsonDef = unjsonAeson
 -}
 
-instance Unjson a => Unjson (IntMap.IntMap a)
+instance (Unjson a, Typeable a) => Unjson (IntMap.IntMap a)
   where unjsonDef = invmap IntMap.fromList IntMap.toList unjsonDef
-instance (Ord a, Unjson a) => Unjson (Set.Set a)
+instance (Ord a, Unjson a, Typeable a) => Unjson (Set.Set a)
   where unjsonDef = invmap Set.fromList Set.toList unjsonDef
-instance (Eq a, Hashable a, Unjson a) => Unjson (HashSet.HashSet a)
+instance (Eq a, Hashable a, Unjson a, Typeable a) => Unjson (HashSet.HashSet a)
   where unjsonDef = invmap HashSet.fromList HashSet.toList unjsonDef
-instance Unjson a => Unjson (Vector.Vector a)
+instance (Unjson a, Typeable a) => Unjson (Vector.Vector a)
   where unjsonDef = invmap Vector.fromList Vector.toList unjsonDef
-instance (Data.Vector.Generic.Vector Data.Vector.Unboxed.Vector a, Unjson a, Data.Vector.Unboxed.Unbox a) => Unjson (Data.Vector.Unboxed.Vector a)
+instance (Data.Vector.Generic.Vector Data.Vector.Unboxed.Vector a, Unjson a, Data.Vector.Unboxed.Unbox a, Typeable a) => Unjson (Data.Vector.Unboxed.Vector a)
   where unjsonDef = invmap Data.Vector.Unboxed.fromList Data.Vector.Unboxed.toList unjsonDef
-instance (Storable a, Unjson a) => Unjson (Data.Vector.Storable.Vector a)
+instance (Storable a, Unjson a, Typeable a) => Unjson (Data.Vector.Storable.Vector a)
   where unjsonDef = invmap Data.Vector.Storable.fromList Data.Vector.Storable.toList unjsonDef
-instance (Prim a, Unjson a) => Unjson (Data.Vector.Primitive.Vector a)
+instance (Prim a, Unjson a, Typeable a) => Unjson (Data.Vector.Primitive.Vector a)
   where unjsonDef = invmap Data.Vector.Primitive.fromList Data.Vector.Primitive.toList unjsonDef
 
 
@@ -590,7 +590,7 @@ data PrimaryKeyExtraction k = forall pk . (Ord pk) => PrimaryKeyExtraction (k ->
 -- | Opaque 'UnjsonDef' defines a bidirectional JSON parser.
 data UnjsonDef a where
   SimpleUnjsonDef   :: Text.Text -> (Aeson.Value -> Result k) -> (k -> Aeson.Value) -> UnjsonDef k
-  ArrayUnjsonDef    :: Maybe (PrimaryKeyExtraction k) -> ArrayMode -> ([k] -> Result v) -> (v -> [k]) -> UnjsonDef k -> UnjsonDef v
+  ArrayUnjsonDef    :: Typeable k => Maybe (PrimaryKeyExtraction k) -> ArrayMode -> ([k] -> Result v) -> (v -> [k]) -> UnjsonDef k -> UnjsonDef v
   ObjectUnjsonDef   :: Ap (FieldDef k) (Result k) -> UnjsonDef k
   TupleUnjsonDef    :: Ap (TupleFieldDef k) (Result k) -> UnjsonDef k
   DisjointUnjsonDef :: Text.Text -> [(Text.Text, k -> Bool, Ap (FieldDef k) (Result k))] -> UnjsonDef k
@@ -1263,7 +1263,7 @@ enumOf key alternates =
 -- >
 -- > unjsonThing :: UnjsonDef Thing
 -- > unjsonThing = ...
-arrayOf :: UnjsonDef a -> UnjsonDef [a]
+arrayOf :: Typeable a => UnjsonDef a -> UnjsonDef [a]
 arrayOf = arrayWithModeOf ArrayModeStrict
 
 -- | Declare array of values where each of them is described by
@@ -1276,7 +1276,7 @@ arrayOf = arrayWithModeOf ArrayModeStrict
 -- >
 -- > unjsonThing :: UnjsonDef Thing
 -- > unjsonThing = ...
-arrayWithModeOf :: ArrayMode -> UnjsonDef a -> UnjsonDef [a]
+arrayWithModeOf :: Typeable a => ArrayMode -> UnjsonDef a -> UnjsonDef [a]
 arrayWithModeOf mode valuedef = ArrayUnjsonDef Nothing mode pure id valuedef
 
 -- | Declare array of primitive values lifed from 'Aeson'. Accepts
@@ -1308,7 +1308,7 @@ arrayWithModeOf' mode = arrayWithModeOf mode unjsonAeson
 -- >                              (objectOf $ pure (,)
 -- >                                 <*> field "key" fst "Key in mapping"
 -- >                                 <*> field "value" fst "Value in mapping")
-arrayWithModeAndPrimaryKeyOf :: (Ord pk)
+arrayWithModeAndPrimaryKeyOf :: (Ord pk, Typeable a)
                              => ArrayMode
                              -> (a -> pk)
                              -> UnjsonDef pk
@@ -1349,7 +1349,7 @@ arrayWithModeAndPrimaryKeyOf mode pk1 pk2 valuedef =
 -- >                              (objectOf $ pure (,)
 -- >                                 <*> field "key" fst "Key in mapping"
 -- >                                 <*> field "value" fst "Value in mapping")
-arrayWithPrimaryKeyOf :: (Ord pk)
+arrayWithPrimaryKeyOf :: (Ord pk, Typeable a)
                       => (a -> pk)
                       -> UnjsonDef pk
                       -> UnjsonDef a
