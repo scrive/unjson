@@ -2,3 +2,4 @@
 /dist/
 cabal.project.local
 /TAGS
+.stack-work
