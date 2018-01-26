@@ -621,12 +621,12 @@ test_maps = "test_maps" ~: do
                ]
       jsonEmbedded = Aeson.object
                      [ "a_map" .= json ]
-  let unjsonMapByInstance :: (Unjson a) => UnjsonDef a
+  let unjsonMapByInstance :: (Unjson a, Typeable a) => UnjsonDef a
       unjsonMapByInstance = objectOf $ pure id
          <*> field "a_map"
              id
              "The only map"
-  let unjsonMapByExplicit :: (Unjson a) => UnjsonDef (HashMap.HashMap Text.Text a)
+  let unjsonMapByExplicit :: (Unjson a, Typeable a) => UnjsonDef (HashMap.HashMap Text.Text a)
       unjsonMapByExplicit = objectOf $ pure id
          <*> fieldBy "a_map"
              id
