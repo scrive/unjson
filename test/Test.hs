@@ -793,21 +793,21 @@ test_readonly_fields = "test_readonly_fields" ~: do
 
 data D1 = D1 { sign_order :: Int
              , other_field :: Int
-             } deriving (Eq, Show)
+             } deriving (Eq, Show, Typeable)
 
 instance Default D1 where
   def = D1 1 0
 
 data D2 = D2 { title   :: String
              , parties :: [D1]
-             } deriving (Eq, Show)
+             } deriving (Eq, Show, Typeable)
 
 instance Default D2 where
   def = D2 "" []
 
 data D3 = D3 { d3Title  :: String
              , d3IntArr :: [Int]
-             } deriving (Eq, Show)
+             } deriving (Eq, Show, Typeable)
 
 instance Default D3 where
   def = D3 "" []

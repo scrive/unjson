@@ -319,7 +319,7 @@ class Unjson a where
   unjsonDef :: UnjsonDef a
 
 #if __GLASGOW_HASKELL__ < 710
-instance (Unjson a) => Unjson [a] where
+instance (Unjson a, Typeable a) => Unjson [a] where
 #else
 instance {-# OVERLAPPABLE #-} (Unjson a, Typeable a) => Unjson [a] where
 #endif
