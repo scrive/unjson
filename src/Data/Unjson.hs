@@ -317,7 +317,7 @@ class Unjson a where
   -- 'UnjsonDef'.
   unjsonDef :: UnjsonDef a
 
-instance {-# OVERLAPPABLE #-} (Unjson a) => Unjson [a] where
+instance {-# OVERLAPPABLE #-} (Unjson a, Typeable a) => Unjson [a] where
   unjsonDef = arrayOf unjsonDef
 
 instance {-# INCOHERENT #-} Unjson String where
@@ -364,44 +364,44 @@ instance Unjson v => Unjson (Tree v)  where unjsonDef = unjsonAeson
 instance (Unjson a, Unjson b) => Unjson (Either a b)  where unjsonDef = unjsonAeson
 -}
 
-instance Unjson a => Unjson (IntMap.IntMap a)
+instance (Unjson a, Typeable a) => Unjson (IntMap.IntMap a)
   where unjsonDef = invmap IntMap.fromList IntMap.toList unjsonDef
-instance (Ord a, Unjson a) => Unjson (Set.Set a)
+instance (Ord a, Unjson a, Typeable a) => Unjson (Set.Set a)
   where unjsonDef = invmap Set.fromList Set.toList unjsonDef
-instance (Eq a, Hashable a, Unjson a) => Unjson (HashSet.HashSet a)
+instance (Eq a, Hashable a, Unjson a, Typeable a) => Unjson (HashSet.HashSet a)
   where unjsonDef = invmap HashSet.fromList HashSet.toList unjsonDef
-instance Unjson a => Unjson (Vector.Vector a)
+instance (Unjson a, Typeable a) => Unjson (Vector.Vector a)
   where unjsonDef = invmap Vector.fromList Vector.toList unjsonDef
-instance (Data.Vector.Generic.Vector Data.Vector.Unboxed.Vector a, Unjson a, Data.Vector.Unboxed.Unbox a) => Unjson (Data.Vector.Unboxed.Vector a)
+instance (Data.Vector.Generic.Vector Data.Vector.Unboxed.Vector a, Unjson a, Data.Vector.Unboxed.Unbox a, Typeable a) => Unjson (Data.Vector.Unboxed.Vector a)
   where unjsonDef = invmap Data.Vector.Unboxed.fromList Data.Vector.Unboxed.toList unjsonDef
-instance (Storable a, Unjson a) => Unjson (Data.Vector.Storable.Vector a)
+instance (Storable a, Unjson a, Typeable a) => Unjson (Data.Vector.Storable.Vector a)
   where unjsonDef = invmap Data.Vector.Storable.fromList Data.Vector.Storable.toList unjsonDef
-instance (Prim a, Unjson a) => Unjson (Data.Vector.Primitive.Vector a)
+instance (Prim a, Unjson a, Typeable a) => Unjson (Data.Vector.Primitive.Vector a)
   where unjsonDef = invmap Data.Vector.Primitive.fromList Data.Vector.Primitive.toList unjsonDef
 
 
 mapFst :: (a -> c) -> (a,b) -> (c,b)
 mapFst f (a,b) = (f a, b)
 
-instance Unjson v => Unjson (Map.Map String v)
+instance (Typeable v, Unjson v) => Unjson (Map.Map String v)
   where unjsonDef = invmap (Map.fromList . map (mapFst Text.unpack) . HashMap.toList)
                                      (HashMap.fromList . map (mapFst Text.pack) . Map.toList)
                                      unjsonDef
-instance Unjson v => Unjson (Map.Map Text.Text v)
+instance (Typeable v, Unjson v) => Unjson (Map.Map Text.Text v)
   where unjsonDef = invmap (Map.fromList . HashMap.toList)
                                      (HashMap.fromList . Map.toList)
                                      unjsonDef
-instance Unjson v => Unjson (Map.Map LazyText.Text v)
+instance (Typeable v, Unjson v) => Unjson (Map.Map LazyText.Text v)
   where unjsonDef = invmap (Map.fromList . map (mapFst LazyText.fromStrict) . HashMap.toList)
                                      (HashMap.fromList . map (mapFst LazyText.toStrict) . Map.toList)
                                      unjsonDef
-instance Unjson v => Unjson (HashMap.HashMap String v)
+instance (Typeable v, Unjson v) => Unjson (HashMap.HashMap String v)
   where unjsonDef = invmap (HashMap.fromList . map (mapFst Text.unpack) . HashMap.toList)
                                      (HashMap.fromList . map (mapFst Text.pack) . HashMap.toList)
                                      unjsonDef
-instance Unjson v => Unjson (HashMap.HashMap Text.Text v)
+instance (Typeable v, Unjson v) => Unjson (HashMap.HashMap Text.Text v)
   where unjsonDef = MapUnjsonDef unjsonDef pure id
-instance Unjson v => Unjson (HashMap.HashMap LazyText.Text v)
+instance (Typeable v, Unjson v) => Unjson (HashMap.HashMap LazyText.Text v)
   where unjsonDef = invmap (HashMap.fromList . map (mapFst LazyText.fromStrict) . HashMap.toList)
                                      (HashMap.fromList . map (mapFst LazyText.toStrict) . HashMap.toList)
                                      unjsonDef
@@ -590,12 +590,12 @@ data PrimaryKeyExtraction k = forall pk . (Ord pk) => PrimaryKeyExtraction (k ->
 -- | Opaque 'UnjsonDef' defines a bidirectional JSON parser.
 data UnjsonDef a where
   SimpleUnjsonDef   :: Text.Text -> (Aeson.Value -> Result k) -> (k -> Aeson.Value) -> UnjsonDef k
-  ArrayUnjsonDef    :: Maybe (PrimaryKeyExtraction k) -> ArrayMode -> ([k] -> Result v) -> (v -> [k]) -> UnjsonDef k -> UnjsonDef v
+  ArrayUnjsonDef    :: Typeable k => Maybe (PrimaryKeyExtraction k) -> ArrayMode -> ([k] -> Result v) -> (v -> [k]) -> UnjsonDef k -> UnjsonDef v
   ObjectUnjsonDef   :: Ap (FieldDef k) (Result k) -> UnjsonDef k
   TupleUnjsonDef    :: Ap (TupleFieldDef k) (Result k) -> UnjsonDef k
   DisjointUnjsonDef :: Text.Text -> [(Text.Text, k -> Bool, Ap (FieldDef k) (Result k))] -> UnjsonDef k
   UnionUnjsonDef    :: [(k -> Bool, Ap (FieldDef k) (Result k))] -> UnjsonDef k
-  MapUnjsonDef      :: UnjsonDef k -> (HashMap.HashMap Text.Text k -> Result v) -> (v -> HashMap.HashMap Text.Text k) -> UnjsonDef v
+  MapUnjsonDef      :: Typeable k => UnjsonDef k -> (HashMap.HashMap Text.Text k -> Result v) -> (v -> HashMap.HashMap Text.Text k) -> UnjsonDef v
 
 instance Invariant UnjsonDef where
   invmap f g (SimpleUnjsonDef name p s) = SimpleUnjsonDef name (fmap f . p) (s . g)
@@ -634,10 +634,10 @@ contramapTupleFieldDef f (TupleFieldDef i e d) = TupleFieldDef i (e . f) d
 -- parsing definition.  'FieldDef' has three cases for fields that are
 -- required, optional (via 'Maybe') or jave default value.
 data FieldDef s a where
-  FieldReqDef :: Text.Text -> Text.Text -> (s -> a) -> UnjsonDef a -> FieldDef s a
-  FieldOptDef :: Text.Text -> Text.Text -> (s -> Maybe a) -> UnjsonDef a -> FieldDef s (Maybe a)
-  FieldDefDef :: Text.Text -> Text.Text -> a -> (s -> a) -> UnjsonDef a -> FieldDef s a
-  FieldRODef  :: Text.Text -> Text.Text -> (s -> a) -> UnjsonDef a -> FieldDef s ()
+  FieldReqDef :: Typeable a => Text.Text -> Text.Text -> (s -> a)       -> UnjsonDef a -> FieldDef s a
+  FieldOptDef :: Typeable a => Text.Text -> Text.Text -> (s -> Maybe a) -> UnjsonDef a -> FieldDef s (Maybe a)
+  FieldDefDef :: Typeable a => Text.Text -> Text.Text -> a -> (s -> a)  -> UnjsonDef a -> FieldDef s a
+  FieldRODef  :: Typeable a => Text.Text -> Text.Text -> (s -> a)       -> UnjsonDef a -> FieldDef s ()
 
 -- | Define a tuple element. 'TupleFieldDef' holds information about
 -- index, accessor function and a parser definition.
@@ -1021,7 +1021,7 @@ lookupByTupleFieldDef v ov (TupleFieldDef idx f valuedef)
 -- >
 -- > data Thing = Thing { thingCredentials :: Credentials, ... }
 -- > unjsonCredentials :: UnjsonDef Credentials
-fieldBy :: Text.Text -> (s -> a) -> Text.Text -> UnjsonDef a -> Ap (FieldDef s) a
+fieldBy :: Typeable a => Text.Text -> (s -> a) -> Text.Text -> UnjsonDef a -> Ap (FieldDef s) a
 fieldBy key f docstring valuedef = liftAp (FieldReqDef key docstring f valuedef)
 
 -- | Declare a required field with definition from 'Unjson' typeclass.
@@ -1036,7 +1036,7 @@ fieldBy key f docstring valuedef = liftAp (FieldReqDef key docstring f valuedef)
 -- >
 -- > data Thing = Thing { thingCredentials :: Credentials, ... }
 -- > instance Unjson Credentials where ...
-field :: (Unjson a) => Text.Text -> (s -> a) -> Text.Text -> Ap (FieldDef s) a
+field :: (Unjson a, Typeable a) => Text.Text -> (s -> a) -> Text.Text -> Ap (FieldDef s) a
 field key f docstring = fieldBy key f docstring unjsonDef
 
 -- | Declare an optional field and definition by valuedef.
@@ -1052,7 +1052,7 @@ field key f docstring = fieldBy key f docstring unjsonDef
 -- >
 -- > data Thing = Thing { thingCredentials :: Credentials, ... }
 -- > unjsonCredentials :: UnjsonDef Credentials
-fieldOptBy :: Text.Text -> (s -> Maybe a) -> Text.Text -> UnjsonDef a -> Ap (FieldDef s) (Maybe a)
+fieldOptBy :: Typeable a => Text.Text -> (s -> Maybe a) -> Text.Text -> UnjsonDef a -> Ap (FieldDef s) (Maybe a)
 fieldOptBy key f docstring valuedef = liftAp (FieldOptDef key docstring f valuedef)
 
 -- | Declare an optional field and definition by 'Unjson' typeclass.
@@ -1067,7 +1067,7 @@ fieldOptBy key f docstring valuedef = liftAp (FieldOptDef key docstring f valued
 -- >
 -- > data Thing = Thing { thingCredentials :: Credentials, ... }
 -- > instance Unjson Credentials where ...
-fieldOpt :: (Unjson a) => Text.Text -> (s -> Maybe a) -> Text.Text -> Ap (FieldDef s) (Maybe a)
+fieldOpt :: (Unjson a, Typeable a) => Text.Text -> (s -> Maybe a) -> Text.Text -> Ap (FieldDef s) (Maybe a)
 fieldOpt key f docstring = fieldOptBy key f docstring unjsonDef
 
 -- | Declare a field with default value and definition by valuedef.
@@ -1083,7 +1083,7 @@ fieldOpt key f docstring = fieldOptBy key f docstring unjsonDef
 -- >
 -- > data Thing = Thing { thingCredentials :: Credentials, ... }
 -- > unjsonCredentials :: UnjsonDef Credentials
-fieldDefBy :: Text.Text -> a -> (s -> a) -> Text.Text -> UnjsonDef a -> Ap (FieldDef s) a
+fieldDefBy :: Typeable a => Text.Text -> a -> (s -> a) -> Text.Text -> UnjsonDef a -> Ap (FieldDef s) a
 fieldDefBy key def f docstring valuedef = liftAp (FieldDefDef key docstring def f valuedef)
 
 -- | Declare a field with default value and definition by 'Unjson' typeclass.
@@ -1097,7 +1097,7 @@ fieldDefBy key def f docstring valuedef = liftAp (FieldDefDef key docstring def 
 -- >          "Port to listen on, defaults to 80"
 -- >
 -- > data Thing = Thing { thingPort :: Int, ... }
-fieldDef :: (Unjson a) => Text.Text -> a -> (s -> a) -> Text.Text -> Ap (FieldDef s) a
+fieldDef :: (Unjson a, Typeable a) => Text.Text -> a -> (s -> a) -> Text.Text -> Ap (FieldDef s) a
 fieldDef key def f docstring = fieldDefBy key def f docstring unjsonDef
 
 
@@ -1116,7 +1116,7 @@ fieldDef key def f docstring = fieldDefBy key def f docstring unjsonDef
 -- >          "Additional string"
 -- >
 -- > data Thing = Thing { thingPort :: Int, thingString :: String, ... }
-fieldReadonly :: (Unjson a) => Text.Text -> (s -> a) -> Text.Text ->  Ap (FieldDef s) ()
+fieldReadonly :: (Unjson a, Typeable a) => Text.Text -> (s -> a) -> Text.Text ->  Ap (FieldDef s) ()
 fieldReadonly key f docstring = fieldReadonlyBy key f docstring unjsonDef
 
 -- | Declare a field that is readonly from the point of view of Haskell structures,
@@ -1136,7 +1136,7 @@ fieldReadonly key f docstring = fieldReadonlyBy key f docstring unjsonDef
 -- >          "Additional string"
 -- >
 -- > data Thing = Thing { thingPort :: Port, thingString :: String, ... }
-fieldReadonlyBy ::  Text.Text -> (s -> a) -> Text.Text -> UnjsonDef a -> Ap (FieldDef s) ()
+fieldReadonlyBy :: Typeable a => Text.Text -> (s -> a) -> Text.Text -> UnjsonDef a -> Ap (FieldDef s) ()
 fieldReadonlyBy key f docstring valuedef = liftAp (FieldRODef key docstring f valuedef)
 
 -- | Declare an object as bidirectional mapping from JSON object to Haskell record and back.
@@ -1173,7 +1173,7 @@ objectOf fields = ObjectUnjsonDef (fmap pure fields)
 -- > objectOf $ pure X
 -- >   <*> field "xmap" xMap
 -- >       "Map string to Y value"
-mapOf :: UnjsonDef x -> UnjsonDef (LazyHashMap.HashMap Text.Text x)
+mapOf :: Typeable x => UnjsonDef x -> UnjsonDef (LazyHashMap.HashMap Text.Text x)
 mapOf def = MapUnjsonDef def pure id
 
 -- | Provide sum type support. Bidirectional case matching in Haskell
@@ -1263,7 +1263,7 @@ enumOf key alternates =
 -- >
 -- > unjsonThing :: UnjsonDef Thing
 -- > unjsonThing = ...
-arrayOf :: UnjsonDef a -> UnjsonDef [a]
+arrayOf :: Typeable a => UnjsonDef a -> UnjsonDef [a]
 arrayOf = arrayWithModeOf ArrayModeStrict
 
 -- | Declare array of values where each of them is described by
@@ -1276,7 +1276,7 @@ arrayOf = arrayWithModeOf ArrayModeStrict
 -- >
 -- > unjsonThing :: UnjsonDef Thing
 -- > unjsonThing = ...
-arrayWithModeOf :: ArrayMode -> UnjsonDef a -> UnjsonDef [a]
+arrayWithModeOf :: Typeable a => ArrayMode -> UnjsonDef a -> UnjsonDef [a]
 arrayWithModeOf mode valuedef = ArrayUnjsonDef Nothing mode pure id valuedef
 
 -- | Declare array of primitive values lifed from 'Aeson'. Accepts
@@ -1308,7 +1308,7 @@ arrayWithModeOf' mode = arrayWithModeOf mode unjsonAeson
 -- >                              (objectOf $ pure (,)
 -- >                                 <*> field "key" fst "Key in mapping"
 -- >                                 <*> field "value" fst "Value in mapping")
-arrayWithModeAndPrimaryKeyOf :: (Ord pk)
+arrayWithModeAndPrimaryKeyOf :: (Ord pk, Typeable a)
                              => ArrayMode
                              -> (a -> pk)
                              -> UnjsonDef pk
@@ -1349,7 +1349,7 @@ arrayWithModeAndPrimaryKeyOf mode pk1 pk2 valuedef =
 -- >                              (objectOf $ pure (,)
 -- >                                 <*> field "key" fst "Key in mapping"
 -- >                                 <*> field "value" fst "Value in mapping")
-arrayWithPrimaryKeyOf :: (Ord pk)
+arrayWithPrimaryKeyOf :: (Ord pk, Typeable a)
                       => (a -> pk)
                       -> UnjsonDef pk
                       -> UnjsonDef a

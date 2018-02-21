@@ -1,0 +1,10 @@
+resolver: lts-9.9
+packages:
+- '.'
+nix:
+  enable: false
+  packages:
+  - ncurses
+  - libcxx
+  - icu
+  - gcc
