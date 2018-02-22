@@ -1,5 +1,4 @@
 {-# LANGUAGE CPP #-}
-{-# LANGUAGE TypeApplications #-}
 #if __GLASGOW_HASKELL__ < 710
 {-# LANGUAGE OverlappingInstances #-}
 #endif
@@ -1270,7 +1269,7 @@ enumUnjsonDef
   => UnjsonDef a
 enumUnjsonDef = enumOf typeName [ (Text.pack $ show $ toConstr c, c) | c <- constructors ]
   where
-    typeName = Text.pack . show . typeRep $ Proxy @a
+    typeName = Text.pack . show . typeRep $ (Proxy :: Proxy a)
     constructors = enumFromTo minBound maxBound :: [a]
 
 -- | Declare array of values where each of them is described by
