@@ -3,3 +3,4 @@
   to have Typeable instances ([#6](https://github.com/scrive/unjson/pull/6)).
 * Added a way to automatically derive Unjson definitions for
   parameterless sum types (`enumUnjsonDef`) ([#7](https://github.com/scrive/unjson/pull/7)).
+* Dropped support for GHC < 7.8.
