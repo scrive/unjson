@@ -1238,7 +1238,7 @@ unionOf :: [(k -> Bool, Ap (FieldDef k) k)] -> UnjsonDef k
 unionOf alternates =
   UnionUnjsonDef (map (\(b,c) -> (b,fmap return c)) alternates)
 
--- | Provide sum type support for parametersless constructors.
+-- | Provide sum type support for parameterless constructors.
 --
 -- For related functionality see 'disjointUnionOf'.
 --
@@ -1254,7 +1254,7 @@ enumOf :: (Eq k) => Text.Text -> [(Text.Text, k)] -> UnjsonDef k
 enumOf key alternates =
   DisjointUnjsonDef key (map (\(a,b) -> (a,(==)b,fmap return (pure b))) alternates)
 
--- | Automatic sum type conversion with parametersless constructors.
+-- | Automatic sum type conversion with parameterless constructors.
 --
 -- Basically an automatic version of 'enumOf'.
 --
