@@ -435,10 +435,10 @@ test_enum_field = "test_enum_field" ~: do
                  ]
     let Result val iss = parse unjsonEnumAB json
     assertEqual "No problems" [Anchored (Path [PathElemKey "mode"]) "value 'wrong' is not one of the allowed for enumeration [A,B]"] iss
- 
+
 
 data AutoAB = AutoA | AutoB
-   deriving (Show, Eq, Ord, Enum, Bounded, Data)
+   deriving (Show, Eq, Ord, Enum, Bounded, Data, Typeable)
 
 unjsonAutoEnumAB :: UnjsonDef AutoAB
 unjsonAutoEnumAB = enumUnjsonDef
