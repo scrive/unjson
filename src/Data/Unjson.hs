@@ -122,6 +122,7 @@ module Data.Unjson
 -- ** Maps, enums, sums
 , mapOf
 , enumOf
+, enumUnjsonDef
 , disjointUnionOf
 , unionOf
 -- ** Helpers
@@ -1252,6 +1253,24 @@ unionOf alternates =
 enumOf :: (Eq k) => Text.Text -> [(Text.Text, k)] -> UnjsonDef k
 enumOf key alternates =
   DisjointUnjsonDef key (map (\(a,b) -> (a,(==)b,fmap return (pure b))) alternates)
+
+-- | Automatic sum type conversion with parametersless constructors.
+--
+-- Basically an automatic version of 'enumOf'.
+--
+-- Example:
+--
+-- > data X = A | B deriving (Eq, Data, Enum, Bounded)
+-- >
+-- > instance Unjson X where unjsonDef = enumUnjsonDef
+--
+enumUnjsonDef
+  :: forall a. (Eq a, Typeable a, Enum a, Bounded a, Data a)
+  => UnjsonDef a
+enumUnjsonDef = enumOf typeName [ (Text.pack $ show $ toConstr c, c) | c <- constructors ]
+  where
+    typeName = Text.pack . show . typeRep $ (Proxy :: Proxy a)
+    constructors = enumFromTo minBound maxBound :: [a]
 
 -- | Declare array of values where each of them is described by
 -- valuedef. Use 'unjsonAeson' to parse.

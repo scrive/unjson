@@ -404,15 +404,14 @@ test_parse_either_field = "test_parse_either_field" ~: do
     assertBool "Documentation generates" (length docstr > 0)
   return ()
 
+
 data AB = A | B
    deriving (Show, Eq, Ord)
-
 
 unjsonEnumAB :: UnjsonDef AB
 unjsonEnumAB = enumOf "mode"
                      [ ("A", A)
                      , ("B", B)]
-
 
 test_enum_field :: Test
 test_enum_field = "test_enum_field" ~: do
@@ -436,6 +435,37 @@ test_enum_field = "test_enum_field" ~: do
                  ]
     let Result val iss = parse unjsonEnumAB json
     assertEqual "No problems" [Anchored (Path [PathElemKey "mode"]) "value 'wrong' is not one of the allowed for enumeration [A,B]"] iss
+
+
+data AutoAB = AutoA | AutoB
+   deriving (Show, Eq, Ord, Enum, Bounded, Data, Typeable)
+
+unjsonAutoEnumAB :: UnjsonDef AutoAB
+unjsonAutoEnumAB = enumUnjsonDef
+
+test_auto_enum_field :: Test
+test_auto_enum_field = "test_auto_enum_field" ~: do
+  do
+    let json = Aeson.object
+                 [ "AutoAB" .= "AutoA"
+                 ]
+    let Result val iss = parse unjsonAutoEnumAB json
+    assertEqual "No problems" [] iss
+    assertEqual "Proper value present" AutoA val
+  do
+    let json = Aeson.object
+                 [ "AutoAB" .= "AutoB"
+                 ]
+    let Result val iss = parse unjsonAutoEnumAB json
+    assertEqual "No problems" [] iss
+    assertEqual "Proper value present" AutoB val
+  do
+    let json = Aeson.object
+                 [ "AutoAB" .= "wrong"
+                 ]
+    let Result val iss = parse unjsonAutoEnumAB json
+    assertEqual "No problems" [Anchored (Path [PathElemKey "AutoAB"]) "value 'wrong' is not one of the allowed for enumeration [AutoA,AutoB]"] iss
+    
 
 test_update_from_serialization :: Test
 test_update_from_serialization = "test_update_from_serialization" ~: do
