@@ -7,11 +7,9 @@ import qualified Data.ByteString.Lazy.Char8 as BSL
 import Data.Int
 import Data.Typeable
 import Data.Unjson
-import Control.Applicative
 import qualified Data.Aeson as Aeson
 import Data.Aeson ((.=))
 import Test.HUnit
-import Data.Monoid
 import Data.List
 import Data.Data
 import Data.Functor.Invariant
@@ -23,6 +21,11 @@ import System.Exit (ExitCode (..), exitWith)
 
 #if !MIN_VERSION_base(4,6,0)
 import Prelude hiding (catch)
+#endif
+
+#if !MIN_VERSION_base(4,8,0)
+import Control.Applicative
+import Data.Monoid
 #endif
 
 default (Text.Text, String, Int, Double)

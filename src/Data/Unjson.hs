@@ -171,8 +171,8 @@ import qualified Data.IntSet as IntSet
 import qualified Data.HashSet as HashSet
 import Data.Typeable
 import Data.Data
-import Data.Monoid
 import Data.Maybe
+import Data.Monoid
 import Data.Primitive.Types
 import Data.Hashable
 import Data.Scientific
@@ -180,13 +180,11 @@ import Data.Time.LocalTime
 import Data.Time.Clock
 import Data.Fixed
 import Foreign.Storable
-import Control.Applicative
 import Control.Applicative.Free
 import Data.Functor.Invariant
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.HashMap.Lazy as LazyHashMap
 import Control.Exception
-import Data.Traversable
 
 import Control.Monad
 import Data.Bits
@@ -199,6 +197,11 @@ import Data.Char
 
 #if !MIN_VERSION_base(4,6,0)
 import Prelude hiding (catch)
+#endif
+
+#if !MIN_VERSION_base(4,8,0)
+import Control.Applicative
+import Data.Traversable
 #endif
 
 import qualified Text.PrettyPrint.HughesPJ as P
