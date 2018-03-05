@@ -1303,6 +1303,8 @@ arrayWithModeOf mode valuedef = ArrayUnjsonDef Nothing mode pure id valuedef
 -- | Declare array of primitive values lifed from 'Aeson'. Accepts
 -- mode specifier.
 --
+-- @since 0.15.1.0
+--
 -- Example:
 --
 -- > unjsonArrayOfIntOrSimpleInt :: UnjsonDef [Int]

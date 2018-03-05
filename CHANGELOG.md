@@ -1,5 +1,6 @@
-# unjson-0.15.0.1 (2018-03-??)
+# unjson-0.15.1.0 (2018-03-05)
 * -Wall police.
+* API addition: arrayWithModeOf'.
 
 # unjson-0.15.0.0 (2018-02-22)
 * Breaking change: Unjson definitions now require the underlying types
