@@ -1,5 +1,5 @@
 {-# LANGUAGE CPP #-}
-
+{-# OPTIONS_GHC -fno-warn-type-defaults #-}
 module Main where
 
 import qualified Data.Text as Text
@@ -7,12 +7,9 @@ import qualified Data.ByteString.Lazy.Char8 as BSL
 import Data.Int
 import Data.Typeable
 import Data.Unjson
-import Control.Applicative
 import qualified Data.Aeson as Aeson
 import Data.Aeson ((.=))
-import Control.Exception
 import Test.HUnit
-import Data.Monoid
 import Data.List
 import Data.Data
 import Data.Functor.Invariant
@@ -24,6 +21,11 @@ import System.Exit (ExitCode (..), exitWith)
 
 #if !MIN_VERSION_base(4,6,0)
 import Prelude hiding (catch)
+#endif
+
+#if !MIN_VERSION_base(4,8,0)
+import Control.Applicative
+import Data.Monoid
 #endif
 
 default (Text.Text, String, Int, Double)
@@ -95,7 +97,7 @@ test_proper_parse :: Test
 test_proper_parse = "Proper parsing of a complex structure" ~: do
   let json = Aeson.object
                [ "hostname" .= "www.example.com"
-               , "comment" .= "nice server"
+               , "comment"  .= "nice server"
                , "credentials" .= Aeson.object
                    [ "username" .= "usr1"
                    , "password" .= "pass1"
@@ -155,13 +157,13 @@ test_missing_key = "Key missing" ~: do
                            "Enveloped Konfig"
                            unjsonKonfig
   do
-       let Result val iss = parse unjsonEnvelope json
+       let Result _val iss = parse unjsonEnvelope json
        assertEqual "There is one issue in parsing" [Anchored (Path [ PathElemKey "payload"
                                                                    , PathElemKey "credentials"
                                                                    , PathElemKey "password"
                                                                    ]) "missing key"] iss
   do
-       let Result val iss = parse unjsonKonfig json1
+       let Result _val iss = parse unjsonKonfig json1
        assertEqual "There is one issue in parsing" [Anchored (Path [ PathElemKey "credentials"
                                                                    , PathElemKey "password"
                                                                    ]) "missing key"] iss
@@ -177,7 +179,7 @@ test_wrong_value_type = "Value at key is wrong type" ~: do
                , "int32" .= 999
                ]
 
-  let Result val iss = parse unjsonKonfig json
+  let Result _val iss = parse unjsonKonfig json
   assertEqual "Number of issues in parsing" 3 (length iss)
   assertEqual "Hostname must be string error info is present"
                 (Anchored (Path [ PathElemKey "hostname"
@@ -204,19 +206,19 @@ test_tuple_parsing = "Tuple parsing" ~: do
   assertEqual "Second element of tuple" "port" val2
   assertEqual "Third element of tuple" 123 val3
 
-  let Result (_ :: (String, Text.Text, Int, Int)) iss = parse unjsonDef json
+  let Result (_ :: (String, Text.Text, Int, Int)) iss' = parse unjsonDef json
   assertEqual "Issue in parsing" [Anchored mempty "cannot parse array of length 3 into tuple of size 4"
-                                 ,Anchored (Path [PathElemIndex 3]) "missing key"] iss
+                                 ,Anchored (Path [PathElemIndex 3]) "missing key"] iss'
 
-  let Result (_ :: (Integer, Integer, Text.Text)) iss = parse unjsonDef json
+  let Result (_ :: (Integer, Integer, Text.Text)) iss'' = parse unjsonDef json
   assertEqual "Issues in parsing"
                 [ Anchored (Path [PathElemIndex 0]) "expected Integer, encountered String"
                 , Anchored (Path [PathElemIndex 1]) "expected Integer, encountered String"
                 , Anchored (Path [PathElemIndex 2]) "expected Text, encountered Number"
-                ] iss
+                ] iss''
 
-  let Result (_ :: (String, Text.Text)) iss = parse unjsonDef json
-  assertEqual "Array too long for 2-tuple" [Anchored mempty "cannot parse array of length 3 into tuple of size 2"] iss
+  let Result (_ :: (String, Text.Text)) iss''' = parse unjsonDef json
+  assertEqual "Array too long for 2-tuple" [Anchored mempty "cannot parse array of length 3 into tuple of size 2"] iss'''
 
   return ()
 
@@ -233,7 +235,7 @@ test_symmetry_of_serialization = "Key missing" ~: do
                }
 
   let json = unjsonToJSON unjsonKonfig expect
-  let Result val iss = parse unjsonKonfig json
+  let Result val _iss = parse unjsonKonfig json
   assertEqual "Serialize-parse produces no problems" expect val
   assertEqual "Serialize-parse is identity" expect val
   return ()
@@ -383,13 +385,13 @@ test_parse_either_field = "test_parse_either_field" ~: do
                  [ "text_value" .= False
                  , "numerical_value" .= 12345
                  ]
-    let Result val iss = parse unjsonEitherIntText json
+    let Result _val iss = parse unjsonEitherIntText json
     assertEqual "Problem when mode is missing" [Anchored (Path [PathElemKey "mode"]) "missing key"] iss
   do
     let json = Aeson.object
                  [ "mode" .= "something else"
                  ]
-    let Result val iss = parse unjsonEitherIntText json
+    let Result _val iss = parse unjsonEitherIntText json
     assertEqual "Problem when mode is missing" [Anchored (Path [PathElemKey "mode"]) "value 'something else' is not one of the allowed for enumeration [number,text]"] iss
   do
     let json = Aeson.object
@@ -433,7 +435,7 @@ test_enum_field = "test_enum_field" ~: do
     let json = Aeson.object
                  [ "mode" .= "wrong"
                  ]
-    let Result val iss = parse unjsonEnumAB json
+    let Result _val iss = parse unjsonEnumAB json
     assertEqual "No problems" [Anchored (Path [PathElemKey "mode"]) "value 'wrong' is not one of the allowed for enumeration [A,B]"] iss
 
 
@@ -463,7 +465,7 @@ test_auto_enum_field = "test_auto_enum_field" ~: do
     let json = Aeson.object
                  [ "AutoAB" .= "wrong"
                  ]
-    let Result val iss = parse unjsonAutoEnumAB json
+    let Result _val iss = parse unjsonAutoEnumAB json
     assertEqual "No problems" [Anchored (Path [PathElemKey "AutoAB"]) "value 'wrong' is not one of the allowed for enumeration [AutoA,AutoB]"] iss
     
 
@@ -513,12 +515,13 @@ test_update_from_serialization_with_reset_to_default = "test_update_from_seriali
                , konfigOptions = []
                , konfigInt32 = 0
                }
-  let expect = Konfig
+  let _expect = Konfig
                { konfigHostname = "www.example.com"
                , konfigPort = 80
                , konfigComment = Nothing
                , konfigCredentials = Credentials "usr1" "pass1" (Nothing)
-               , konfigAlternates = Just ("abc", Credentials "usrx" "passx" Nothing)
+               , konfigAlternates = Just ("abc"
+                                         , Credentials "usrx" "passx" Nothing)
                , konfigOptions = []
                , konfigInt32 = 256
                }
@@ -565,7 +568,7 @@ test_array_modes = "test_array_modes" ~: do
          <*> fieldBy "hostname" id
                  "Single value or array"
                  (arrayWithModeOf ArrayModeParseAndOutputSingle unjsonDef)
-  let Result val0 iss0 = parse p0 json
+  let Result _val0 iss0 = parse p0 json
   assertEqual "Does not parse value in strict array mode"
     [Anchored (Path [PathElemKey "hostname"])
       "Error in $: expected Vector a, encountered String"] iss0
@@ -726,7 +729,7 @@ test_plain_unions = "test_maps" ~: do
                [ "key1" .= (123 :: Int)
                ]
 
-  let Result val3 iss3 = parse unjsonPlainUnion json3
+  let Result _val3 iss3 = parse unjsonPlainUnion json3
   assertEqual "Cannot parse PlainUnionA" [Anchored (Path [PathElemKey "key1"]) "expected String, encountered Number"] iss3
 
 
@@ -819,7 +822,7 @@ updateExampleRendering :: IO ()
 updateExampleRendering = do
   contents <- readFile "src/Data/Unjson.hs"
   let (before,exampleAndRest) = break (=="-- Example rendering:") (lines contents)
-      (example,after) = break ("render ::" `isPrefixOf`) exampleAndRest
+      (_example,after) = break ("render ::" `isPrefixOf`) exampleAndRest
   _ <- return $! length after
   writeFile "src/Data/Unjson.hs"
      (unlines (before ++ ["-- Example rendering:", "--"] ++
@@ -834,7 +837,7 @@ filterOutAnsi (c : rest)  = c : filterOutAnsi rest
 
 filterOutAnsiTillEndOfMulticharSequence :: String -> String
 filterOutAnsiTillEndOfMulticharSequence (c : rest) | c >= '@' = filterOutAnsi rest
-filterOutAnsiTillEndOfMulticharSequence (c : rest) =
+filterOutAnsiTillEndOfMulticharSequence (_c : rest) =
   filterOutAnsiTillEndOfMulticharSequence rest
 filterOutAnsiTillEndOfMulticharSequence [] = []
 
