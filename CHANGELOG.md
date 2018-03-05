@@ -1,3 +1,6 @@
+# unjson-0.15.0.1 (2018-03-??)
+* -Wall police.
+
 # unjson-0.15.0.0 (2018-02-22)
 * Breaking change: Unjson definitions now require the underlying types
   to have Typeable instances ([#6](https://github.com/scrive/unjson/pull/6)).

@@ -1,3 +1,4 @@
+
 {-# LANGUAGE CPP #-}
 #if __GLASGOW_HASKELL__ < 710
 {-# LANGUAGE OverlappingInstances #-}
@@ -116,6 +117,7 @@ module Data.Unjson
 -- ** Arrays
 , arrayOf
 , arrayWithModeOf
+, arrayWithModeOf'
 , arrayWithPrimaryKeyOf
 , arrayWithModeAndPrimaryKeyOf
 , ArrayMode(..)
@@ -152,12 +154,10 @@ module Data.Unjson
 where
 
 import qualified Data.Aeson as Aeson
-import qualified Data.Aeson.Text as Aeson
 import qualified Data.Aeson.Types as Aeson
 import qualified Data.ByteString.Lazy as BSL
 import qualified Data.ByteString.Lazy.Builder as Builder
 import qualified Data.Text as Text
-import qualified Data.Text.Encoding as Text
 import qualified Data.Text.Lazy as LazyText
 import qualified Data.Vector as Vector
 import qualified Data.Vector.Storable
@@ -179,7 +179,6 @@ import Data.Scientific
 import Data.Time.LocalTime
 import Data.Time.Clock
 import Data.Fixed
-import Data.Tree
 import Foreign.Storable
 import Control.Applicative
 import Control.Applicative.Free
@@ -646,12 +645,12 @@ data TupleFieldDef s a where
   TupleFieldDef :: Int -> (s -> a) -> UnjsonDef a -> TupleFieldDef s a
 
 tupleDefToArray :: (forall b . UnjsonDef b -> b -> v) -> s -> Ap (TupleFieldDef s) a -> [v]
-tupleDefToArray sx _ (Pure _) = []
-tupleDefToArray sx s (Ap (TupleFieldDef _ f d) r) =  (sx d (f s)) : tupleDefToArray sx s r
+tupleDefToArray _sx _ (Pure _) = []
+tupleDefToArray  sx s (Ap (TupleFieldDef _ f d) r) =  (sx d (f s)) : tupleDefToArray sx s r
 
 
 objectDefToArray :: Bool -> (forall b . UnjsonDef b -> b -> v) -> s -> Ap (FieldDef s) a -> [(Text.Text,v)]
-objectDefToArray _ sx _ (Pure _) = []
+objectDefToArray _ _sx _ (Pure _) = []
 objectDefToArray explicitNulls sx s (Ap (FieldReqDef key _ f d) r) = (key,sx d (f s)) : objectDefToArray explicitNulls sx s r
 objectDefToArray explicitNulls sx s (Ap (FieldOptDef key _ f d) r) =
   case f s of
@@ -691,7 +690,7 @@ unjsonToJSON = unjsonToJSON' (Options { pretty = False, indent = 4, nulls = Fals
 --
 unjsonToJSON' :: Options -> UnjsonDef a -> a -> Aeson.Value
 unjsonToJSON' _ (SimpleUnjsonDef _ _ g) a = g a
-unjsonToJSON' opt (ArrayUnjsonDef _ m g k f) a =
+unjsonToJSON' opt (ArrayUnjsonDef _ m _g k f) a =
   case (m, k a) of
     (ArrayModeParseAndOutputSingle,[b]) -> unjsonToJSON' opt f b
     (_,c) -> Aeson.toJSON (map (unjsonToJSON' opt f) c)
@@ -733,7 +732,7 @@ unjsonToByteStringLazy' opt ud a = Builder.toLazyByteString (unjsonToByteStringB
 
 
 unjsonGroup :: Int -> Options -> Builder.Builder -> Builder.Builder -> (a -> Builder.Builder) -> [a] -> Builder.Builder
-unjsonGroup level _ open close _peritem [] =
+unjsonGroup _level _ open close _peritem [] =
   mconcat $ [open, close]
 unjsonGroup level opt open close peritem items =
   mconcat $ [open, newline] ++ intersperse (Builder.char8 ',' <> newline) (map ((idnt2 <>) . peritem) items) ++ [newline, idnt, close]
@@ -764,8 +763,8 @@ unjsonToByteStringBuilder = unjsonToByteStringBuilder' (Options { pretty = False
 -- 'Builder.Builder'. Useful when JSON serialization is
 -- a part of a bigger serialization function.
 unjsonToByteStringBuilder'' :: Int -> Options -> UnjsonDef a -> a -> Builder.Builder
-unjsonToByteStringBuilder'' level opt (SimpleUnjsonDef _ _ g) a = Builder.lazyByteString (Aeson.encode (g a))
-unjsonToByteStringBuilder'' level opt (ArrayUnjsonDef _ m g k f) a =
+unjsonToByteStringBuilder'' _level _opt (SimpleUnjsonDef _ _ g) a = Builder.lazyByteString (Aeson.encode (g a))
+unjsonToByteStringBuilder''  level  opt (ArrayUnjsonDef _ m _g k f) a =
   case (m, k a) of
     (ArrayModeParseAndOutputSingle,[b]) -> unjsonToByteStringBuilder'' level opt f b
     (_,c) -> unjsonGroup level opt (Builder.char8 '[') (Builder.char8 ']') (unjsonToByteStringBuilder'' (level+indent opt) opt f) c
@@ -839,15 +838,15 @@ parseUpdating :: UnjsonDef a -> Maybe a -> Aeson.Value -> Result a
 parseUpdating (SimpleUnjsonDef _ f _) _ov v = f v
 parseUpdating (ArrayUnjsonDef (Just (PrimaryKeyExtraction pk_from_object pk_from_json)) m g k f) (Just ov) v
   = case Aeson.parseEither Aeson.parseJSON v of
-      Right v -> join $ fmap g $
-        sequenceA (zipWith (\v i -> lookupObjectByJson v >>= \ov -> (resultPrependIndex i $ parseUpdating f ov v))
-                                    (Vector.toList v) [0..])
+      Right v' -> join $ fmap g $
+        sequenceA (zipWith (\v'' i -> lookupObjectByJson v'' >>= \ov' -> (resultPrependIndex i $ parseUpdating f ov' v''))
+                                    (Vector.toList v') [0..])
       Left e -> case m of
           ArrayModeStrict ->
             fail e
           _ -> join $ fmap g $
-            sequenceA [lookupObjectByJson v >>= \ov ->
-                                        parseUpdating f ov
+            sequenceA [lookupObjectByJson v >>= \ov' ->
+                                        parseUpdating f ov'
                                         v]
   where
     -- Note: Map.fromList is right-biased, so that Map.fromList [(1,1),(1,2)] is [(1,2)]
@@ -855,10 +854,10 @@ parseUpdating (ArrayUnjsonDef (Just (PrimaryKeyExtraction pk_from_object pk_from
     objectMap = Map.fromListWith (flip const) (map (\o -> (pk_from_object o, o)) (k ov))
     lookupObjectByJson js = parseUpdating pk_from_json Nothing js >>= \val -> return (Map.lookup val objectMap)
 
-parseUpdating (ArrayUnjsonDef _ m g k f) _ov v
+parseUpdating (ArrayUnjsonDef _ m g _k f) _ov v
   = case Aeson.parseEither Aeson.parseJSON v of
-      Right v -> join $ fmap g $
-        sequenceA (zipWith (\v i -> resultPrependIndex i $ parseUpdating f Nothing v) (Vector.toList v) [0..])
+      Right v' -> join $ fmap g $
+        sequenceA (zipWith (\v'' i -> resultPrependIndex i $ parseUpdating f Nothing v'') (Vector.toList v') [0..])
       Left e -> case m of
           ArrayModeStrict ->
             fail e
@@ -867,17 +866,17 @@ parseUpdating (ArrayUnjsonDef _ m g k f) _ov v
 
 parseUpdating (ObjectUnjsonDef f) ov v
   = case Aeson.parseEither Aeson.parseJSON v of
-      Right v ->
-        join (runAp (lookupByFieldDef v ov) f)
+      Right v' ->
+        join (runAp (lookupByFieldDef v' ov) f)
       Left e ->
         fail e
 
 parseUpdating (TupleUnjsonDef f) ov v
   = case Aeson.parseEither Aeson.parseJSON v of
-      Right v ->
-        let r@(Result g h) = runAp (lookupByTupleFieldDef v ov) f
+      Right v' ->
+        let r@(Result g h) = runAp (lookupByTupleFieldDef v' ov) f
             tupleSize = countAp 0 f
-            arrayLength = Vector.length v
+            arrayLength = Vector.length v'
         in if tupleSize == arrayLength
              then join r
              else join $ Result g ([Anchored mempty ("cannot parse array of length " <> Text.pack (show arrayLength) <>
@@ -887,10 +886,10 @@ parseUpdating (TupleUnjsonDef f) ov v
 
 parseUpdating (DisjointUnjsonDef k l) ov v
   = case Aeson.parseEither Aeson.parseJSON v of
-      Right v -> case HashMap.lookup k v of
+      Right v' -> case HashMap.lookup k v' of
         Just x -> case Aeson.parseEither Aeson.parseJSON x of
           Right xx -> case filter (\(nm,_,_) -> nm==xx) l of
-            [(_,_,f)] -> join (runAp (lookupByFieldDef v ov) f)
+            [(_,_,f)] -> join (runAp (lookupByFieldDef v' ov) f)
             _ ->
               resultPrependKey k $ fail $ "value '" ++ Text.unpack xx ++ "' is not one of the allowed for enumeration [" ++ intercalate "," (map (\(a,_,_) -> Text.unpack a) l) ++ "]"
           Left e ->
@@ -902,16 +901,16 @@ parseUpdating (DisjointUnjsonDef k l) ov v
         fail e
 parseUpdating (UnionUnjsonDef l) ov v
   = case Aeson.parseEither Aeson.parseJSON v of
-      Right v -> case filter (\(_,f) -> isJust (mapM_ (\k -> HashMap.lookup k v) (listRequiredKeys f))) l of
-        ((_,f):_) -> join (runAp (lookupByFieldDef v ov) f)
+      Right v' -> case filter (\(_,f) -> isJust (mapM_ (\k -> HashMap.lookup k v') (listRequiredKeys f))) l of
+        ((_,f):_) -> join (runAp (lookupByFieldDef v' ov) f)
         _ -> fail $ "union value type could not be recognized based on presence of keys"
       Left e ->
         fail e
 parseUpdating (MapUnjsonDef f g h) ov v
   = case Aeson.parseEither Aeson.parseJSON v of
-      Right v ->
+      Right v' ->
         let hov = fmap h ov in
-        join $ fmap g $ HashMap.traverseWithKey (\k1 v1 -> resultPrependKey k1 $ parseUpdating f (join (fmap (HashMap.lookup k1) hov)) v1) v
+        join $ fmap g $ HashMap.traverseWithKey (\k1 v1 -> resultPrependKey k1 $ parseUpdating f (join (fmap (HashMap.lookup k1) hov)) v1) v'
       Left e ->
         fail e
 
@@ -978,20 +977,20 @@ update :: a -> UnjsonDef a -> Aeson.Value -> Result a
 update a vd = parseUpdating vd (Just a)
 
 lookupByFieldDef :: Aeson.Object -> Maybe s -> FieldDef s a -> Result a
-lookupByFieldDef v ov (FieldReqDef name docstring f valuedef)
+lookupByFieldDef v ov (FieldReqDef name _docstring f valuedef)
   = resultPrependKey name $ case HashMap.lookup name v of
       Just x  -> parseUpdating valuedef (fmap f ov) x
       Nothing -> case ov of
                    Just xov -> Result (f xov) []
                    Nothing -> fail "missing key"
-lookupByFieldDef v ov (FieldDefDef name docstring def f valuedef)
+lookupByFieldDef v ov (FieldDefDef name _docstring def f valuedef)
   = resultPrependKey name $ case HashMap.lookup name v of
       Just Aeson.Null -> Result def []
       Just x  -> parseUpdating valuedef (fmap f ov) x
       Nothing -> case ov of
                    Just xov -> Result (f xov) []
                    Nothing -> Result def []
-lookupByFieldDef v ov (FieldOptDef name docstring f valuedef)
+lookupByFieldDef v ov (FieldOptDef name _docstring f valuedef)
   = resultPrependKey name $ case HashMap.lookup name v of
       Just Aeson.Null -> Result Nothing []
       Just x  -> case ov of
@@ -1000,7 +999,7 @@ lookupByFieldDef v ov (FieldOptDef name docstring f valuedef)
       Nothing -> case ov of
                    Just xov -> Result (f xov) []
                    Nothing -> Result Nothing []
-lookupByFieldDef _ _ (FieldRODef name docstring f valuedef) = Result () []
+lookupByFieldDef _ _ (FieldRODef _name _docstring _f _valuedef) = Result () []
 
 
 lookupByTupleFieldDef :: Aeson.Array -> Maybe s -> TupleFieldDef s a -> Result a
@@ -1480,7 +1479,7 @@ renderForPath path def = fmap P.render (renderDocForPath path def)
 -- for example.
 renderDoc :: UnjsonDef a -> P.Doc
 renderDoc (SimpleUnjsonDef doc _ _) = P.text (ansiDimmed ++ Text.unpack doc ++ ansiReset)
-renderDoc (ArrayUnjsonDef _ _m g k f) = P.text (ansiDimmed ++ "array of" ++ ansiReset ++ ":") P.$+$
+renderDoc (ArrayUnjsonDef _ _m _g _k f) = P.text (ansiDimmed ++ "array of" ++ ansiReset ++ ":") P.$+$
              P.nest 4 (renderDoc f)
 renderDoc (MapUnjsonDef f _ _) = P.text (ansiDimmed ++ "map of" ++ ansiReset ++ ":") P.$+$
              P.nest 4 (renderDoc f)
@@ -1491,7 +1490,7 @@ renderDoc (TupleUnjsonDef f) = P.text (ansiDimmed ++ "tuple of size " ++ show (c
 renderDoc (DisjointUnjsonDef k z) = P.text (ansiDimmed ++ "disjoint union based on key:" ++ ansiReset) P.$+$
   P.vcat [P.text (ansiBold ++ Text.unpack k ++ ": " ++ Text.unpack l ++ ansiReset) P.$+$ P.nest 4 (P.vcat (renderFields f)) | (l,_,f) <- z]
 renderDoc (UnionUnjsonDef z) = P.text (ansiDimmed ++ "plain union based on presence of required keys:" ++ ansiReset) P.$+$
-  P.vcat [P.text (ansiBold ++ "case " ++ show i ++ ":" ++ ansiReset) P.$+$ P.nest 4 (P.vcat (renderFields f)) | ((_,f),i) <- zip z [1..]]
+  P.vcat [P.text (ansiBold ++ "case " ++ show (i::Int) ++ ":" ++ ansiReset) P.$+$ P.nest 4 (P.vcat (renderFields f)) | ((_,f),i) <- zip z [1..]]
 
 -- | Render only selected part of structure documentation as
 -- 'P.Doc'. Path should point to a subtree, if it does not then
