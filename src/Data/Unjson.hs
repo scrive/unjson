@@ -321,7 +321,7 @@ class Unjson a where
 instance {-# OVERLAPPABLE #-} (Unjson a, Typeable a) => Unjson [a] where
   unjsonDef = arrayOf unjsonDef
 
-instance {-# INCOHERENT #-} Unjson String where
+instance Unjson String where
   unjsonDef = unjsonAesonWithDoc "String"
 
 instance Unjson Bool             where unjsonDef = unjsonAeson
