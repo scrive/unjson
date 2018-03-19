@@ -157,18 +157,19 @@ import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Types as Aeson
 import qualified Data.ByteString.Lazy as BSL
 import qualified Data.ByteString.Lazy.Builder as Builder
+import qualified Data.HashSet as HashSet
+import qualified Data.IntMap as IntMap
+import qualified Data.IntSet as IntSet
+import qualified Data.Map as Map
+import qualified Data.Semigroup as SG
+import qualified Data.Set as Set
 import qualified Data.Text as Text
 import qualified Data.Text.Lazy as LazyText
 import qualified Data.Vector as Vector
+import qualified Data.Vector.Generic
+import qualified Data.Vector.Primitive
 import qualified Data.Vector.Storable
 import qualified Data.Vector.Unboxed
-import qualified Data.Vector.Primitive
-import qualified Data.Vector.Generic
-import qualified Data.Map as Map
-import qualified Data.Set as Set
-import qualified Data.IntMap as IntMap
-import qualified Data.IntSet as IntSet
-import qualified Data.HashSet as HashSet
 import Data.Typeable
 import Data.Data
 import Data.Maybe
@@ -218,7 +219,7 @@ data PathElem = PathElemKey Text.Text
 -- indexes into \"key\", then into \"key2\" then into index 34 of an
 -- array.
 newtype Path = Path [PathElem]
-  deriving (Eq, Ord, Typeable, Monoid)
+  deriving (Eq, Ord, Typeable, SG.Semigroup, Monoid)
 
 instance Show Path where
   show (Path p) = Text.unpack (showPath True p)

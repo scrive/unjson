@@ -1,3 +1,6 @@
+# unjson-0.15.2.0 (2018-03-18)
+* GHC 8.4.1 support.
+
 # unjson-0.15.1.0 (2018-03-05)
 * -Wall police.
 * API addition: arrayWithModeOf'.
