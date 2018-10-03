@@ -1197,8 +1197,8 @@ mapOf def = MapUnjsonDef def pure id
 -- >              ("b_thing", unjsonIsConstrByName "B",
 -- >               pure B <*> field "string" "An int value")]
 --
--- Note that each case in list must be able to discriminate between
--- constructors in a data type and ti has to be able to this both
+-- Note that each case in the list must be able to discriminate between
+-- constructors in a data type and it has to be able to this both
 -- ways: to find out based on json contents which constructor applies
 -- and also based on data contructor which of serialization cases to
 -- use.
@@ -1226,8 +1226,8 @@ disjointUnionOf key alternates =
 -- >              (unjsonIsConstrByName "B",
 -- >               pure B <*> field "int" "An int value")]
 --
--- Note that each case in list must be able to discriminate between
--- constructors in a data type and ti has to be able to this both
+-- Note that each case in the list must be able to discriminate between
+-- constructors in a data type and it has to be able to this both
 -- ways: to find out based on json contents which constructor applies
 -- and also based on data contructor which of serialization cases to
 -- use. To know what constructor to use at parsing time unjson looks
