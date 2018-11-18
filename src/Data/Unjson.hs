@@ -173,7 +173,7 @@ import qualified Data.Vector.Unboxed
 import Data.Typeable
 import Data.Data
 import Data.Maybe
-import Data.Monoid
+import Data.Monoid hiding (Ap)
 import Data.Primitive.Types
 import Data.Hashable
 import Data.Scientific
