@@ -61,10 +61,10 @@
 --
 -- Parsing:
 --
--- > let Result val iss = parse unjsonExample (Anchored mempty $
--- >                                 object [ "name" .= 123,
--- >                                          "array_of_ints" .= [toJSON 123, toJSON "abc"],
--- >                                          "optional_bool" .= True ])
+-- > let Result val iss = parse unjsonExample $
+-- >                      object [ "name"          .= 123
+-- >                             , "array_of_ints" .= [toJSON 123, toJSON "abc"]
+-- >                             , "optional_bool" .= True ]
 --
 -- Error reporting:
 --
@@ -924,7 +924,7 @@ parseUpdating (MapUnjsonDef f g h) ov v
 -- Example:
 --
 -- > let json = Aeson.object [ ... ]
--- > let Result val iss = parse unjsonThing (Anchored [] json)
+-- > let Result val iss = parse unjsonThing json
 -- > if null iss
 -- >   then putStrLn ("Parsed: " ++ show val)
 -- >   else putStrLn ("Not parsed, issues: " ++ show iss)
