@@ -38,7 +38,7 @@
 -- >   <*> fieldDefBy "array_of_ints" []
 -- >           exampleArray
 -- >           "Array of integers, optional, defaults to empty list"
--- >           arrayOf
+-- >           (arrayOf unjsonDef)
 -- >   <*> fieldOpt "optional_bool"
 -- >           exampleOptional
 -- >           "Optional boolean"
