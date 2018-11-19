@@ -1,5 +1,12 @@
+# unjson-0.15.2.1 (2018-11-19)
+* GHC 8.6 support ([#12](https://github.com/scrive/unjson/pull/12)).
+* Documentation fixes
+  ([#11](https://github.com/scrive/unjson/issues/11),
+  [#13](https://github.com/scrive/unjson/issues/13),
+  [#14](https://github.com/scrive/unjson/issues/14)).
+
 # unjson-0.15.2.0 (2018-03-18)
-* GHC 8.4.1 support.
+* GHC 8.4 support.
 
 # unjson-0.15.1.0 (2018-03-05)
 * -Wall police.
