@@ -183,13 +183,13 @@ test_wrong_value_type = "Value at key is wrong type" ~: do
   assertEqual "Number of issues in parsing" 3 (length iss)
   assertEqual "Hostname must be string error info is present"
                 (Anchored (Path [ PathElemKey "hostname"
-                                ]) "expected Text, encountered Number") (iss!!0)
+                                ]) "parsing Text failed, expected String, but encountered Number") (iss!!0)
   assertEqual "Port must be number error info is present"
                 (Anchored (Path [ PathElemKey "port"
-                                ]) "expected Integer, encountered Object") (iss!!1)
+                                ]) "parsing Integer failed, expected Number, but encountered Object") (iss!!1)
   assertEqual "Credentials must be object error info is present"
                 (Anchored (Path [ PathElemKey "credentials"
-                                ]) "Error in $: expected HashMap ~Text v, encountered String") (iss!!2)
+                                ]) "Error in $: parsing HashMap ~Text failed, expected Object, but encountered String") (iss!!2)
   return ()
 
 test_tuple_parsing :: Test
@@ -212,9 +212,9 @@ test_tuple_parsing = "Tuple parsing" ~: do
 
   let Result (_ :: (Integer, Integer, Text.Text)) iss'' = parse unjsonDef json
   assertEqual "Issues in parsing"
-                [ Anchored (Path [PathElemIndex 0]) "expected Integer, encountered String"
-                , Anchored (Path [PathElemIndex 1]) "expected Integer, encountered String"
-                , Anchored (Path [PathElemIndex 2]) "expected Text, encountered Number"
+                [ Anchored (Path [PathElemIndex 0]) "parsing Integer failed, expected Number, but encountered String"
+                , Anchored (Path [PathElemIndex 1]) "parsing Integer failed, expected Number, but encountered String"
+                , Anchored (Path [PathElemIndex 2]) "parsing Text failed, expected String, but encountered Number"
                 ] iss''
 
   let Result (_ :: (String, Text.Text)) iss''' = parse unjsonDef json
@@ -541,7 +541,7 @@ test_update_from_serialization_with_reset_to_default = "test_update_from_seriali
                ]
   let Result _ iss = update initial unjsonKonfig json
   assertEqual "Cannot reset mandatory field without default"
-                [Anchored (Path [PathElemKey "hostname"]) "expected Text, encountered Null"] iss
+                [Anchored (Path [PathElemKey "hostname"]) "parsing Text failed, expected String, but encountered Null"] iss
   return ()
 
 test_array_modes :: Test
@@ -571,7 +571,7 @@ test_array_modes = "test_array_modes" ~: do
   let Result _val0 iss0 = parse p0 json
   assertEqual "Does not parse value in strict array mode"
     [Anchored (Path [PathElemKey "hostname"])
-      "Error in $: expected Vector a, encountered String"] iss0
+      "Error in $: parsing Vector failed, expected Array, but encountered String"] iss0
   let Result val1 iss1 = parse p1 json
   assertEqual "No problems" [] iss1
   assertEqual "Accepts singel value in ArrayModeParseSingle" ["www.example.com"] val1
@@ -730,7 +730,7 @@ test_plain_unions = "test_maps" ~: do
                ]
 
   let Result _val3 iss3 = parse unjsonPlainUnion json3
-  assertEqual "Cannot parse PlainUnionA" [Anchored (Path [PathElemKey "key1"]) "expected String, encountered Number"] iss3
+  assertEqual "Cannot parse PlainUnionA" [Anchored (Path [PathElemKey "key1"]) "expected String, but encountered Number"] iss3
 
 
   -- choose PlainUnionB
