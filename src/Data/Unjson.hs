@@ -1,8 +1,4 @@
-
 {-# LANGUAGE CPP #-}
-#if __GLASGOW_HASKELL__ < 710
-{-# LANGUAGE OverlappingInstances #-}
-#endif
 
 -- | @Unjson@: bidirectional JSON (de)serialization with strong error
 -- reporting capabilities and automatic documentation generation.
@@ -197,15 +193,6 @@ import Data.List
 import qualified Text.ParserCombinators.ReadP as ReadP
 import Data.Char
 import Prelude hiding (fail)
-
-#if !MIN_VERSION_base(4,6,0)
-import Prelude hiding (catch)
-#endif
-
-#if !MIN_VERSION_base(4,8,0)
-import Control.Applicative
-import Data.Traversable
-#endif
 
 import qualified Text.PrettyPrint.HughesPJ as P
 
