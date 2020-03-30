@@ -32,7 +32,7 @@ library
   exposed-modules:     Data.Unjson
   -- other-modules:
   -- other-extensions:
-  build-depends:       base >= 4.7 && < 4.14,
+  build-depends:       base >= 4.7 && < 4.15,
                        aeson >= 1.0 && < 1.5,
                        attoparsec,
                        bytestring >= 0.10,
