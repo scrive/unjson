@@ -187,7 +187,8 @@ import qualified Data.HashMap.Strict as HashMap
 import qualified Data.HashMap.Lazy as LazyHashMap
 import Control.Exception
 
-import Control.Monad
+import Control.Monad hiding (fail)
+import Control.Monad.Fail (MonadFail (..))
 import Data.Bits
 import Data.Word
 import Data.Int
@@ -195,6 +196,7 @@ import Data.Ratio
 import Data.List
 import qualified Text.ParserCombinators.ReadP as ReadP
 import Data.Char
+import Prelude hiding (fail)
 
 #if !MIN_VERSION_base(4,6,0)
 import Prelude hiding (catch)
