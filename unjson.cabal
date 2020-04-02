@@ -15,8 +15,7 @@ copyright:           Scrive AB
 category:            Data
 build-type:          Simple
 extra-source-files:  README.md, CHANGELOG.md
-tested-with:         GHC == 8.0.2, GHC == 8.2.2, GHC == 8.4.4, GHC == 8.6.5,
-                     GHC == 8.8.3, GHC == 8.10.1
+tested-with:         GHC ==8.0.2 || ==8.2.2 || ==8.4.4 || ==8.6.5 || ==8.8.3 || ==8.10.1
 
 source-repository head
   type:     git
@@ -31,7 +30,7 @@ library
   exposed-modules:     Data.Unjson
   -- other-modules:
   -- other-extensions:
-  build-depends:       base >= 4.7 && < 4.15,
+  build-depends:       base >= 4.9 && < 4.15,
                        aeson >= 1.0 && < 1.5,
                        attoparsec,
                        bytestring >= 0.10,
