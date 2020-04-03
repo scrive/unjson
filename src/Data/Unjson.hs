@@ -1,8 +1,4 @@
-
 {-# LANGUAGE CPP #-}
-#if __GLASGOW_HASKELL__ < 710
-{-# LANGUAGE OverlappingInstances #-}
-#endif
 
 -- | @Unjson@: bidirectional JSON (de)serialization with strong error
 -- reporting capabilities and automatic documentation generation.
@@ -187,7 +183,8 @@ import qualified Data.HashMap.Strict as HashMap
 import qualified Data.HashMap.Lazy as LazyHashMap
 import Control.Exception
 
-import Control.Monad
+import Control.Monad hiding (fail)
+import Control.Monad.Fail (MonadFail (..))
 import Data.Bits
 import Data.Word
 import Data.Int
@@ -195,15 +192,7 @@ import Data.Ratio
 import Data.List
 import qualified Text.ParserCombinators.ReadP as ReadP
 import Data.Char
-
-#if !MIN_VERSION_base(4,6,0)
-import Prelude hiding (catch)
-#endif
-
-#if !MIN_VERSION_base(4,8,0)
-import Control.Applicative
-import Data.Traversable
-#endif
+import Prelude hiding (fail)
 
 import qualified Text.PrettyPrint.HughesPJ as P
 
@@ -284,6 +273,8 @@ instance Monad Result where
   return = pure
   Result a [] >>= m = m a
   Result _ es@(e:_) >>= _ = Result (throw e) es
+
+instance MonadFail Result where
   fail str = Result (throw anchoredMessage) [anchoredMessage]
     where anchoredMessage = Anchored mempty (Text.pack str)
 
@@ -1478,7 +1469,7 @@ render = P.render . renderDoc
 
 -- | Render only selected part of structure documentation. Path should
 -- point to a subtree, if it does not then Nothing is returned.
-renderForPath :: (Functor m, Monad m) => Path -> UnjsonDef a -> m String
+renderForPath :: (MonadFail m) => Path -> UnjsonDef a -> m String
 renderForPath path def = fmap P.render (renderDocForPath path def)
 
 -- | Renders documentation for a parser into a 'P.Doc'. See 'render'
@@ -1501,7 +1492,7 @@ renderDoc (UnionUnjsonDef z) = P.text (ansiDimmed ++ "plain union based on prese
 -- | Render only selected part of structure documentation as
 -- 'P.Doc'. Path should point to a subtree, if it does not then
 -- Nothing is returned.
-renderDocForPath :: (Monad m) => Path -> UnjsonDef a -> m P.Doc
+renderDocForPath :: (MonadFail m) => Path -> UnjsonDef a -> m P.Doc
 renderDocForPath path def = findNestedUnjson path def
 
 
@@ -1531,20 +1522,20 @@ renderTupleField (TupleFieldDef index _f d) =
   where
     s = renderDoc d
 
-findNestedUnjson :: (Monad m) => Path -> UnjsonDef a -> m P.Doc
+findNestedUnjson :: (MonadFail m) => Path -> UnjsonDef a -> m P.Doc
 findNestedUnjson (Path []) u = return (renderDoc u)
 findNestedUnjson (Path (PathElemIndex n : rest)) (TupleUnjsonDef d) = findNestedTupleUnjson n (Path rest) d
 findNestedUnjson (Path (PathElemIndex _ : rest)) (ArrayUnjsonDef _ _ _ _ d) = findNestedUnjson (Path rest) d
 findNestedUnjson (Path (PathElemKey k : rest)) (ObjectUnjsonDef d) = findNestedFieldUnjson k (Path rest) d
 findNestedUnjson _ _ = fail "cannot find crap"
 
-findNestedTupleUnjson :: (Monad m) => Int -> Path -> Ap (TupleFieldDef s) a -> m P.Doc
+findNestedTupleUnjson :: (MonadFail m) => Int -> Path -> Ap (TupleFieldDef s) a -> m P.Doc
 findNestedTupleUnjson n path (Ap (TupleFieldDef index _f d) _r) | n == index = findNestedUnjson path d
 findNestedTupleUnjson n path (Ap (TupleFieldDef _index _f _d) r) =
   findNestedTupleUnjson n path r
 findNestedTupleUnjson _ _ _ = fail "findNestedTupleUnjson"
 
-findNestedFieldUnjson :: (Monad m) => Text.Text -> Path -> Ap (FieldDef s) a -> m P.Doc
+findNestedFieldUnjson :: (MonadFail m) => Text.Text -> Path -> Ap (FieldDef s) a -> m P.Doc
 findNestedFieldUnjson key (Path []) (Ap f@(FieldReqDef k _ _ _d) _r) | k==key = return (renderField f)
 findNestedFieldUnjson key (Path []) (Ap f@(FieldOptDef k _ _ _d) _r) | k==key = return (renderField f)
 findNestedFieldUnjson key (Path []) (Ap f@(FieldDefDef k _ _ _ _d) _r) | k==key = return (renderField f)
