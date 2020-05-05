@@ -1,3 +1,6 @@
+# unjson-0.15.3 (2020-05-05)
+* GHC 8.8 and 8.10 support
+
 # unjson-0.15.2.1 (2018-11-19)
 * GHC 8.6 support ([#12](https://github.com/scrive/unjson/pull/12)).
 * Documentation fixes

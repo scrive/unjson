@@ -1,6 +1,6 @@
 cabal-version:       1.18
 name:                unjson
-version:             0.15.2.1
+version:             0.15.3
 synopsis:            Bidirectional JSON parsing and generation.
 description:         Bidirectional JSON parsing and generation
                      with automatic documentation support.
