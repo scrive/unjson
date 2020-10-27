@@ -31,7 +31,7 @@ library
   -- other-modules:
   -- other-extensions:
   build-depends:       base >= 4.9 && < 5,
-                       aeson >= 1.0 && < 1.5,
+                       aeson >= 1.0 && < 1.6,
                        attoparsec,
                        bytestring >= 0.10,
                        containers,
