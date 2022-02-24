@@ -1,5 +1,4 @@
 {-# LANGUAGE CPP #-}
-
 -- | @Unjson@: bidirectional JSON (de)serialization with strong error
 -- reporting capabilities and automatic documentation generation.
 --
@@ -84,75 +83,87 @@
 -- 'unjsonToJSON', 'unjsonToByteStringLazy',
 -- 'unjsonToByteStringBuilder' and 'render'.
 module Data.Unjson
-(
--- * Serialization to JSON
-  unjsonToJSON
-, unjsonToJSON'
-, unjsonToByteStringLazy
-, unjsonToByteStringLazy'
-, unjsonToByteStringBuilder
-, unjsonToByteStringBuilder'
-, unjsonToByteStringBuilder''
-, Options(..)
+  ( -- * Serialization to JSON
+    unjsonToJSON
+  , unjsonToJSON'
+  , unjsonToByteStringLazy
+  , unjsonToByteStringLazy'
+  , unjsonToByteStringBuilder
+  , unjsonToByteStringBuilder'
+  , unjsonToByteStringBuilder''
+  , Options(..)
 
--- * Data definitions
-, Unjson(..)
-, UnjsonDef(..)
+  -- * Data definitions
+  , Unjson(..)
+  , UnjsonDef(..)
 
--- ** Objects
-, objectOf
-, field
-, fieldBy
-, fieldOpt
-, fieldOptBy
-, fieldDef
-, fieldDefBy
-, fieldReadonly
-, fieldReadonlyBy
-, FieldDef(..)
--- ** Arrays
-, arrayOf
-, arrayWithModeOf
-, arrayWithModeOf'
-, arrayWithPrimaryKeyOf
-, arrayWithModeAndPrimaryKeyOf
-, ArrayMode(..)
--- ** Maps, enums, sums
-, mapOf
-, enumOf
-, enumUnjsonDef
-, disjointUnionOf
-, unionOf
--- ** Helpers
-, unjsonAeson
-, unjsonAesonWithDoc
+  -- ** Objects
+  , objectOf
+  , field
+  , fieldBy
+  , fieldOpt
+  , fieldOptBy
+  , fieldDef
+  , fieldDefBy
+  , fieldReadonly
+  , fieldReadonlyBy
+  , FieldDef(..)
+  -- ** Arrays
+  , arrayOf
+  , arrayWithModeOf
+  , arrayWithModeOf'
+  , arrayWithPrimaryKeyOf
+  , arrayWithModeAndPrimaryKeyOf
+  , ArrayMode(..)
+  -- ** Maps, enums, sums
+  , mapOf
+  , enumOf
+  , enumUnjsonDef
+  , disjointUnionOf
+  , unionOf
+  -- ** Helpers
+  , unjsonAeson
+  , unjsonAesonWithDoc
 
--- * Documentation rendering
-, render
-, renderForPath
-, renderDoc
-, renderDocForPath
+  -- * Documentation rendering
+  , render
+  , renderForPath
+  , renderDoc
+  , renderDocForPath
 
--- * Parsing and updating
-, parse
-, update
-, Result(..)
-, Anchored(..)
-, Problem
-, Problems
-, Path(..)
-, PathElem(..)
+  -- * Parsing and updating
+  , parse
+  , update
+  , Result(..)
+  , Anchored(..)
+  , Problem
+  , Problems
+  , Path(..)
+  , PathElem(..)
 
-, unjsonInvmapR
-, unjsonIsConstrByName
-, unjsonIPv4AsWord32
-)
-where
+  , unjsonInvmapR
+  , unjsonIsConstrByName
+  , unjsonIPv4AsWord32
+  ) where
 
+import Control.Applicative.Free
+import Control.Exception
+import Control.Monad
+import Data.Data
+import Data.Fixed
+import Data.Functor.Invariant
+import Data.Hashable
+import Data.Maybe
+import Data.Monoid hiding (Ap)
+import Data.Primitive.Types
+import Data.Scientific
+import Data.Time.Clock
+import Data.Time.LocalTime
+import Foreign.Storable
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Types as Aeson
+import qualified Data.ByteString.Builder as Builder
 import qualified Data.ByteString.Lazy as BSL
-import qualified Data.ByteString.Lazy.Builder as Builder
 import qualified Data.HashSet as HashSet
 import qualified Data.IntMap as IntMap
 import qualified Data.IntSet as IntSet
@@ -166,35 +177,20 @@ import qualified Data.Vector.Generic
 import qualified Data.Vector.Primitive
 import qualified Data.Vector.Storable
 import qualified Data.Vector.Unboxed
-import Data.Typeable
-import Data.Data
-import Data.Maybe
-import Data.Monoid hiding (Ap)
-import Data.Primitive.Types
-import Data.Hashable
-import Data.Scientific
-import Data.Time.LocalTime
-import Data.Time.Clock
-import Data.Fixed
-import Foreign.Storable
-import Control.Applicative.Free
-import Data.Functor.Invariant
-import qualified Data.HashMap.Strict as HashMap
-import qualified Data.HashMap.Lazy as LazyHashMap
-import Control.Exception
 
-import Control.Monad hiding (fail)
-import Control.Monad.Fail (MonadFail (..))
 import Data.Bits
-import Data.Word
-import Data.Int
-import Data.Ratio
-import Data.List
-import qualified Text.ParserCombinators.ReadP as ReadP
 import Data.Char
-import Prelude hiding (fail)
-
+import Data.Int
+import Data.List
+import Data.Ratio
+import Data.Word
+import qualified Data.Unjson.Internal.Aeson.Compat as AC
+import qualified Text.ParserCombinators.ReadP as ReadP
 import qualified Text.PrettyPrint.HughesPJ as P
+
+#if !MIN_VERSION_aeson(2,0,1)
+import qualified Data.HashMap.Strict as HashMap
+#endif
 
 -- | Describe a path from root JSON element to a specific
 -- position. JSON has only two types of containers: objects and
@@ -379,27 +375,30 @@ mapFst :: (a -> c) -> (a,b) -> (c,b)
 mapFst f (a,b) = (f a, b)
 
 instance (Typeable v, Unjson v) => Unjson (Map.Map String v)
-  where unjsonDef = invmap (Map.fromList . map (mapFst Text.unpack) . HashMap.toList)
-                                     (HashMap.fromList . map (mapFst Text.pack) . Map.toList)
+  where unjsonDef = invmap (Map.fromList . map (mapFst AC.toString) . AC.toList)
+                                     (AC.fromList . map (mapFst AC.fromString) . Map.toList)
                                      unjsonDef
 instance (Typeable v, Unjson v) => Unjson (Map.Map Text.Text v)
-  where unjsonDef = invmap (Map.fromList . HashMap.toList)
-                                     (HashMap.fromList . Map.toList)
+  where unjsonDef = invmap (Map.fromList . fmap (mapFst AC.toText) . AC.toList)
+                                     (AC.fromList . fmap (mapFst AC.fromText) . Map.toList)
                                      unjsonDef
 instance (Typeable v, Unjson v) => Unjson (Map.Map LazyText.Text v)
-  where unjsonDef = invmap (Map.fromList . map (mapFst LazyText.fromStrict) . HashMap.toList)
-                                     (HashMap.fromList . map (mapFst LazyText.toStrict) . Map.toList)
+  where unjsonDef = invmap (Map.fromList . map (mapFst (LazyText.fromStrict . AC.toText)) . AC.toList)
+                                     (AC.fromList . map (mapFst (AC.fromText . LazyText.toStrict)) . Map.toList)
                                      unjsonDef
+instance (Typeable v, Unjson v) => Unjson (AC.KeyMap v)
+  where unjsonDef = MapUnjsonDef unjsonDef pure id
+
+#if !MIN_VERSION_aeson(2,0,1)
 instance (Typeable v, Unjson v) => Unjson (HashMap.HashMap String v)
   where unjsonDef = invmap (HashMap.fromList . map (mapFst Text.unpack) . HashMap.toList)
                                      (HashMap.fromList . map (mapFst Text.pack) . HashMap.toList)
                                      unjsonDef
-instance (Typeable v, Unjson v) => Unjson (HashMap.HashMap Text.Text v)
-  where unjsonDef = MapUnjsonDef unjsonDef pure id
 instance (Typeable v, Unjson v) => Unjson (HashMap.HashMap LazyText.Text v)
   where unjsonDef = invmap (HashMap.fromList . map (mapFst LazyText.fromStrict) . HashMap.toList)
                                      (HashMap.fromList . map (mapFst LazyText.toStrict) . HashMap.toList)
                                      unjsonDef
+#endif
 
 instance (Unjson a,Unjson b) => Unjson (a,b) where
   unjsonDef = TupleUnjsonDef $ fmap pure
@@ -590,7 +589,7 @@ data UnjsonDef a where
   TupleUnjsonDef    :: Ap (TupleFieldDef k) (Result k) -> UnjsonDef k
   DisjointUnjsonDef :: Text.Text -> [(Text.Text, k -> Bool, Ap (FieldDef k) (Result k))] -> UnjsonDef k
   UnionUnjsonDef    :: [(k -> Bool, Ap (FieldDef k) (Result k))] -> UnjsonDef k
-  MapUnjsonDef      :: Typeable k => UnjsonDef k -> (HashMap.HashMap Text.Text k -> Result v) -> (v -> HashMap.HashMap Text.Text k) -> UnjsonDef v
+  MapUnjsonDef      :: Typeable k => UnjsonDef k -> (AC.KeyMap k -> Result v) -> (v -> AC.KeyMap k) -> UnjsonDef v
 
 instance Invariant UnjsonDef where
   invmap f g (SimpleUnjsonDef name p s) = SimpleUnjsonDef name (fmap f . p) (s . g)
@@ -690,15 +689,15 @@ unjsonToJSON' opt (ArrayUnjsonDef _ m _g k f) a =
     (ArrayModeParseAndOutputSingle,[b]) -> unjsonToJSON' opt f b
     (_,c) -> Aeson.toJSON (map (unjsonToJSON' opt f) c)
 unjsonToJSON' opt (ObjectUnjsonDef f) a =
-  Aeson.object (objectDefToArray (nulls opt) (unjsonToJSON' opt) a f)
+  Aeson.object $ AC.convertPair <$> (objectDefToArray (nulls opt) (unjsonToJSON' opt) a f)
 unjsonToJSON' opt (TupleUnjsonDef f) a =
   Aeson.toJSON (tupleDefToArray (unjsonToJSON' opt) a f)
 unjsonToJSON' opt (DisjointUnjsonDef k l) a =
-  Aeson.object ((k,Aeson.toJSON nm) : objectDefToArray (nulls opt) (unjsonToJSON' opt) a f)
+  Aeson.object $ AC.convertPair <$> ((k,Aeson.toJSON nm) : objectDefToArray (nulls opt) (unjsonToJSON' opt) a f)
   where
     [(nm,_,f)] = filter (\(_,is,_) -> is a) l
 unjsonToJSON' opt (UnionUnjsonDef l) a =
-  Aeson.object (objectDefToArray (nulls opt) (unjsonToJSON' opt) a f)
+  Aeson.object $ AC.convertPair <$> (objectDefToArray (nulls opt) (unjsonToJSON' opt) a f)
   where
     [(_,f)] = filter (\(is,_) -> is a) l
 unjsonToJSON' opt (MapUnjsonDef f _ g) a =
@@ -794,7 +793,7 @@ unjsonToByteStringBuilder'' level opt (UnionUnjsonDef l) a =
 unjsonToByteStringBuilder'' level opt (MapUnjsonDef f _ g) a =
   unjsonGroup level opt (Builder.char8 '{') (Builder.char8 '}') serx obj
   where
-    obj = LazyHashMap.toList (fmap (unjsonToByteStringBuilder'' (level + indent opt) opt f) (g a))
+    obj = AC.toList (fmap (unjsonToByteStringBuilder'' (level + indent opt) opt f) (g a))
     serx (key,val) = Builder.lazyByteString (Aeson.encode (Aeson.toJSON key)) <> Builder.char8 ':'
                      <> (if pretty opt then Builder.char8 ' ' else mempty) <> val
 
@@ -881,7 +880,7 @@ parseUpdating (TupleUnjsonDef f) ov v
 
 parseUpdating (DisjointUnjsonDef k l) ov v
   = case Aeson.parseEither Aeson.parseJSON v of
-      Right v' -> case HashMap.lookup k v' of
+      Right v' -> case AC.lookup (AC.fromText k) v' of
         Just x -> case Aeson.parseEither Aeson.parseJSON x of
           Right xx -> case filter (\(nm,_,_) -> nm==xx) l of
             [(_,_,f)] -> join (runAp (lookupByFieldDef v' ov) f)
@@ -896,7 +895,7 @@ parseUpdating (DisjointUnjsonDef k l) ov v
         fail e
 parseUpdating (UnionUnjsonDef l) ov v
   = case Aeson.parseEither Aeson.parseJSON v of
-      Right v' -> case filter (\(_,f) -> isJust (mapM_ (\k -> HashMap.lookup k v') (listRequiredKeys f))) l of
+      Right v' -> case filter (\(_,f) -> isJust (mapM_ (\k -> AC.lookup (AC.fromText k) v') (listRequiredKeys f))) l of
         ((_,f):_) -> join (runAp (lookupByFieldDef v' ov) f)
         _ -> fail $ "union value type could not be recognized based on presence of keys"
       Left e ->
@@ -905,7 +904,7 @@ parseUpdating (MapUnjsonDef f g h) ov v
   = case Aeson.parseEither Aeson.parseJSON v of
       Right v' ->
         let hov = fmap h ov in
-        join $ fmap g $ HashMap.traverseWithKey (\k1 v1 -> resultPrependKey k1 $ parseUpdating f (join (fmap (HashMap.lookup k1) hov)) v1) v'
+        join $ fmap g $ AC.traverseWithKey (\k1 v1 -> resultPrependKey (AC.toText k1) $ parseUpdating f (join (fmap (AC.lookup k1) hov)) v1) v'
       Left e ->
         fail e
 
@@ -973,20 +972,20 @@ update a vd = parseUpdating vd (Just a)
 
 lookupByFieldDef :: Aeson.Object -> Maybe s -> FieldDef s a -> Result a
 lookupByFieldDef v ov (FieldReqDef name _docstring f valuedef)
-  = resultPrependKey name $ case HashMap.lookup name v of
+  = resultPrependKey name $ case AC.lookup (AC.fromText name) v of
       Just x  -> parseUpdating valuedef (fmap f ov) x
       Nothing -> case ov of
                    Just xov -> Result (f xov) []
                    Nothing -> fail "missing key"
 lookupByFieldDef v ov (FieldDefDef name _docstring def f valuedef)
-  = resultPrependKey name $ case HashMap.lookup name v of
+  = resultPrependKey name $ case AC.lookup (AC.fromText name) v of
       Just Aeson.Null -> Result def []
       Just x  -> parseUpdating valuedef (fmap f ov) x
       Nothing -> case ov of
                    Just xov -> Result (f xov) []
                    Nothing -> Result def []
 lookupByFieldDef v ov (FieldOptDef name _docstring f valuedef)
-  = resultPrependKey name $ case HashMap.lookup name v of
+  = resultPrependKey name $ case AC.lookup (AC.fromText name) v of
       Just Aeson.Null -> Result Nothing []
       Just x  -> case ov of
                    Just xov -> fmap Just (parseUpdating valuedef (f xov) x)
@@ -1168,7 +1167,7 @@ objectOf fields = ObjectUnjsonDef (fmap pure fields)
 -- > objectOf $ pure X
 -- >   <*> field "xmap" xMap
 -- >       "Map string to Y value"
-mapOf :: Typeable x => UnjsonDef x -> UnjsonDef (LazyHashMap.HashMap Text.Text x)
+mapOf :: Typeable x => UnjsonDef x -> UnjsonDef (AC.LazyKeyMap x)
 mapOf def = MapUnjsonDef def pure id
 
 -- | Provide sum type support. Bidirectional case matching in Haskell

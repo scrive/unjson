@@ -1,3 +1,8 @@
+# unjson-0.15.4 (2022-02-26)
+* Add support for aeson >= 2.
+* Add support for GHC 9.0 and 9.2.
+* Drop support for GHC < 8.8.
+
 # unjson-0.15.3 (2020-05-05)
 * GHC 8.8 and 8.10 support
 

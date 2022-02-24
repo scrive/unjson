@@ -2,24 +2,20 @@
 {-# OPTIONS_GHC -fno-warn-type-defaults #-}
 module Main where
 
-import Prelude hiding (fail)
-import qualified Data.Text as Text
-import qualified Data.ByteString.Lazy.Char8 as BSL
-import Data.Int
-import Data.Typeable
-import Data.Unjson
-import qualified Data.Aeson as Aeson
 import Data.Aeson ((.=))
-import Data.List
 import Data.Data
 import Data.Functor.Invariant
-import Control.Monad.Fail (MonadFail(fail))
-import Test.HUnit
-import qualified Data.HashMap.Strict as HashMap
-import qualified Data.HashMap.Lazy as LazyHashMap
-import qualified Data.Map as Map
-
+import Data.Int
+import Data.List
+import Data.Unjson
 import System.Exit (ExitCode (..), exitWith)
+import Test.HUnit
+import qualified Data.Aeson as Aeson
+import qualified Data.ByteString.Lazy.Char8 as BSL
+import qualified Data.Map as Map
+import qualified Data.Text as Text
+
+import qualified Data.Unjson.Internal.Aeson.Compat as AC
 
 default (Text.Text, String, Int, Double)
 
@@ -181,8 +177,10 @@ test_wrong_value_type = "Value at key is wrong type" ~: do
     (Anchored (Path [ PathElemKey "port" ])
     "parsing Integer failed, expected Number, but encountered Object") (iss!!1)
   assertEqual "Credentials must be object error info is present"
-                (Anchored (Path [ PathElemKey "credentials"
-                                ]) "Error in $: parsing HashMap ~Text failed, expected Object, but encountered String") (iss!!2)
+                (Anchored 
+                  (Path [ PathElemKey "credentials" ]) 
+                  AC.testErrorMessage
+                ) (iss!!2)
   return ()
 
 test_tuple_parsing :: Test
@@ -661,7 +659,7 @@ test_maps = "test_maps" ~: do
          <*> field "a_map"
              id
              "The only map"
-  let unjsonMapByExplicit :: (Unjson a, Typeable a) => UnjsonDef (HashMap.HashMap Text.Text a)
+  let unjsonMapByExplicit :: (Unjson a, Typeable a) => UnjsonDef (AC.KeyMap a)
       unjsonMapByExplicit = objectOf $ pure id
          <*> fieldBy "a_map"
              id
@@ -672,10 +670,10 @@ test_maps = "test_maps" ~: do
   assertEqual "Parsing keeps proper order in Data.Map" (Map.fromList [("k1"::String, 12::Int),("k2", 1122), ("a4", 666)]) val0
   let Result val1 iss1 = parse unjsonMapByInstance jsonEmbedded
   assertEqual "No problems" [] iss1
-  assertEqual "Parsing keeps proper order" (HashMap.fromList [("k1"::String, 12::Int),("k2", 1122), ("a4", 666)]) val1
+  assertEqual "Parsing keeps proper order" (AC.fromList [(AC.fromString ("k1" :: String), 12::Int),("k2", 1122), ("a4", 666)]) val1
   let Result val2 iss2 = parse unjsonMapByExplicit jsonEmbedded
   assertEqual "No problems" [] iss2
-  assertEqual "Parsing keeps proper order" (LazyHashMap.fromList [("k1"::Text.Text, 12::Int),("k2", 1122), ("a4", 666)]) val2
+  assertEqual "Parsing keeps proper order" (AC.lazyKeyMapFromList [(AC.fromText ("k1"::Text.Text), 12::Int),("k2", 1122), ("a4", 666)]) val2
   return ()
 
 
